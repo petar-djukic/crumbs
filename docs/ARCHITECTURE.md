@@ -67,6 +67,8 @@ Crumbs have a lifecycle driven by state transitions and trail operations.
 
 **Trail states**: `active` → `completed` or `abandoned`. When a trail completes, all crumbs on the trail become permanent (trail_id cleared). When a trail is abandoned, all crumbs on the trail are deleted or excluded from queries—the exploration failed and you backtrack.
 
+**Trail structure**: Trails form a tree. Each trail is a flat collection of crumbs (all tagged with the same trail_id), but trails can branch—a new trail can deviate from a crumb on an existing trail (recorded via parent_crumb_id). Within a trail, crumbs can have dependency relationships (recorded in the dependencies property), forming a directed acyclic graph. The overall structure is a tree of trails, each containing a DAG of crumbs.
+
 ### Coordination Pattern
 
 Crumbs provides storage, not coordination. Agents or coordination frameworks build claiming, timeouts, and announcements on top of the Cupboard API. We expose async read/write operations; agents add workflow semantics.
