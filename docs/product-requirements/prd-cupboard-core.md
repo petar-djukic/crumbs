@@ -60,6 +60,7 @@ type Cupboard interface {
     Properties() PropertyTable
     Metadata() MetadataTable
     Links() LinkTable
+    Stashes() StashTable
 
     // Lifecycle
     Close() error
@@ -109,6 +110,22 @@ type LinkTable interface {
     GetByFrom(linkType, fromID string) ([]string, error)
     GetByTo(linkType, toID string) ([]string, error)
 }
+
+type StashTable interface {
+    Create(trailID *string, name, stashType string, initialValue any) (*Stash, error)
+    Get(id string) (*Stash, error)
+    GetByName(trailID *string, name string) (*Stash, error)
+    List(trailID *string) ([]*Stash, error)
+    Delete(id string) error
+    Set(id string, value any, changedBy *string) error
+    GetValue(id string) (any, error)
+    Increment(id string, delta int64, changedBy *string) (int64, error)
+    Acquire(id string, holder string, timeout time.Duration) error
+    Release(id string, holder string) error
+    TryAcquire(id string, holder string) (bool, error)
+    GetHistory(id string, limit, offset int) ([]*StashHistoryEntry, error)
+    GetValueAtVersion(id string, version int64) (any, error)
+}
 ```
 
 2.4. Each table interface is defined in its own PRD:
@@ -118,6 +135,7 @@ type LinkTable interface {
 - PropertyTable: prd-properties-interface
 - MetadataTable: prd-metadata-interface
 - LinkTable: prd-sqlite-backend (graph model)
+- StashTable: prd-stash-interface
 
 ### R3: OpenCupboard
 
@@ -204,4 +222,4 @@ func NewDynamoDBBackend(cfg DynamoDBConfig) (Backend, error)
 
 - VISION.md (breadcrumb metaphor, goals, boundaries)
 - prd-sqlite-backend (SQLite backend internals, JSON↔SQLite sync, graph model)
-- prd-crumbs-interface, prd-trails-interface, prd-properties-interface, prd-metadata-interface
+- prd-crumbs-interface, prd-trails-interface, prd-properties-interface, prd-metadata-interface, prd-stash-interface

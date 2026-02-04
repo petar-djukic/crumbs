@@ -55,6 +55,8 @@ We store data as a directed acyclic graph (DAG). Crumbs and trails are nodes; re
 | categories.json | Category definitions for categorical properties |
 | crumb_properties.json | Property values for crumbs |
 | metadata.json | All metadata entries |
+| stashes.json | Stash definitions and current values |
+| stash_history.json | Append-only history of stash changes |
 | cupboard.db | SQLite database (ephemeral cache, regenerated from JSON) |
 
 1.3. If DataDir does not exist, OpenCupboard must create it.
@@ -192,7 +194,59 @@ Link types:
 ]
 ```
 
-2.10. All timestamps must be RFC 3339 format (ISO 8601 with timezone).
+2.10. stashes.json format:
+
+```json
+[
+  {
+    "stash_id": "01945a40-...",
+    "trail_id": "01945a3c-...",
+    "name": "working_directory",
+    "stash_type": "resource",
+    "value": {"uri": "file:///tmp/project-123", "kind": "directory"},
+    "version": 3,
+    "created_at": "2025-01-15T10:30:00Z",
+    "updated_at": "2025-01-15T11:45:00Z"
+  },
+  {
+    "stash_id": "01945a41-...",
+    "trail_id": null,
+    "name": "deploy_lock",
+    "stash_type": "lock",
+    "value": {"holder": "crumb-789", "acquired_at": "2025-01-15T11:00:00Z"},
+    "version": 5,
+    "created_at": "2025-01-15T10:00:00Z",
+    "updated_at": "2025-01-15T11:00:00Z"
+  }
+]
+```
+
+2.11. stash_history.json format:
+
+```json
+[
+  {
+    "history_id": "01945a42-...",
+    "stash_id": "01945a40-...",
+    "version": 1,
+    "value": {"uri": "file:///tmp/project-123", "kind": "directory"},
+    "operation": "create",
+    "changed_by": "01945a3b-...",
+    "created_at": "2025-01-15T10:30:00Z"
+  },
+  {
+    "history_id": "01945a43-...",
+    "stash_id": "01945a41-...",
+    "version": 5,
+    "value": {"holder": "crumb-789", "acquired_at": "2025-01-15T11:00:00Z"},
+    "operation": "acquire",
+    "changed_by": "01945a3b-...",
+    "created_at": "2025-01-15T11:00:00Z"
+  }
+]
+```
+
+2.12. All timestamps must be RFC 3339 format (ISO 8601 with timezone).
 
 2.11. All UUIDs must be lowercase hyphenated format.
 
@@ -262,6 +316,30 @@ CREATE TABLE metadata (
     created_at TEXT NOT NULL,
     FOREIGN KEY (crumb_id) REFERENCES crumbs(crumb_id)
 );
+
+CREATE TABLE stashes (
+    stash_id TEXT PRIMARY KEY,
+    trail_id TEXT,
+    name TEXT NOT NULL,
+    stash_type TEXT NOT NULL,
+    value TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (trail_id) REFERENCES trails(trail_id)
+);
+
+CREATE TABLE stash_history (
+    history_id TEXT PRIMARY KEY,
+    stash_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    value TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    changed_by TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (stash_id) REFERENCES stashes(stash_id),
+    FOREIGN KEY (changed_by) REFERENCES crumbs(crumb_id)
+);
 ```
 
 3.3. Indexes for common queries:
@@ -276,6 +354,10 @@ CREATE INDEX idx_crumb_properties_property ON crumb_properties(property_id);
 CREATE INDEX idx_metadata_crumb ON metadata(crumb_id);
 CREATE INDEX idx_metadata_table ON metadata(table_name);
 CREATE INDEX idx_categories_property ON categories(property_id);
+CREATE INDEX idx_stashes_trail ON stashes(trail_id);
+CREATE INDEX idx_stashes_name ON stashes(trail_id, name);
+CREATE INDEX idx_stash_history_stash ON stash_history(stash_id);
+CREATE INDEX idx_stash_history_version ON stash_history(stash_id, version);
 ```
 
 3.4. The value column in crumb_properties stores JSON-encoded values for all types. For categorical properties, it stores the category_id. For lists, it stores a JSON array.
@@ -328,6 +410,12 @@ CREATE INDEX idx_categories_property ON categories(property_id);
 | SetCrumbProperty | crumb_properties.json |
 | ClearCrumbProperty | crumb_properties.json |
 | AddMetadata | metadata.json |
+| CreateStash | stashes.json, stash_history.json |
+| SetStash | stashes.json, stash_history.json |
+| IncrementStash | stashes.json, stash_history.json |
+| AcquireStash | stashes.json, stash_history.json |
+| ReleaseStash | stashes.json, stash_history.json |
+| DeleteStash | stashes.json, stash_history.json |
 
 ### R6: Shutdown Sequence
 
@@ -474,5 +562,5 @@ CREATE INDEX idx_categories_property ON categories(property_id);
 ## References
 
 - prd-cupboard-core (Cupboard interface, configuration, lifecycle)
-- prd-crumbs-interface, prd-trails-interface, prd-properties-interface, prd-metadata-interface
+- prd-crumbs-interface, prd-trails-interface, prd-properties-interface, prd-metadata-interface, prd-stash-interface
 - modernc.org/sqlite documentation
