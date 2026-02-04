@@ -216,6 +216,7 @@ Success criteria (from VISION): operations complete with low latency, agents int
 | prd-metadata-interface.md | MetadataTable operations |
 | prd-stash-interface.md | StashTable operations for shared state |
 | uc-crud-operations.md | Tracer bullet for core CRUD operations |
+| uc-self-hosting.md | Milestone: crumbs builds crumbs |
 
 ## References
 
