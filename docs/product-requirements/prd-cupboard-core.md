@@ -58,7 +58,7 @@ type Cupboard interface {
     Close() error
 }
 ```
-
+<!-- TODO: GetTable operation which retrieves the table we want. Each table follows the same interface Get/Set?. We don't want this interface to be used for all operations on the cuboard. Keep it clean. -->
 2.3. The Cupboard interface must include crumb operations (defined in prd-crumbs-interface):
 - DropCrumb, GetCrumb, DeleteCrumb
 
@@ -127,6 +127,8 @@ func NewDoltBackend(cfg DoltConfig) (Backend, error)
 // dynamodb backend
 func NewDynamoDBBackend(cfg DynamoDBConfig) (Backend, error)
 ```
+
+<!-- Is this still needed here? -->
 
 ### R7: SQLite Backend Design
 
