@@ -70,10 +70,11 @@ type Cupboard interface {
 
 ```go
 type CrumbTable interface {
-    Drop(name string) (*Crumb, error)
+    Add(name string) (*Crumb, error)
     Get(id string) (*Crumb, error)
-    Delete(id string) error
-    Fetch(filter Filter) ([]*Crumb, error)
+    Archive(id string) error
+    Purge(id string) error
+    Fetch(filter map[string]any) ([]*Crumb, error)
     SetProperty(crumbID, propertyID string, value any) error
     GetProperty(crumbID, propertyID string) (any, error)
     GetProperties(crumbID string) (map[string]any, error)

@@ -317,8 +317,9 @@ CREATE INDEX idx_categories_property ON categories(property_id);
 
 | Operation | JSON files affected |
 |-----------|---------------------|
-| DropCrumb | crumbs.json |
-| DeleteCrumb | crumbs.json, crumb_properties.json, metadata.json |
+| AddCrumb | crumbs.json |
+| ArchiveCrumb | crumbs.json |
+| PurgeCrumb | crumbs.json, crumb_properties.json, metadata.json, links.json |
 | StartTrail | trails.json |
 | CompleteTrail | trails.json, crumbs.json |
 | AbandonTrail | trails.json, crumbs.json, crumb_properties.json, metadata.json |
