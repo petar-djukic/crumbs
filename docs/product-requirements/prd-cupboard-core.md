@@ -22,8 +22,8 @@ This PRD defines the cupboard lifecycle interface: configuration, initialization
 
 | Field | Type | Description |
 |-------|------|-------------|
-| Backend | string | Backend type: "json", "dolt", "dynamodb" |
-| DataDir | string | Directory for local backends (json, dolt); ignored for cloud backends |
+| Backend | string | Backend type: "sqlite", "dolt", "dynamodb" |
+| DataDir | string | Directory for local backends (sqlite, dolt); ignored for cloud backends |
 | DoltConfig | *DoltConfig | Dolt-specific settings (connection string, branch); nil if not using Dolt |
 | DynamoDBConfig | *DynamoDBConfig | DynamoDB-specific settings (table name, region); nil if not using DynamoDB |
 
@@ -118,8 +118,8 @@ var ErrCupboardClosed = errors.New("cupboard is closed")
 6.3. Each backend package must export a constructor:
 
 ```go
-// json backend
-func NewJSONBackend(dataDir string) (Backend, error)
+// sqlite backend
+func NewSQLiteBackend(dataDir string) (Backend, error)
 
 // dolt backend
 func NewDoltBackend(cfg DoltConfig) (Backend, error)
@@ -127,6 +127,25 @@ func NewDoltBackend(cfg DoltConfig) (Backend, error)
 // dynamodb backend
 func NewDynamoDBBackend(cfg DynamoDBConfig) (Backend, error)
 ```
+
+### R7: SQLite Backend Design
+
+7.1. The sqlite backend uses JSON files as the source of truth. SQLite (modernc.org/sqlite, pure Go) serves as a query engine to reuse SQL code across backends and avoid reimplementing filtering, joins, and indexing.
+
+7.2. On OpenCupboard, the sqlite backend must:
+
+- Create or open a SQLite database file in DataDir
+- Load data from JSON files into SQLite tables
+- If JSON files do not exist, initialize empty tables
+
+7.3. On write operations (DropCrumb, DeleteCrumb, etc.), the sqlite backend must:
+
+- Update the SQLite database
+- Persist changes back to JSON files
+
+7.4. On Close, the sqlite backend must ensure all pending writes are flushed to JSON before releasing resources
+
+7.5. JSON file format and location are implementation details; the sqlite backend owns this schema
 
 ## Non-Goals
 
