@@ -472,6 +472,6 @@ CREATE INDEX idx_categories_property ON categories(property_id);
 
 ## References
 
-- prd-cupboard-core R7 (SQLite Backend Design)
-- prd-task-storage R2 (Crumbs Table), R3 (Trails Table), R4 (Properties Table), R5 (Crumb Properties), R6 (Metadata Tables)
+- prd-cupboard-core (Cupboard interface, configuration, lifecycle)
+- prd-crumbs-interface, prd-trails-interface, prd-properties-interface, prd-metadata-interface
 - modernc.org/sqlite documentation

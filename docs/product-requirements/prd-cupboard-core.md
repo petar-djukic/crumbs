@@ -201,6 +201,6 @@ func NewDynamoDBBackend(cfg DynamoDBConfig) (Backend, error)
 
 ## References
 
-- prd-task-storage R8 (Storage Backends), R9 (Cupboard Lifecycle)
+- VISION.md (breadcrumb metaphor, goals, boundaries)
 - prd-sqlite-backend (SQLite backend internals, JSON↔SQLite sync, graph model)
 - prd-crumbs-interface, prd-trails-interface, prd-properties-interface, prd-metadata-interface

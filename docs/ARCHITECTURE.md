@@ -174,7 +174,9 @@ crumbs/
 │   ├── VISION.md
 │   ├── ARCHITECTURE.md
 │   └── product-requirements/
-│       └── prd-task-storage.md
+│       ├── prd-cupboard-core.md
+│       ├── prd-sqlite-backend.md
+│       └── ...                 # Interface PRDs
 └── .claude/             # Project rules and commands
 ```
 
@@ -207,7 +209,12 @@ Success criteria (from VISION): operations complete with low latency, agents int
 | Document | Purpose |
 |----------|---------|
 | VISION.md | What we are building and why; success criteria and boundaries |
-| prd-task-storage.md | Detailed requirements: schemas, operations, acceptance criteria |
+| prd-cupboard-core.md | Cupboard interface, configuration, lifecycle |
+| prd-sqlite-backend.md | SQLite backend internals, JSON↔SQLite sync, graph model |
+| prd-crumbs-interface.md | CrumbTable operations |
+| prd-trails-interface.md | TrailTable operations |
+| prd-properties-interface.md | PropertyTable operations |
+| prd-metadata-interface.md | MetadataTable operations |
 
 ## References
 
