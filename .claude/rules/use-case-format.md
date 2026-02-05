@@ -34,21 +34,23 @@ A **use case** describes a concrete usage of the architecture. It specifies a **
 
 ## File and Naming
 
-- **Location**: `docs/use-cases/ph[NN]-uc[NNN]-[short-name].md`
-- **Phase prefix**: Two-digit phase number (e.g., 01, 02, 03, 04) indicating which implementation phase this use case validates. Use 00 for cross-phase milestones and 99 for future/deferred use cases.
-- **Use case number**: Three-digit sequence number within the phase (e.g., 001, 002, 003).
+- **Location**: `docs/use-cases/rel[NN].[N]-uc[NNN]-[short-name].md`
+- **Release prefix**: Major and minor release (e.g., 01.0, 01.1, 02.0). A release delivers all use cases in that release. Minor releases add functionality discovered later.
+- **Use case number**: Three-digit sequence number within the release (e.g., 001, 002, 003).
 - **Short name**: Lowercase, hyphenated, verb or scenario describing the use case.
 
-### Phase Numbering
+### Release Numbering
 
-| Phase | Focus |
-|-------|-------|
-| 00 | Cross-phase milestones (span multiple phases) |
-| 01 | Core storage with SQLite backend |
-| 02 | Properties with enforcement |
-| 03 | Trails and stashes |
-| 04 | Metadata and additional backends |
-| 99 | Future/deferred (post-MVP) |
+| Release | Focus |
+|---------|-------|
+| 00.0 | Cross-release milestones (span multiple releases) |
+| 01.0 | Core storage with SQLite backend |
+| 02.0 | Properties with enforcement |
+| 03.0 | Trails and stashes |
+| 04.0 | Metadata and additional backends |
+| 99.0 | Future/deferred (post-MVP) |
+
+Minor releases (e.g., 01.1, 02.1) add functionality to a major release without renumbering existing use cases.
 
 ## Relationship to Other Docs
 
@@ -67,4 +69,4 @@ A **use case** describes a concrete usage of the architecture. It specifies a **
 - [ ] Architecture touchpoints list interfaces, components, and protocols used
 - [ ] Success/demo criteria are observable and checkable
 - [ ] Out of scope keeps the use case focused
-- [ ] File saved as `ph[NN]-uc[NNN]-[short-name].md` in `docs/use-cases/`
+- [ ] File saved as `rel[NN].[N]-uc[NNN]-[short-name].md` in `docs/use-cases/`

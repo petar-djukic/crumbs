@@ -81,13 +81,13 @@ crumbs demo crud --datadir /tmp/crumbs-demo
 
 This use case does not cover:
 
-- Property operations (Define, SetProperty, GetProperties, ClearProperty) - see ph02-uc001
-- Trail operations (Start, Complete, Abandon, GetCrumbs) - see ph03-uc001
+- Property operations (Define, SetProperty, GetProperties, ClearProperty) - see rel02.0-uc001
+- Trail operations (Start, Complete, Abandon, GetCrumbs) - see rel03.0-uc001
 - Metadata operations (Register, Add, Get, Search)
 - Link operations beyond what Purge removes
 - Concurrent access patterns
 - Error recovery scenarios (corrupt JSON, I/O failures)
-- Dolt or DynamoDB backends - see ph04-uc001
+- Dolt or DynamoDB backends - see rel04.0-uc001
 
 ## Dependencies
 

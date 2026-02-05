@@ -99,14 +99,14 @@ This use case does not cover:
 - Nested trails (trails containing trails)
 - Trail merging or splitting
 - Trail history or versioning
-- Stash operations - see ph03-uc002 (if created)
+- Stash operations - see rel03.0-uc002 (if created)
 - Concurrent trail operations
 - Trail templates or predefined workflows
 
 ## Dependencies
 
-- ph01-uc001 (Cupboard lifecycle) must pass
-- ph01-uc003 (Core CRUD) must pass
+- rel01.0-uc001 (Cupboard lifecycle) must pass
+- rel01.0-uc003 (Core CRUD) must pass
 - prd-trails-interface must be implemented
 - prd-links-interface (belongs_to) must be implemented
 

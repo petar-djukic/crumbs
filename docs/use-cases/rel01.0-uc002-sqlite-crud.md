@@ -111,7 +111,7 @@ This use case does not cover:
 - Concurrent access patterns (multiple readers, writer locking)
 - Error recovery (corrupt JSON, I/O failures, schema migration)
 
-These are addressed in later use cases (uc005-trails, uc006-properties, uc007-stashes).
+These are addressed in later releases (rel02.0 for properties, rel03.0 for trails and stashes).
 
 ## Dependencies
 

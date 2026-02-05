@@ -112,7 +112,7 @@ This use case does not cover:
 
 ## Dependencies
 
-- ph01-uc001 (Cupboard lifecycle) must pass with SQLite
+- rel01.0-uc001 (Cupboard lifecycle) must pass with SQLite
 - prd-cupboard-core backend abstraction must support multiple backends
 - prd-dolt-backend must be implemented
 - Dolt database must be available (local file or remote)

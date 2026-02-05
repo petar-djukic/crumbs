@@ -232,7 +232,7 @@ crumbs/
 │   │   ├── prd-metadata-interface.md
 │   │   └── prd-stash-interface.md
 │   └── use-cases/
-│       └── uc001-crud-operations.md
+│       └── rel01.0-uc001-cupboard-lifecycle.md
 └── .claude/                 # Project rules and commands
 ```
 
@@ -244,15 +244,15 @@ crumbs/
 
 ## Implementation Status
 
-We are currently in the bootstrap phase. Implementation will proceed in phases:
+We are currently in the bootstrap release. Implementation will proceed in releases:
 
-**Phase 1: Core storage with SQLite backend**. Implement Cupboard interface with GetTable, Table interface (Get, Set, Delete, Fetch), entity types (Crumb, Trail, etc.), SQLite backend with JSON persistence, basic CLI commands. Validates core concepts and provides a working system for local use.
+**Release 01.0: Core storage with SQLite backend**. Implement Cupboard interface with GetTable, Table interface (Get, Set, Delete, Fetch), entity types (Crumb, Trail, etc.), SQLite backend with JSON persistence, basic CLI commands. Validates core concepts and provides a working system for local use.
 
-**Phase 2: Properties with enforcement**. Implement Property and Category entities, property entity methods (DefineCategory, GetCategories), Crumb property methods (SetProperty, GetProperty, ClearProperty), built-in property seeding, and property enforcement (auto-initialization on crumb creation, backfill on property definition). Enables extensibility without schema changes.
+**Release 02.0: Properties with enforcement**. Implement Property and Category entities, property entity methods (DefineCategory, GetCategories), Crumb property methods (SetProperty, GetProperty, ClearProperty), built-in property seeding, and property enforcement (auto-initialization on crumb creation, backfill on property definition). Enables extensibility without schema changes.
 
-**Phase 3: Trails and stashes**. Implement Trail entity methods (Complete, Abandon, AddCrumb, RemoveCrumb, GetCrumbs) and Stash entity methods (SetValue, GetValue, Increment, Acquire, Release, GetHistory). Add trail filtering to Fetch. Validates the exploratory workflow and shared state coordination.
+**Release 03.0: Trails and stashes**. Implement Trail entity methods (Complete, Abandon, AddCrumb, RemoveCrumb, GetCrumbs) and Stash entity methods (SetValue, GetValue, Increment, Acquire, Release, GetHistory). Add trail filtering to Fetch. Validates the exploratory workflow and shared state coordination.
 
-**Phase 4: Metadata and additional backends**. Implement Metadata entity and schema registration. Add Dolt backend (version control) and DynamoDB backend (cloud scale). Validates pluggable architecture and backend-specific optimizations.
+**Release 04.0: Metadata and additional backends**. Implement Metadata entity and schema registration. Add Dolt backend (version control) and DynamoDB backend (cloud scale). Validates pluggable architecture and backend-specific optimizations.
 
 Success criteria (from VISION): operations complete with low latency, agents integrate the library quickly, trail workflows feel natural for coding agents exploring implementation approaches.
 
@@ -268,8 +268,8 @@ Success criteria (from VISION): operations complete with low latency, agents int
 | prd-properties-interface.md | Property and Category entities, value types |
 | prd-metadata-interface.md | Metadata entity, schema registration |
 | prd-stash-interface.md | Stash entity, shared state, versioning |
-| uc001-crud-operations.md | Tracer bullet for core CRUD operations |
-| uc002-self-hosting.md | Milestone: crumbs builds crumbs |
+| rel01.0-uc001-cupboard-lifecycle.md | Tracer bullet for config and lifecycle |
+| rel00.0-uc001-self-hosting.md | Milestone: crumbs builds crumbs |
 
 ## References
 

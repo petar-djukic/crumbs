@@ -84,17 +84,17 @@ crumbs demo properties --datadir /tmp/crumbs-demo
 
 This use case does not cover:
 
-- Core CRUD operations (Add, Get, Archive, Purge, Fetch) - see ph01-uc003
+- Core CRUD operations (Add, Get, Archive, Purge, Fetch) - see rel01.0-uc003
 - Category management beyond built-in categories
 - Property deletion or renaming
-- Trail operations - see ph03-uc001
+- Trail operations - see rel03.0-uc001
 - Concurrent property definition and crumb creation
 - Property value validation beyond type checking
 
 ## Dependencies
 
-- ph01-uc001 (Cupboard lifecycle) must pass
-- ph01-uc003 (Core CRUD) must pass
+- rel01.0-uc001 (Cupboard lifecycle) must pass
+- rel01.0-uc003 (Core CRUD) must pass
 - prd-properties-interface must be implemented (PropertyTable operations)
 - prd-crumbs-interface property methods must be implemented
 
