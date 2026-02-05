@@ -1,6 +1,7 @@
 // Package main provides the cupboard CLI.
 // Implements: prd-cupboard-core R2, R4, R5;
-//             docs/ARCHITECTURE § CLI.
+//
+//	docs/ARCHITECTURE § CLI.
 package main
 
 import (

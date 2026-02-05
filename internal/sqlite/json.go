@@ -1,6 +1,7 @@
 // JSON persistence for the SQLite backend.
 // Implements: prd-sqlite-backend R1, R2, R4, R5 (directory layout, JSON format, startup, writes);
-//             docs/ARCHITECTURE § SQLite Backend.
+//
+//	docs/ARCHITECTURE § SQLite Backend.
 package sqlite
 
 import (
@@ -15,15 +16,15 @@ import (
 
 // JSON file names per R1.2.
 const (
-	crumbsFile         = "crumbs.json"
-	trailsFile         = "trails.json"
-	linksFile          = "links.json"
-	propertiesFile     = "properties.json"
-	categoriesFile     = "categories.json"
-	crumbPropsFile     = "crumb_properties.json"
-	metadataFile       = "metadata.json"
-	stashesFile        = "stashes.json"
-	stashHistoryFile   = "stash_history.json"
+	crumbsFile       = "crumbs.json"
+	trailsFile       = "trails.json"
+	linksFile        = "links.json"
+	propertiesFile   = "properties.json"
+	categoriesFile   = "categories.json"
+	crumbPropsFile   = "crumb_properties.json"
+	metadataFile     = "metadata.json"
+	stashesFile      = "stashes.json"
+	stashHistoryFile = "stash_history.json"
 )
 
 // JSON record structures that mirror the JSON file format per R2.

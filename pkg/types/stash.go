@@ -1,6 +1,7 @@
 // Stash entity for shared state between crumbs in a trail.
 // Implements: prd-stash-interface R1, R2, R7 (Stash, stash types, history);
-//             docs/ARCHITECTURE § Main Interface.
+//
+//	docs/ARCHITECTURE § Main Interface.
 package types
 
 import "time"

@@ -1,6 +1,7 @@
 // Config file loading for crumbs CLI.
 // Implements: prd-cupboard-core R1;
-//             docs/ARCHITECTURE § Configuration.
+//
+//	docs/ARCHITECTURE § Configuration.
 package main
 
 import (

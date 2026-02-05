@@ -1,6 +1,7 @@
 // Set command creates or updates an entity in a table.
 // Implements: prd-cupboard-core R3 (Table.Set);
-//             docs/ARCHITECTURE § CLI.
+//
+//	docs/ARCHITECTURE § CLI.
 package main
 
 import (

@@ -1,7 +1,8 @@
 // Package sqlite implements the SQLite storage backend for Crumbs.
 // Implements: prd-sqlite-backend R4, R5, R6, R11, R12;
-//             prd-cupboard-core R2, R4, R5;
-//             docs/ARCHITECTURE § SQLite Backend.
+//
+//	prd-cupboard-core R2, R4, R5;
+//	docs/ARCHITECTURE § SQLite Backend.
 package sqlite
 
 import (

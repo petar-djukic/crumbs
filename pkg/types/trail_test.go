@@ -7,10 +7,10 @@ import (
 
 func TestTrail_Complete(t *testing.T) {
 	tests := []struct {
-		name        string
+		name         string
 		initialState string
-		wantErr     error
-		wantState   string
+		wantErr      error
+		wantState    string
 	}{
 		{"from active", TrailStateActive, nil, TrailStateCompleted},
 		{"from completed", TrailStateCompleted, ErrInvalidState, TrailStateCompleted},
@@ -38,10 +38,10 @@ func TestTrail_Complete(t *testing.T) {
 
 func TestTrail_Abandon(t *testing.T) {
 	tests := []struct {
-		name        string
+		name         string
 		initialState string
-		wantErr     error
-		wantState   string
+		wantErr      error
+		wantState    string
 	}{
 		{"from active", TrailStateActive, nil, TrailStateAbandoned},
 		{"from completed", TrailStateCompleted, ErrInvalidState, TrailStateCompleted},

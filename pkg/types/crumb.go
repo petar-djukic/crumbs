@@ -1,6 +1,7 @@
 // Crumb entity represents a work item in the task coordination system.
 // Implements: prd-crumbs-interface R1, R4, R5 (Crumb struct, state methods, property methods);
-//             docs/ARCHITECTURE § Main Interface.
+//
+//	docs/ARCHITECTURE § Main Interface.
 package types
 
 import (

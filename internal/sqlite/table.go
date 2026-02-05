@@ -1,7 +1,8 @@
 // Table implements the Table interface for a specific entity type.
 // Implements: prd-sqlite-backend R13, R14, R15;
-//             prd-cupboard-core R3;
-//             docs/ARCHITECTURE § Table Interfaces.
+//
+//	prd-cupboard-core R3;
+//	docs/ARCHITECTURE § Table Interfaces.
 package sqlite
 
 import (

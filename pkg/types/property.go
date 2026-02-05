@@ -1,6 +1,7 @@
 // Property and Category entities for extensible attributes on crumbs.
 // Implements: prd-properties-interface R1, R2, R3 (Property, Category, value types);
-//             docs/ARCHITECTURE § Main Interface.
+//
+//	docs/ARCHITECTURE § Main Interface.
 package types
 
 import "time"

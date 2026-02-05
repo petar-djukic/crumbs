@@ -1,6 +1,7 @@
 // Trail entity represents an exploratory work session.
 // Implements: prd-trails-interface R1, R2 (Trail struct, state values);
-//             docs/ARCHITECTURE § Main Interface.
+//
+//	docs/ARCHITECTURE § Main Interface.
 package types
 
 import "time"

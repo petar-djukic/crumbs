@@ -1,6 +1,7 @@
 // Package types defines the public API for the Crumbs storage system.
 // Implements: prd-cupboard-core (Config, DoltConfig, DynamoDBConfig);
-//             docs/ARCHITECTURE § Cupboard API.
+//
+//	docs/ARCHITECTURE § Cupboard API.
 package types
 
 import (

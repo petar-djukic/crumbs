@@ -1,0 +1,75 @@
+# golangci-lint configuration for Crumbs
+# Implements: crumbs-ag8.3 (linter configuration task)
+#
+# Enabled linters:
+#   Core: errcheck, govet, staticcheck, unused, gosimple
+#   Style: gofmt, goimports, misspell
+#
+# Run with: golangci-lint run ./...
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  enable:
+    # Core linters - catch bugs and unused code
+    - errcheck      # Check for unchecked errors
+    - govet         # Reports suspicious constructs
+    - staticcheck   # Go static analysis
+    - unused        # Find unused code
+    - gosimple      # Simplify code suggestions
+
+    # Style linters - formatting consistency
+    - gofmt         # Check gofmt formatting
+    - goimports     # Check import ordering
+    - misspell      # Find common spelling mistakes
+
+linters-settings:
+  errcheck:
+    # Check for ignored errors in type assertions
+    check-type-assertions: true
+    # Don't require checking errors from these functions
+    exclude-functions:
+      - (io.Closer).Close
+      - (*os.File).Close
+
+  govet:
+    # Enable all analyzers
+    enable-all: true
+    disable:
+      - fieldalignment  # Too noisy for this codebase
+      - shadow          # Variable shadowing in limited scopes is acceptable
+
+  staticcheck:
+    # Use all staticcheck checks
+    checks: ["all"]
+
+  misspell:
+    locale: US
+
+  goimports:
+    # Local prefix for import grouping
+    local-prefixes: github.com/dukaforge/crumbs
+
+issues:
+  # Maximum issues per linter (0 = unlimited)
+  max-issues-per-linter: 0
+  # Maximum same issues (0 = unlimited)
+  max-same-issues: 0
+
+  exclude-rules:
+    # Exclude some linters from test files
+    - path: _test\.go
+      linters:
+        - errcheck  # Tests often ignore errors intentionally
+
+output:
+  # Sort results by file, line, column
+  sort-results: true
+  # Print lines of code with issues
+  print-issued-lines: true
+  # Print linter name in the output
+  print-linter-name: true

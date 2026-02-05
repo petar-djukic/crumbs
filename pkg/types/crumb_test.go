@@ -57,10 +57,10 @@ func TestCrumb_SetState_Idempotent(t *testing.T) {
 
 func TestCrumb_Complete(t *testing.T) {
 	tests := []struct {
-		name        string
+		name         string
 		initialState string
-		wantErr     error
-		wantState   string
+		wantErr      error
+		wantState    string
 	}{
 		{"from taken", StateTaken, nil, StateCompleted},
 		{"from draft", StateDraft, ErrInvalidTransition, StateDraft},
@@ -116,10 +116,10 @@ func TestCrumb_Archive(t *testing.T) {
 
 func TestCrumb_Fail(t *testing.T) {
 	tests := []struct {
-		name        string
+		name         string
 		initialState string
-		wantErr     error
-		wantState   string
+		wantErr      error
+		wantState    string
 	}{
 		{"from taken", StateTaken, nil, StateFailed},
 		{"from draft", StateDraft, ErrInvalidTransition, StateDraft},
