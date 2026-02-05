@@ -806,3 +806,198 @@ func TestUC001_FullUseCaseFlow(t *testing.T) {
 
 	t.Log("uc001-crud-operations tracer bullet completed successfully")
 }
+
+// TestUC_PropertyEnforcement validates the property enforcement use case (rel02.0-uc001).
+// This test validates that:
+// 1. Newly added crumbs have all defined properties with default values
+// 2. Properties().Define() creates property and backfills existing crumbs
+// 3. GetProperties() returns all properties (never partial) for any crumb
+// 4. Crumbs added after Define have the new property auto-initialized
+// 5. No crumb ever has fewer properties than are defined
+//
+// Implements: rel02.0-uc001-property-enforcement;
+//
+//	prd-properties-interface R4.2-R4.5 (backfill on property definition);
+//	prd-crumbs-interface R3.7 (property initialization on crumb creation).
+func TestUC_PropertyEnforcement(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Step 1: Open cupboard with SQLite backend
+	cupboard := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	if err := cupboard.Attach(config); err != nil {
+		t.Fatalf("Step 1 (Attach): %v", err)
+	}
+	defer cupboard.Detach()
+
+	crumbTable, _ := cupboard.GetTable(types.CrumbsTable)
+	propTable, _ := cupboard.GetTable(types.PropertiesTable)
+
+	// Step 2: Define initial properties
+	descProp := &types.Property{
+		Name:        "description",
+		Description: "Task description",
+		ValueType:   types.ValueTypeText,
+	}
+	descPropID, err := propTable.Set("", descProp)
+	if err != nil {
+		t.Fatalf("Step 2 (Define description property): %v", err)
+	}
+
+	priorityProp := &types.Property{
+		Name:        "priority_level",
+		Description: "Numeric priority",
+		ValueType:   types.ValueTypeInteger,
+	}
+	priorityPropID, err := propTable.Set("", priorityProp)
+	if err != nil {
+		t.Fatalf("Step 2 (Define priority property): %v", err)
+	}
+
+	// Step 3: Add first crumb - should have all defined properties auto-initialized
+	crumb1 := &types.Crumb{
+		Name:  "Implement feature X",
+		State: types.StateDraft,
+	}
+	id1, err := crumbTable.Set("", crumb1)
+	if err != nil {
+		t.Fatalf("Step 3 (Add crumb1): %v", err)
+	}
+
+	// Verify crumb1 has all properties initialized
+	if crumb1.Properties == nil {
+		t.Fatal("Step 3: crumb1.Properties should be initialized")
+	}
+	if len(crumb1.Properties) != 2 {
+		t.Errorf("Step 3: crumb1 should have 2 properties, got %d", len(crumb1.Properties))
+	}
+	if crumb1.Properties[descPropID] != "" {
+		t.Errorf("Step 3: description should be empty string, got %v", crumb1.Properties[descPropID])
+	}
+	if crumb1.Properties[priorityPropID] != int64(0) {
+		t.Errorf("Step 3: priority should be 0, got %v", crumb1.Properties[priorityPropID])
+	}
+
+	// Step 4: Add second crumb
+	crumb2 := &types.Crumb{
+		Name:  "Fix authentication bug",
+		State: types.StateDraft,
+	}
+	id2, err := crumbTable.Set("", crumb2)
+	if err != nil {
+		t.Fatalf("Step 4 (Add crumb2): %v", err)
+	}
+	if len(crumb2.Properties) != 2 {
+		t.Errorf("Step 4: crumb2 should have 2 properties, got %d", len(crumb2.Properties))
+	}
+
+	// Step 5: Define a NEW property - should backfill both existing crumbs
+	estimateProp := &types.Property{
+		Name:        "estimate",
+		Description: "Story point estimate",
+		ValueType:   types.ValueTypeInteger,
+	}
+	estimatePropID, err := propTable.Set("", estimateProp)
+	if err != nil {
+		t.Fatalf("Step 5 (Define estimate property): %v", err)
+	}
+
+	// Step 6: Verify backfill occurred for both existing crumbs
+	// Query the crumb_properties table directly
+	var count int
+	err = cupboard.db.QueryRow(
+		"SELECT COUNT(*) FROM crumb_properties WHERE property_id = ?",
+		estimatePropID,
+	).Scan(&count)
+	if err != nil {
+		t.Fatalf("Step 6 (Query backfill count): %v", err)
+	}
+	if count != 2 {
+		t.Errorf("Step 6: Expected 2 crumbs backfilled with estimate property, got %d", count)
+	}
+
+	// Verify default values are correct
+	var value1, value2 string
+	cupboard.db.QueryRow(
+		"SELECT value FROM crumb_properties WHERE crumb_id = ? AND property_id = ?",
+		id1, estimatePropID,
+	).Scan(&value1)
+	cupboard.db.QueryRow(
+		"SELECT value FROM crumb_properties WHERE crumb_id = ? AND property_id = ?",
+		id2, estimatePropID,
+	).Scan(&value2)
+	if value1 != "0" || value2 != "0" {
+		t.Errorf("Step 6: Both crumbs should have estimate=0, got %q and %q", value1, value2)
+	}
+
+	// Step 7: Add a NEW crumb after the property was defined
+	crumb3 := &types.Crumb{
+		Name:  "Refactor database layer",
+		State: types.StateDraft,
+	}
+	_, err = crumbTable.Set("", crumb3)
+	if err != nil {
+		t.Fatalf("Step 7 (Add crumb3): %v", err)
+	}
+
+	// Verify crumb3 has ALL THREE properties (2 original + 1 new)
+	if len(crumb3.Properties) != 3 {
+		t.Errorf("Step 7: crumb3 should have 3 properties, got %d", len(crumb3.Properties))
+	}
+	if crumb3.Properties[descPropID] != "" {
+		t.Errorf("Step 7: crumb3.description should be empty string")
+	}
+	if crumb3.Properties[priorityPropID] != int64(0) {
+		t.Errorf("Step 7: crumb3.priority should be 0")
+	}
+	if crumb3.Properties[estimatePropID] != int64(0) {
+		t.Errorf("Step 7: crumb3.estimate should be 0")
+	}
+
+	// Step 8: Verify total property count matches for all crumbs
+	results, err := crumbTable.Fetch(nil)
+	if err != nil {
+		t.Fatalf("Step 8 (Fetch all): %v", err)
+	}
+	if len(results) != 3 {
+		t.Errorf("Step 8: Expected 3 crumbs, got %d", len(results))
+	}
+
+	// Count properties in SQLite for each crumb
+	for _, entity := range results {
+		c := entity.(*types.Crumb)
+		var propCount int
+		cupboard.db.QueryRow(
+			"SELECT COUNT(*) FROM crumb_properties WHERE crumb_id = ?",
+			c.CrumbID,
+		).Scan(&propCount)
+		if propCount != 3 {
+			t.Errorf("Step 8: Crumb %s should have 3 properties in DB, got %d", c.CrumbID, propCount)
+		}
+	}
+
+	// Step 9: Verify JSONL persistence of backfilled properties
+	// Detach and re-attach to verify data was persisted
+	cupboard.Detach()
+
+	cupboard2 := NewBackend()
+	if err := cupboard2.Attach(config); err != nil {
+		t.Fatalf("Step 9 (Re-attach): %v", err)
+	}
+	defer cupboard2.Detach()
+
+	// Query properties for the first crumb after reload
+	var reloadedCount int
+	cupboard2.db.QueryRow(
+		"SELECT COUNT(*) FROM crumb_properties WHERE crumb_id = ?",
+		id1,
+	).Scan(&reloadedCount)
+	if reloadedCount != 3 {
+		t.Errorf("Step 9: After reload, crumb1 should have 3 properties, got %d", reloadedCount)
+	}
+
+	t.Log("rel02.0-uc001-property-enforcement tracer bullet completed successfully")
+}

@@ -493,7 +493,8 @@ func (t *Table) getProperty(id string) (*types.Property, error) {
 }
 
 func (t *Table) setProperty(id string, prop *types.Property) (string, error) {
-	if id == "" {
+	isNewProperty := id == ""
+	if isNewProperty {
 		id = generateUUID()
 	}
 	prop.PropertyID = id
@@ -502,7 +503,19 @@ func (t *Table) setProperty(id string, prop *types.Property) (string, error) {
 		prop.CreatedAt = time.Now()
 	}
 
-	_, err := t.backend.db.Exec(
+	// Use a transaction for atomicity (per prd-properties-interface R4.3)
+	// If backfill fails, the property is not created.
+	tx, err := t.backend.db.Begin()
+	if err != nil {
+		return "", fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
+	_, err = tx.Exec(
 		`INSERT INTO properties (property_id, name, description, value_type, created_at)
 		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(property_id) DO UPDATE SET
@@ -519,12 +532,101 @@ func (t *Table) setProperty(id string, prop *types.Property) (string, error) {
 		return "", err
 	}
 
-	// Persist to JSONL (per prd-configuration-directories R6)
+	// Backfill existing crumbs when creating a new property (per prd-properties-interface R4.2-R4.5)
+	var backfillData []propertyInit
+	if isNewProperty {
+		backfillData, err = t.backfillExistingCrumbs(tx, prop)
+		if err != nil {
+			return "", fmt.Errorf("backfill existing crumbs: %w", err)
+		}
+	}
+
+	// Commit the transaction
+	if err = tx.Commit(); err != nil {
+		return "", fmt.Errorf("commit transaction: %w", err)
+	}
+
+	// Persist property to JSONL (per prd-configuration-directories R6)
 	if err := t.backend.savePropertyToJSONL(prop); err != nil {
 		return "", fmt.Errorf("persist property to JSONL: %w", err)
 	}
 
+	// Persist backfilled crumb properties to JSONL (after transaction commits)
+	for _, data := range backfillData {
+		if err := t.backend.saveCrumbPropertyToJSONL(data.crumbID, prop.PropertyID, prop.ValueType, data.value); err != nil {
+			return "", fmt.Errorf("persist backfilled property %s to JSONL: %w", data.crumbID, err)
+		}
+	}
+
 	return id, nil
+}
+
+// backfillExistingCrumbs initializes the new property on all existing crumbs with the type-based default value.
+// Called within a transaction when creating a new property.
+// Per prd-properties-interface R4.2-R4.5.
+func (t *Table) backfillExistingCrumbs(tx *sql.Tx, prop *types.Property) ([]propertyInit, error) {
+	// Query all existing crumb IDs
+	rows, err := tx.Query("SELECT crumb_id FROM crumbs")
+	if err != nil {
+		return nil, fmt.Errorf("query crumbs: %w", err)
+	}
+
+	var crumbIDs []string
+	for rows.Next() {
+		var crumbID string
+		if err := rows.Scan(&crumbID); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("scan crumb_id: %w", err)
+		}
+		crumbIDs = append(crumbIDs, crumbID)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+
+	// No crumbs to backfill (no-op per requirements)
+	if len(crumbIDs) == 0 {
+		return nil, nil
+	}
+
+	// Get the default value for this property type
+	defaultValue := getPropertyDefaultValue(prop.ValueType, t.backend, prop.PropertyID)
+
+	// Marshal the default value for SQLite storage
+	valueJSON, err := json.Marshal(defaultValue)
+	if err != nil {
+		return nil, fmt.Errorf("marshal default value: %w", err)
+	}
+
+	// Prepare the insert statement for efficiency
+	stmt, err := tx.Prepare(
+		`INSERT INTO crumb_properties (crumb_id, property_id, value_type, value)
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT(crumb_id, property_id) DO UPDATE SET
+		 value_type = excluded.value_type,
+		 value = excluded.value`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("prepare statement: %w", err)
+	}
+	defer stmt.Close()
+
+	// Insert property values for each crumb
+	var backfillData []propertyInit
+	for _, crumbID := range crumbIDs {
+		_, err := stmt.Exec(crumbID, prop.PropertyID, prop.ValueType, string(valueJSON))
+		if err != nil {
+			return nil, fmt.Errorf("insert property for crumb %s: %w", crumbID, err)
+		}
+		backfillData = append(backfillData, propertyInit{
+			crumbID: crumbID,
+			value:   defaultValue,
+		})
+	}
+
+	return backfillData, nil
 }
 
 func (t *Table) fetchProperties(filter map[string]any) ([]any, error) {
@@ -1020,13 +1122,15 @@ func hydrateStashRow(rows *sql.Rows) (*types.Stash, error) {
 }
 
 // Property initialization helpers
-// Implements: prd-crumbs-interface R3.7; prd-properties-interface R3.5
+// Implements: prd-crumbs-interface R3.7; prd-properties-interface R3.5, R4.2-R4.5
 
 // propertyInit holds data for a property to be initialized on a crumb.
+// Used both for crumb creation (initializeCrumbProperties) and for property backfill (backfillExistingCrumbs).
 type propertyInit struct {
-	propertyID string
-	valueType  string
-	value      any
+	crumbID    string // The crumb ID (used for backfill)
+	propertyID string // The property ID
+	valueType  string // The property value type
+	value      any    // The property value
 }
 
 // initializeCrumbProperties initializes all defined properties on a crumb with type-based defaults.

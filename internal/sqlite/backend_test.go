@@ -1002,3 +1002,282 @@ func TestCrumbTable_PropertyAutoInit_NoPropertiesDefined(t *testing.T) {
 		t.Errorf("Properties map should be empty when no properties defined, got %d", len(crumb.Properties))
 	}
 }
+
+// Tests for property backfill on property definition.
+// Implements: prd-properties-interface R4.2-R4.5
+
+func TestPropertyTable_Backfill_ExistingCrumbs(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+	propTbl, _ := b.GetTable(types.PropertiesTable)
+
+	// Create several crumbs BEFORE defining the property
+	crumb1 := &types.Crumb{Name: "Task 1", State: types.StateDraft}
+	crumb2 := &types.Crumb{Name: "Task 2", State: types.StateReady}
+	crumb3 := &types.Crumb{Name: "Task 3", State: types.StateTaken}
+
+	id1, err := crumbTbl.Set("", crumb1)
+	if err != nil {
+		t.Fatalf("Create crumb1 failed: %v", err)
+	}
+	id2, err := crumbTbl.Set("", crumb2)
+	if err != nil {
+		t.Fatalf("Create crumb2 failed: %v", err)
+	}
+	id3, err := crumbTbl.Set("", crumb3)
+	if err != nil {
+		t.Fatalf("Create crumb3 failed: %v", err)
+	}
+
+	// Now define a new property - this should backfill all existing crumbs
+	prop := &types.Property{
+		Name:        "estimate",
+		Description: "Story point estimate",
+		ValueType:   types.ValueTypeInteger,
+	}
+	propID, err := propTbl.Set("", prop)
+	if err != nil {
+		t.Fatalf("Create property failed: %v", err)
+	}
+
+	// Verify backfill by checking the crumb_properties table via direct query
+	// (since we don't reload the in-memory crumb objects)
+	var count int
+	err = b.db.QueryRow("SELECT COUNT(*) FROM crumb_properties WHERE property_id = ?", propID).Scan(&count)
+	if err != nil {
+		t.Fatalf("Query crumb_properties failed: %v", err)
+	}
+	if count != 3 {
+		t.Errorf("Expected 3 crumb_properties entries for backfill, got %d", count)
+	}
+
+	// Verify each crumb has the correct default value
+	var value string
+	for _, crumbID := range []string{id1, id2, id3} {
+		err = b.db.QueryRow(
+			"SELECT value FROM crumb_properties WHERE crumb_id = ? AND property_id = ?",
+			crumbID, propID,
+		).Scan(&value)
+		if err != nil {
+			t.Fatalf("Query crumb_property for %s failed: %v", crumbID, err)
+		}
+		// Integer default is 0, stored as JSON
+		if value != "0" {
+			t.Errorf("Expected integer default '0' for crumb %s, got %q", crumbID, value)
+		}
+	}
+}
+
+func TestPropertyTable_Backfill_TextProperty(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+	propTbl, _ := b.GetTable(types.PropertiesTable)
+
+	// Create a crumb first
+	crumb := &types.Crumb{Name: "Task", State: types.StateDraft}
+	crumbID, _ := crumbTbl.Set("", crumb)
+
+	// Define a text property
+	prop := &types.Property{
+		Name:      "description",
+		ValueType: types.ValueTypeText,
+	}
+	propID, _ := propTbl.Set("", prop)
+
+	// Verify backfill with text default (empty string)
+	var value string
+	err := b.db.QueryRow(
+		"SELECT value FROM crumb_properties WHERE crumb_id = ? AND property_id = ?",
+		crumbID, propID,
+	).Scan(&value)
+	if err != nil {
+		t.Fatalf("Query crumb_property failed: %v", err)
+	}
+	if value != `""` {
+		t.Errorf("Expected text default '\"\"' (empty string), got %q", value)
+	}
+}
+
+func TestPropertyTable_Backfill_BooleanProperty(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+	propTbl, _ := b.GetTable(types.PropertiesTable)
+
+	// Create a crumb first
+	crumb := &types.Crumb{Name: "Task", State: types.StateDraft}
+	crumbID, _ := crumbTbl.Set("", crumb)
+
+	// Define a boolean property
+	prop := &types.Property{
+		Name:      "is_urgent",
+		ValueType: types.ValueTypeBoolean,
+	}
+	propID, _ := propTbl.Set("", prop)
+
+	// Verify backfill with boolean default (false)
+	var value string
+	err := b.db.QueryRow(
+		"SELECT value FROM crumb_properties WHERE crumb_id = ? AND property_id = ?",
+		crumbID, propID,
+	).Scan(&value)
+	if err != nil {
+		t.Fatalf("Query crumb_property failed: %v", err)
+	}
+	if value != "false" {
+		t.Errorf("Expected boolean default 'false', got %q", value)
+	}
+}
+
+func TestPropertyTable_Backfill_ListProperty(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+	propTbl, _ := b.GetTable(types.PropertiesTable)
+
+	// Create a crumb first
+	crumb := &types.Crumb{Name: "Task", State: types.StateDraft}
+	crumbID, _ := crumbTbl.Set("", crumb)
+
+	// Define a list property
+	prop := &types.Property{
+		Name:      "labels",
+		ValueType: types.ValueTypeList,
+	}
+	propID, _ := propTbl.Set("", prop)
+
+	// Verify backfill with list default (empty array)
+	var value string
+	err := b.db.QueryRow(
+		"SELECT value FROM crumb_properties WHERE crumb_id = ? AND property_id = ?",
+		crumbID, propID,
+	).Scan(&value)
+	if err != nil {
+		t.Fatalf("Query crumb_property failed: %v", err)
+	}
+	if value != "[]" {
+		t.Errorf("Expected list default '[]' (empty array), got %q", value)
+	}
+}
+
+func TestPropertyTable_Backfill_NoCrumbs(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	propTbl, _ := b.GetTable(types.PropertiesTable)
+
+	// Define a property when there are no crumbs
+	prop := &types.Property{
+		Name:      "estimate",
+		ValueType: types.ValueTypeInteger,
+	}
+	propID, err := propTbl.Set("", prop)
+	if err != nil {
+		t.Fatalf("Create property failed: %v", err)
+	}
+
+	// Should succeed (no-op for backfill)
+	if propID == "" {
+		t.Error("Property should be created even with no crumbs")
+	}
+
+	// Verify no crumb_properties entries (since no crumbs exist)
+	var count int
+	b.db.QueryRow("SELECT COUNT(*) FROM crumb_properties").Scan(&count)
+	if count != 0 {
+		t.Errorf("Expected 0 crumb_properties entries, got %d", count)
+	}
+}
+
+func TestPropertyTable_Backfill_UpdateDoesNotRebackfill(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+	propTbl, _ := b.GetTable(types.PropertiesTable)
+
+	// Create a crumb
+	crumb := &types.Crumb{Name: "Task", State: types.StateDraft}
+	crumbID, _ := crumbTbl.Set("", crumb)
+
+	// Define a property (triggers backfill)
+	prop := &types.Property{
+		Name:      "estimate",
+		ValueType: types.ValueTypeInteger,
+	}
+	propID, _ := propTbl.Set("", prop)
+
+	// Manually update the crumb_property to a non-default value
+	_, err := b.db.Exec(
+		"UPDATE crumb_properties SET value = ? WHERE crumb_id = ? AND property_id = ?",
+		"42", crumbID, propID,
+	)
+	if err != nil {
+		t.Fatalf("Update crumb_property failed: %v", err)
+	}
+
+	// Update the property (using the existing ID)
+	prop.Description = "Updated description"
+	_, err = propTbl.Set(propID, prop)
+	if err != nil {
+		t.Fatalf("Update property failed: %v", err)
+	}
+
+	// Verify the custom value was NOT overwritten (update should not re-backfill)
+	var value string
+	b.db.QueryRow(
+		"SELECT value FROM crumb_properties WHERE crumb_id = ? AND property_id = ?",
+		crumbID, propID,
+	).Scan(&value)
+	if value != "42" {
+		t.Errorf("Property update should not re-backfill; expected '42', got %q", value)
+	}
+}
