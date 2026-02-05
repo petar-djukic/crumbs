@@ -7,6 +7,7 @@ package sqlite
 import (
 	"database/sql"
 	_ "embed"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -99,6 +100,19 @@ func (b *Backend) Attach(config types.Config) error {
 
 	b.db = db
 	b.config = config
+
+	// Initialize JSON files if they don't exist (per R1.4)
+	if err := b.initJSONFiles(); err != nil {
+		db.Close()
+		return err
+	}
+
+	// Load JSON files into SQLite (per R4.1)
+	if err := b.loadAllJSON(); err != nil {
+		db.Close()
+		return fmt.Errorf("load JSON: %w", err)
+	}
+
 	b.attached = true
 
 	// Create table accessors

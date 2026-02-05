@@ -131,19 +131,26 @@ func (t *Table) Delete(id string) error {
 	}
 
 	var query string
+	var deleteFromJSON func(string) error
 	switch t.tableName {
 	case types.CrumbsTable:
 		query = "DELETE FROM crumbs WHERE crumb_id = ?"
+		deleteFromJSON = t.backend.deleteCrumbFromJSON
 	case types.TrailsTable:
 		query = "DELETE FROM trails WHERE trail_id = ?"
+		deleteFromJSON = t.backend.deleteTrailFromJSON
 	case types.PropertiesTable:
 		query = "DELETE FROM properties WHERE property_id = ?"
+		deleteFromJSON = t.backend.deletePropertyFromJSON
 	case types.MetadataTable:
 		query = "DELETE FROM metadata WHERE metadata_id = ?"
+		deleteFromJSON = t.backend.deleteMetadataFromJSON
 	case types.LinksTable:
 		query = "DELETE FROM links WHERE link_id = ?"
+		deleteFromJSON = t.backend.deleteLinkFromJSON
 	case types.StashesTable:
 		query = "DELETE FROM stashes WHERE stash_id = ?"
+		deleteFromJSON = t.backend.deleteStashFromJSON
 	default:
 		return types.ErrTableNotFound
 	}
@@ -159,6 +166,11 @@ func (t *Table) Delete(id string) error {
 	}
 	if rows == 0 {
 		return types.ErrNotFound
+	}
+
+	// Persist deletion to JSON (per R5)
+	if err := deleteFromJSON(id); err != nil {
+		return fmt.Errorf("persist deletion to JSON: %w", err)
 	}
 
 	return nil
@@ -230,6 +242,12 @@ func (t *Table) setCrumb(id string, crumb *types.Crumb) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// Persist to JSON (per R5)
+	if err := t.backend.saveCrumbToJSON(crumb); err != nil {
+		return "", fmt.Errorf("persist crumb to JSON: %w", err)
+	}
+
 	return id, nil
 }
 
@@ -353,6 +371,12 @@ func (t *Table) setTrail(id string, trail *types.Trail) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// Persist to JSON (per R5)
+	if err := t.backend.saveTrailToJSON(trail); err != nil {
+		return "", fmt.Errorf("persist trail to JSON: %w", err)
+	}
+
 	return id, nil
 }
 
@@ -482,6 +506,12 @@ func (t *Table) setProperty(id string, prop *types.Property) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// Persist to JSON (per R5)
+	if err := t.backend.savePropertyToJSON(prop); err != nil {
+		return "", fmt.Errorf("persist property to JSON: %w", err)
+	}
+
 	return id, nil
 }
 
@@ -610,6 +640,12 @@ func (t *Table) setMetadata(id string, meta *types.Metadata) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// Persist to JSON (per R5)
+	if err := t.backend.saveMetadataToJSON(meta); err != nil {
+		return "", fmt.Errorf("persist metadata to JSON: %w", err)
+	}
+
 	return id, nil
 }
 
@@ -732,6 +768,12 @@ func (t *Table) setLink(id string, link *types.Link) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// Persist to JSON (per R5)
+	if err := t.backend.saveLinkToJSON(link); err != nil {
+		return "", fmt.Errorf("persist link to JSON: %w", err)
+	}
+
 	return id, nil
 }
 
@@ -863,6 +905,12 @@ func (t *Table) setStash(id string, stash *types.Stash) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// Persist to JSON (per R5)
+	if err := t.backend.saveStashToJSON(stash, now); err != nil {
+		return "", fmt.Errorf("persist stash to JSON: %w", err)
+	}
+
 	return id, nil
 }
 
