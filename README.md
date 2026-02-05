@@ -5,13 +5,13 @@ A storage system for work items with built-in support for exploratory work sessi
 ## Installation
 
 ```bash
-go install github.com/dukaforge/crumbs/cmd/cupboard@latest
+go install github.com/petar-djukic/crumbs/cmd/cupboard@latest
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/dukaforge/crumbs.git
+git clone https://github.com/petar-djukic/crumbs.git
 cd crumbs
 go build -o bin/cupboard ./cmd/cupboard
 ```
@@ -113,6 +113,70 @@ Invoke these commands in Claude Code by typing the command name (e.g., `/do-work
 2. **Create issues**: After agreeing on the plan, issues are created via the `bd` CLI
 3. **Do work**: Run `/do-work` to pick up and complete available tasks
 4. **Track progress**: Issues track LOC metrics and token usage
+
+### /make-work
+
+The `/make-work` command analyzes the project state and proposes new work. It reads the VISION, ARCHITECTURE, ROADMAP, existing PRDs, and use cases to understand what has been built and what remains. It then proposes epics and issues that move the project forward.
+
+**Usage:**
+
+```text
+/make-work [optional context or request]
+```
+
+**What it does:**
+
+1. Reads project documentation (VISION, ARCHITECTURE, ROADMAP, PRDs, use cases)
+2. Checks open and closed issues via `bd` CLI
+3. Identifies gaps between the roadmap and current state
+4. Proposes epics and child issues with proper structure (per `issue-format.md`)
+5. Creates issues via `bd` after user approval
+
+**Example:**
+
+```text
+/make-work I want to implement the trails feature next
+```
+
+### /do-work
+
+The `/do-work` command picks up available work from the issue tracker and implements it. It handles both documentation tasks (PRDs, use cases, architecture updates) and code tasks (Go implementation).
+
+**Usage:**
+
+```text
+/do-work           # Pick any available issue
+/do-work <id>      # Work on a specific issue
+/do-work-docs      # Work on documentation issues only
+/do-work-code      # Work on code issues only
+```
+
+**What it does:**
+
+1. Finds available work via `bd ready`
+2. Claims an issue via `bd update <id> --status in_progress`
+3. Reads related PRDs and architecture docs before implementing
+4. Implements the deliverable (docs or code)
+5. Runs quality gates (tests, linters) for code tasks
+6. Logs token usage via `bd comments add <id> "tokens: <count>"`
+7. Closes the issue via `bd close <id>`
+8. Commits changes with stats (LOC, doc words)
+
+**Example session:**
+
+```text
+> /do-work
+
+Agent: Found 3 ready issues. Claiming crumbs-42: "Implement CrumbTable.Archive"
+       Reading prd-crumbs-interface.md...
+       Implementing in internal/sqlite/crumbs.go...
+       Tests pass. Committing.
+
+Stats:
+  Lines of code (Go, production): 520 (+45)
+  Lines of code (Go, tests):      312 (+28)
+  Words (documentation):          21032 (+0)
+```
 
 ### Rules
 
