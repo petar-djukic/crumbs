@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/petardjukic/crumbs/pkg/types"
+	"github.com/dukaforge/crumbs/pkg/types"
 )
 
 func TestJSONFilesCreatedOnAttach(t *testing.T) {

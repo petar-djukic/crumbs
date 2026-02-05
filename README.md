@@ -5,13 +5,13 @@ A storage system for work items with built-in support for exploratory work sessi
 ## Installation
 
 ```bash
-go install github.com/petardjukic/crumbs/cmd/cupboard@latest
+go install github.com/dukaforge/crumbs/cmd/cupboard@latest
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/petardjukic/crumbs.git
+git clone https://github.com/dukaforge/crumbs.git
 cd crumbs
 go build -o bin/cupboard ./cmd/cupboard
 ```

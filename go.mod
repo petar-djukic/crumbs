@@ -1,4 +1,4 @@
-module github.com/petardjukic/crumbs
+module github.com/dukaforge/crumbs
 
 go 1.25.7
 

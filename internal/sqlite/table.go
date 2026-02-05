@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/petardjukic/crumbs/pkg/types"
+	"github.com/dukaforge/crumbs/pkg/types"
 )
 
 // Table provides CRUD operations for a specific entity type.

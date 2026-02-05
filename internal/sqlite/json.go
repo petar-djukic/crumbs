@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/petardjukic/crumbs/pkg/types"
+	"github.com/dukaforge/crumbs/pkg/types"
 )
 
 // JSON file names per R1.2.

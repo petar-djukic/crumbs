@@ -10,7 +10,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/petardjukic/crumbs/pkg/types"
+	"github.com/dukaforge/crumbs/pkg/types"
 )
 
 // loadConfig loads configuration from file.

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/petardjukic/crumbs/pkg/types"
+	"github.com/dukaforge/crumbs/pkg/types"
 )
 
 func TestBackend_Attach(t *testing.T) {

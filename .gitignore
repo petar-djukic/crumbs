@@ -37,3 +37,5 @@ BACKGROUND/
 .github/
 .cursor
 #scripts/
+
+.DS_Store
