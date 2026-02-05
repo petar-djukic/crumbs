@@ -10,44 +10,50 @@ set -e
 
 cd "${1:-$(dirname "$0")/..}" || exit 1
 
-# Get the top task issue as JSON
-issue_json=$(bd ready -n 1 --json --type "task" 2>/dev/null)
+# Globals set by pick_task
+ISSUE_JSON=""
+ISSUE_ID=""
+ISSUE_TITLE=""
+ISSUE_DESCRIPTION=""
+ISSUE_TYPE=""
 
-if [ -z "$issue_json" ] || [ "$issue_json" = "[]" ]; then
-  echo "No tasks available. Run 'bd ready' to see all issues."
-  exit 0
-fi
+pick_task() {
+  ISSUE_JSON=$(bd ready -n 1 --json --type "task" 2>/dev/null)
 
-# Extract issue fields
-issue_id=$(echo "$issue_json" | jq -r '.[0].id // empty')
-issue_title=$(echo "$issue_json" | jq -r '.[0].title // empty')
-issue_description=$(echo "$issue_json" | jq -r '.[0].description // empty')
+  if [ -z "$ISSUE_JSON" ] || [ "$ISSUE_JSON" = "[]" ]; then
+    echo "No tasks available. Run 'bd ready' to see all issues."
+    exit 0
+  fi
 
-if [ -z "$issue_id" ]; then
-  echo "Failed to parse issue from beads output."
-  exit 1
-fi
+  ISSUE_ID=$(echo "$ISSUE_JSON" | jq -r '.[0].id // empty')
+  ISSUE_TITLE=$(echo "$ISSUE_JSON" | jq -r '.[0].title // empty')
+  ISSUE_DESCRIPTION=$(echo "$ISSUE_JSON" | jq -r '.[0].description // empty')
+  ISSUE_TYPE=$(echo "$ISSUE_JSON" | jq -r '.[0].type // "task"')
 
-echo "Picking up task: $issue_id - $issue_title"
+  if [ -z "$ISSUE_ID" ]; then
+    echo "Failed to parse issue from beads output."
+    exit 1
+  fi
 
-# Claim the task
-bd update "$issue_id" --status in_progress >/dev/null 2>&1
-echo "Task claimed."
-echo ""
+  echo "Picking up task: $ISSUE_ID - $ISSUE_TITLE"
+}
 
-# Determine task type from issue
-issue_type=$(echo "$issue_json" | jq -r '.[0].type // "task"')
+claim_task() {
+  bd update "$ISSUE_ID" --status in_progress >/dev/null 2>&1
+  echo "Task claimed."
+  echo ""
+}
 
-# Build the prompt for Claude (beads-free)
-prompt=$(cat <<EOF
-## Task: $issue_title
+build_prompt() {
+  cat <<EOF
+## Task: $ISSUE_TITLE
 
-**Task ID:** $issue_id
-**Type:** $issue_type
+**Task ID:** $ISSUE_ID
+**Type:** $ISSUE_TYPE
 
 ### Description
 
-$issue_description
+$ISSUE_DESCRIPTION
 
 ---
 
@@ -56,25 +62,37 @@ $issue_description
 1. Read VISION.md and ARCHITECTURE.md for context
 2. Read any PRDs or docs referenced in the description
 3. Complete the task according to the description and acceptance criteria
-4. Commit your changes with a message that includes the task ID ($issue_id)
+4. Commit your changes with a message that includes the task ID ($ISSUE_ID)
 
 Do not use beads (bd) commands - task tracking is handled externally.
 EOF
-)
+}
 
-# Invoke Claude with the prompt
-# --dangerously-skip-permissions: auto-approve all tool use
-# --print: non-interactive mode, exit when done
-# --verbose: show full turn-by-turn output
-claude --dangerously-skip-permissions --print --verbose "$prompt"
+run_claude() {
+  local prompt="$1"
+  # --dangerously-skip-permissions: auto-approve all tool use
+  # --print: non-interactive mode, exit when done
+  # --verbose: show full turn-by-turn output
+  claude --dangerously-skip-permissions --print --verbose "$prompt"
+}
 
-# Close the issue and commit
-echo ""
-echo "Closing task: $issue_id"
-bd close "$issue_id" >/dev/null 2>&1
+close_task() {
+  echo ""
+  echo "Closing task: $ISSUE_ID"
+  bd close "$ISSUE_ID" >/dev/null 2>&1
 
-echo "Committing beads changes..."
-git add .beads/
-git commit -m "Close $issue_id" --allow-empty >/dev/null 2>&1 || true
+  echo "Committing beads changes..."
+  git add .beads/
+  git commit -m "Close $ISSUE_ID" --allow-empty >/dev/null 2>&1 || true
 
-echo "Done."
+  echo "Done."
+}
+
+main() {
+  pick_task
+  claim_task
+  run_claude "$(build_prompt)"
+  close_task
+}
+
+main
