@@ -38,6 +38,33 @@ bd comments add atlas-123 "tokens: 34256"
 bd close atlas-123
 ```
 
+## LOC and Documentation Tracking
+
+**Track lines of code and documentation changes per issue:**
+
+1. **At start of issue** - Run `./scripts/summarize-loc-docs.sh` and note the baseline:
+   ```bash
+   ./scripts/summarize-loc-docs.sh
+   # Save: LOC_PROD=441, LOC_TEST=0, DOC_WORDS=21032
+   ```
+
+2. **When closing issue** - Run the script again and calculate the delta:
+   ```bash
+   ./scripts/summarize-loc-docs.sh
+   # New: LOC_PROD=520, LOC_TEST=45, DOC_WORDS=21900
+   # Delta: +79 LOC (prod), +45 LOC (test), +868 words (docs)
+   ```
+
+3. **Include delta in commit message** - Add the delta to the commit message:
+
+   ```text
+   Add feature X (issue-id)
+
+   - Description of changes
+
+   Delta: +79 LOC (prod), +45 LOC (test), +868 words (docs)
+   ```
+
 ## Landing the Plane (Session Completion)
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until changes are committed locally.
