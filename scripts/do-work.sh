@@ -5,10 +5,12 @@
 # The script handles task picking, reservation, and git worktree management.
 # Claude receives a clean prompt focused on the work itself.
 #
-# Usage: do-work.sh [--silence-claude] [repo-root]
+# Usage: do-work.sh [options] [repo-root]
 #
 # Options:
-#   --silence-claude  Suppress Claude's output
+#   --silence-claude       Suppress Claude's output
+#   --make-work-limit N    Number of issues to create when no tasks (default: 1)
+#   --cycles N             Number of make-work cycles (default: 1)
 #
 # Workflow:
 # 1. Pick and claim a task from beads
@@ -16,12 +18,16 @@
 # 3. Run Claude in the worktree
 # 4. Merge the branch back to main
 # 5. Clean up the worktree
+# 6. When no tasks left, call make-work.sh to create more
+# 7. Repeat for specified number of cycles
 #
 
 set -e
 
 # Parse arguments
 SILENCE_CLAUDE=false
+MAKE_WORK_LIMIT=1
+CYCLES=1
 REPO_ARG=""
 
 while [[ $# -gt 0 ]]; do
@@ -29,6 +35,14 @@ while [[ $# -gt 0 ]]; do
     --silence-claude)
       SILENCE_CLAUDE=true
       shift
+      ;;
+    --make-work-limit)
+      MAKE_WORK_LIMIT="$2"
+      shift 2
+      ;;
+    --cycles)
+      CYCLES="$2"
+      shift 2
       ;;
     *)
       REPO_ARG="$1"
@@ -41,6 +55,7 @@ REPO_ROOT="${REPO_ARG:-$(dirname "$0")/..}"
 cd "$REPO_ROOT" || exit 1
 REPO_ROOT=$(pwd)
 
+SCRIPT_DIR="$REPO_ROOT/scripts"
 PROJECT_NAME=$(basename "$REPO_ROOT")
 WORKTREE_BASE="/tmp/${PROJECT_NAME}-worktrees"
 
@@ -184,18 +199,57 @@ do_one_task() {
   close_task
 }
 
-main() {
-  local task_count=0
+call_make_work() {
+  echo ""
+  echo "========================================"
+  echo "No tasks available. Creating new work..."
+  echo "========================================"
+  echo ""
 
-  while pick_task; do
-    do_one_task
-    task_count=$((task_count + 1))
+  local make_work_args="--limit $MAKE_WORK_LIMIT"
+  if [ "$SILENCE_CLAUDE" = true ]; then
+    make_work_args="$make_work_args --silence-claude"
+  fi
+
+  "$SCRIPT_DIR/make-work.sh" $make_work_args
+}
+
+main() {
+  local total_tasks=0
+  local current_cycle=1
+
+  while [ "$current_cycle" -le "$CYCLES" ]; do
+    echo "========================================"
+    echo "Cycle $current_cycle of $CYCLES"
+    echo "========================================"
     echo ""
-    echo "----------------------------------------"
-    echo ""
+
+    local cycle_tasks=0
+
+    # Do all available tasks
+    while pick_task; do
+      do_one_task
+      cycle_tasks=$((cycle_tasks + 1))
+      total_tasks=$((total_tasks + 1))
+      echo ""
+      echo "----------------------------------------"
+      echo ""
+    done
+
+    echo "Completed $cycle_tasks task(s) in cycle $current_cycle."
+
+    # If not on the last cycle, create more work
+    if [ "$current_cycle" -lt "$CYCLES" ]; then
+      call_make_work
+    fi
+
+    current_cycle=$((current_cycle + 1))
   done
 
-  echo "No more tasks available. Completed $task_count task(s)."
+  echo ""
+  echo "========================================"
+  echo "All cycles complete. Total tasks: $total_tasks"
+  echo "========================================"
 }
 
 main

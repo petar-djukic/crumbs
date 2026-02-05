@@ -39,3 +39,6 @@ BACKGROUND/
 #scripts/
 
 .DS_Store
+
+# Proposed issues from make-work.sh (temporary, review before import)
+docs/proposed-issues-*.json
