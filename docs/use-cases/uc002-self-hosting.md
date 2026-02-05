@@ -6,43 +6,113 @@ A coding agent uses the crumbs system to track the development of crumbs itself.
 
 ## Actor and Trigger
 
-The actor is a coding agent (e.g., Claude Code) working on the crumbs codebase. The trigger is reaching the minimum viable product: CrumbTable implemented with CLI commands for basic operations.
+The actor is a coding agent (e.g., Claude Code) working on the crumbs codebase. The trigger is reaching the minimum viable product: Table interface implemented with Get, Set, Delete, and Fetch operations for crumbs.
 
 ## Flow
 
 ### Phase 1: Transition from Beads
 
-1. **Verify MVP readiness**: Confirm CrumbTable operations work (Add, Get, Update, SetState, Archive, Fetch) and CLI commands exist for each.
+1. **Verify MVP readiness**: Confirm the Cupboard and Table interfaces work. The cupboard can Attach to an SQLite backend; GetTable("crumbs") returns a Table; the Table supports Get, Set, Delete, and Fetch operations.
 
-2. **Initialize crumbs cupboard**: Run `crumbs init --datadir .crumbs` in the crumbs repo root. The backend creates the directory, JSON files, SQLite schema, and seeds built-in properties.
+2. **Initialize crumbs cupboard**: Attach the cupboard to a local SQLite backend:
 
-3. **Import existing work**: For any open beads issues, create corresponding crumbs via `crumbs add "Issue title"`. Set properties (priority, type, description) to match beads data.
+```go
+cfg := Config{Backend: "sqlite", DataDir: ".crumbs"}
+err := cupboard.Attach(cfg)
+```
+
+The backend creates the directory, SQLite schema, and seeds built-in properties.
+
+3. **Import existing work**: For any open beads issues, create corresponding crumbs via the Table interface:
+
+```go
+crumbsTable, _ := cupboard.GetTable("crumbs")
+crumb := &Crumb{Name: "Issue title"}
+crumbsTable.Set("", crumb)  // empty ID triggers UUID generation
+crumb.SetProperty("priority", int64(2))
+crumbsTable.Set(crumb.CrumbID, crumb)
+```
 
 4. **Retire beads for this repo**: Once crumbs are tracking all work, stop using `bd` commands for new work in the crumbs repo. Beads remains available for other projects.
 
 ### Phase 2: Basic Self-Hosting
 
-5. **Create work items**: When starting new implementation tasks, run `crumbs add "Implement PropertyTable.Define"`. The crumb is created in draft state with all properties initialized.
+5. **Create work items**: When starting new implementation tasks, create crumbs via the ORM pattern:
 
-6. **Track progress**: As work progresses, update state via `crumbs state <id> ready` when ready to implement, `crumbs state <id> taken` when actively working.
+```go
+crumbsTable, _ := cupboard.GetTable("crumbs")
+crumb := &Crumb{Name: "Implement PropertyTable.Define"}
+crumbsTable.Set("", crumb)  // crumb created in draft state
+```
 
-7. **Complete or archive**: When implementation is done, run `crumbs state <id> completed`. For abandoned work, run `crumbs archive <id>`.
+6. **Track progress**: As work progresses, update state via entity methods:
 
-8. **Query work**: Use `crumbs fetch --state ready` to see available work, `crumbs fetch --state taken` to see in-progress items.
+```go
+entity, _ := crumbsTable.Get(id)
+crumb := entity.(*Crumb)
+crumb.SetState("ready")      // ready to implement
+crumbsTable.Set(crumb.CrumbID, crumb)
 
-### Phase 3: Trail-Based Development (after TrailTable)
+// later...
+crumb.SetState("taken")      // actively working
+crumbsTable.Set(crumb.CrumbID, crumb)
+```
 
-9. **Explore implementation approaches**: When implementing a complex feature, run `crumbs trail start` to create an exploration trail.
+7. **Complete or archive**: When implementation is done, use entity methods:
 
-10. **Add exploration crumbs**: Create crumbs for the exploration approach: `crumbs add "Try approach A"` then `crumbs trail add-crumb <trail-id> <crumb-id>`.
+```go
+crumb.Complete()             // transitions to completed
+crumbsTable.Set(crumb.CrumbID, crumb)
 
-11. **Abandon failed approaches**: If the approach fails, run `crumbs trail abandon <trail-id>`. All crumbs on the trail are deleted atomically.
+// or for abandoned work
+crumb.Archive()              // transitions to archived
+crumbsTable.Set(crumb.CrumbID, crumb)
+```
 
-12. **Complete successful approaches**: If the approach succeeds, run `crumbs trail complete <trail-id>`. Crumbs become permanent.
+8. **Query work**: Use Table.Fetch with filters to query available work:
 
-### Phase 4: Shared State (after StashTable)
+```go
+readyFilter := map[string]any{"states": []string{"ready"}}
+entities, _ := crumbsTable.Fetch(readyFilter)
+for _, e := range entities {
+    crumb := e.(*Crumb)
+    // process ready crumbs
+}
+```
 
-13. **Share context between tasks**: Create a stash for shared configuration: `crumbs stash create --trail <id> --name "build-config" --type context`.
+### Phase 3: Trail-Based Development (after Trail entity)
+
+9. **Explore implementation approaches**: When implementing a complex feature, create an exploration trail:
+
+```go
+trailsTable, _ := cupboard.GetTable("trails")
+trail := &Trail{ParentCrumbID: nil}
+trailsTable.Set("", trail)  // trail created in active state
+```
+
+10. **Add exploration crumbs**: Create crumbs and add them to the trail:
+
+```go
+crumb := &Crumb{Name: "Try approach A"}
+crumbsTable.Set("", crumb)
+trail.AddCrumb(cupboard, crumb.CrumbID)
+```
+
+11. **Abandon failed approaches**: If the approach fails, abandon the trail. All crumbs on the trail are deleted atomically:
+
+```go
+trail.Abandon(cupboard)  // deletes all crumbs, marks trail abandoned
+```
+
+12. **Complete successful approaches**: If the approach succeeds, complete the trail. Crumbs become permanent (belongs_to links removed):
+
+```go
+trail.Complete(cupboard)  // crumbs become permanent, trail marked completed
+```
+
+### Phase 4: Shared State (after Stash entity)
+
+13. **Share context between tasks**: Create a stash for shared configuration via the stashes table.
 
 14. **Track artifacts**: When one task produces output another needs, use artifact stashes to track the handoff.
 
@@ -52,47 +122,58 @@ The actor is a coding agent (e.g., Claude Code) working on the crumbs codebase. 
 
 | Interface | Operations Used |
 |-----------|-----------------|
-| Cupboard | OpenCupboard, Close |
-| CrumbTable | Add, Get, Update, SetState, Archive, Fetch |
-| PropertyTable | List, SetProperty (via CrumbTable) |
-| TrailTable | Start, AddCrumb, Complete, Abandon |
-| StashTable | Create, Set, GetValue, Acquire, Release |
+| Cupboard | Attach, Detach, GetTable |
+| Table (crumbs) | Get, Set, Delete, Fetch |
+| Table (trails) | Get, Set, Delete, Fetch |
+| Table (stashes) | Get, Set, Delete, Fetch |
+| Crumb entity | SetState, Complete, Archive, Fail, SetProperty, GetProperty |
+| Trail entity | AddCrumb, RemoveCrumb, GetCrumbs, Complete, Abandon |
 
 ## Success Criteria
 
 The use case succeeds when:
 
-- [ ] Crumbs cupboard initialized in crumbs repo (`.crumbs/` directory)
+- [ ] Cupboard attaches to SQLite backend (`.crumbs/` directory)
 - [ ] All development work tracked via crumbs (not beads)
-- [ ] Agent can create, update, and query crumbs via CLI
-- [ ] Agent uses trails to explore implementation approaches
-- [ ] Abandoned trails clean up atomically (no orphan crumbs)
-- [ ] Completed trails merge crumbs to permanent record
+- [ ] Agent can create, update, and query crumbs via Table interface
+- [ ] Agent uses Trail entity methods to explore implementation approaches
+- [ ] Abandoned trails delete crumbs atomically (no orphan crumbs)
+- [ ] Completed trails make crumbs permanent (remove belongs_to links)
 - [ ] System remains stable under self-hosting load
 
 Observable demo:
 
-```bash
-# Phase 1: Initialize and create work
-crumbs init --datadir .crumbs
-crumbs add "Implement StashTable.Increment"
-crumbs fetch --state draft
+```go
+// Phase 1: Initialize and create work
+cfg := Config{Backend: "sqlite", DataDir: ".crumbs"}
+cupboard.Attach(cfg)
+crumbsTable, _ := cupboard.GetTable("crumbs")
+crumb := &Crumb{Name: "Implement Stash operations"}
+crumbsTable.Set("", crumb)
 
-# Phase 2: Track progress
-crumbs state <id> ready
-crumbs state <id> taken
-crumbs state <id> completed
+// Phase 2: Track progress
+entity, _ := crumbsTable.Get(crumb.CrumbID)
+crumb = entity.(*Crumb)
+crumb.SetState("ready")
+crumbsTable.Set(crumb.CrumbID, crumb)
+crumb.SetState("taken")
+crumbsTable.Set(crumb.CrumbID, crumb)
+crumb.Complete()
+crumbsTable.Set(crumb.CrumbID, crumb)
 
-# Phase 3: Explore with trails
-crumbs trail start
-crumbs add "Try optimistic locking"
-crumbs trail add-crumb <trail-id> <crumb-id>
-# ... approach fails ...
-crumbs trail abandon <trail-id>
+// Phase 3: Explore with trails
+trailsTable, _ := cupboard.GetTable("trails")
+trail := &Trail{}
+trailsTable.Set("", trail)
+exploreCrumb := &Crumb{Name: "Try optimistic locking"}
+crumbsTable.Set("", exploreCrumb)
+trail.AddCrumb(cupboard, exploreCrumb.CrumbID)
+// ... approach fails ...
+trail.Abandon(cupboard)  // deletes exploreCrumb atomically
 
-# Phase 4: Share state
-crumbs stash create --name "test-db-path" --type resource
-crumbs stash set <stash-id> '{"uri": "file:///tmp/test.db"}'
+// Phase 4: Share state (via stashes table)
+stashesTable, _ := cupboard.GetTable("stashes")
+// ... stash operations ...
 ```
 
 ## Out of Scope
@@ -107,11 +188,10 @@ This use case does not cover:
 
 ## Dependencies
 
-- prd-cupboard-core must be implemented (OpenCupboard, Close)
-- prd-crumbs-interface must be implemented (CrumbTable operations)
-- CLI must expose CrumbTable operations
-- For Phase 3: prd-trails-interface must be implemented
-- For Phase 4: prd-stash-interface must be implemented
+- prd-cupboard-core must be implemented (Cupboard interface: Attach, Detach, GetTable; Table interface: Get, Set, Delete, Fetch)
+- prd-crumbs-interface must be implemented (Crumb entity and entity methods)
+- For Phase 3: prd-trails-interface must be implemented (Trail entity and entity methods)
+- For Phase 4: prd-stash-interface must be implemented (Stash entity)
 
 ## Risks and Mitigations
 
