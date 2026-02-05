@@ -4,7 +4,9 @@
 
 The SQLite backend needs a detailed specification for how JSON files and SQLite interact. prd-cupboard-core establishes that JSON is the source of truth and SQLite serves as a query engine, but it does not specify the JSON file format, SQLite schema, sync lifecycle, or error handling. Without this detail, implementation will make ad-hoc decisions that may not align with project goals.
 
-This PRD specifies the SQLite backend internals: JSON file layout, SQLite schema, startup loading, write persistence, shutdown flushing, error recovery, and concurrency model.
+The backend must also implement the uniform Table interface defined in prd-cupboard-core. Applications access data through `cupboard.GetTable("crumbs").Get(id)`, not through entity-specific methods. The backend must hydrate table rows into entity objects and persist entity objects back to rows. This ORM-style pattern keeps the interface consistent while allowing each entity type to have its own struct.
+
+This PRD specifies the SQLite backend internals: JSON file layout, SQLite schema, startup loading, write persistence, shutdown flushing, error recovery, concurrency model, and the ORM layer that maps between Table operations and entity types.
 
 ## Graph Model
 
@@ -37,6 +39,10 @@ We store data as a directed acyclic graph (DAG). Crumbs and trails are nodes; re
 5. Specify shutdown behavior: flushing pending writes
 6. Define error handling for corrupt files, schema mismatches, and I/O failures
 7. Define the concurrency model for safe concurrent access
+8. Specify how the backend implements the Cupboard interface (Attach/Detach)
+9. Specify how GetTable routes table names to table implementations
+10. Define entity hydration: converting table rows to entity objects
+11. Define entity persistence: converting entity objects to table rows
 
 ## Requirements
 
@@ -529,6 +535,157 @@ CREATE INDEX idx_stash_history_version ON stash_history(stash_id, version);
 
 10.5. Audit functions are also available as Cupboard methods for on-demand validation.
 
+### R11: Cupboard Interface Implementation
+
+11.1. The SQLite backend implements the Cupboard interface defined in prd-cupboard-core:
+
+```go
+type Cupboard interface {
+    GetTable(name string) (Table, error)
+    Attach(config Config) error
+    Detach() error
+}
+```
+
+11.2. Attach must perform the startup sequence (R4): create DataDir, initialize JSON files, create SQLite schema, load JSON into SQLite, validate references.
+
+11.3. Attach must store the Config and mark the cupboard as attached. Subsequent Attach calls return ErrAlreadyAttached.
+
+11.4. Detach must perform the shutdown sequence (R6): wait for in-flight operations, verify JSON files are current, close SQLite connection.
+
+11.5. After Detach, all operations including GetTable must return ErrCupboardDetached.
+
+### R12: Table Name Routing
+
+12.1. GetTable accepts a table name and returns a Table implementation for that entity type:
+
+| Table name | Entity type | JSON file | SQLite table |
+|------------|-------------|-----------|--------------|
+| crumbs | Crumb | crumbs.json | crumbs |
+| trails | Trail | trails.json | trails |
+| properties | Property | properties.json | properties |
+| metadata | Metadata | metadata.json | metadata |
+| links | Link | links.json | links |
+| stashes | Stash | stashes.json | stashes |
+
+12.2. GetTable must return ErrTableNotFound for unrecognized table names.
+
+12.3. GetTable returns a table accessor bound to the specific entity type. Each table accessor implements the Table interface but operates on its corresponding entity struct.
+
+12.4. Table accessors are created once during Attach and reused. GetTable returns the same accessor instance for repeated calls with the same name.
+
+### R13: Table Interface Implementation
+
+13.1. Each table accessor implements the Table interface:
+
+```go
+type Table interface {
+    Get(id string) (any, error)
+    Set(id string, data any) error
+    Delete(id string) error
+    Fetch(filter map[string]any) ([]any, error)
+}
+```
+
+13.2. Get retrieves an entity by ID: query SQLite by primary key, hydrate the row into the entity struct (R14), return the entity or ErrNotFound.
+
+13.3. Set persists an entity: accept an entity struct (type assertion to expected type), generate UUID v7 if ID is empty, dehydrate the entity to row data (R15), execute SQLite INSERT or UPDATE, persist to JSON file (R5).
+
+13.4. Delete removes an entity: delete from SQLite by primary key, persist to JSON file (R5), return ErrNotFound if entity does not exist.
+
+13.5. Fetch queries entities matching a filter: build SQL WHERE clause from filter map, query SQLite, hydrate each row into entity struct, return slice of entities (as []any).
+
+13.6. Filter map keys correspond to entity field names (Go struct field names, not JSON/SQL column names). The table accessor maps field names to column names.
+
+### R14: Entity Hydration
+
+14.1. Hydration converts a SQLite row into an entity struct. Each table accessor defines hydration for its entity type.
+
+14.2. Hydration mapping for Crumb (from crumbs table):
+
+| SQLite column | Go field | Type conversion |
+|---------------|----------|-----------------|
+| crumb_id | ID | string (direct) |
+| name | Name | string (direct) |
+| state | State | string (direct) |
+| created_at | CreatedAt | RFC 3339 → time.Time |
+| updated_at | UpdatedAt | RFC 3339 → time.Time |
+
+14.3. Hydration mapping for Trail (from trails table):
+
+| SQLite column | Go field | Type conversion |
+|---------------|----------|-----------------|
+| trail_id | ID | string (direct) |
+| parent_crumb_id | ParentCrumbID | string, nullable |
+| state | State | string (direct) |
+| created_at | CreatedAt | RFC 3339 → time.Time |
+| completed_at | CompletedAt | RFC 3339 → *time.Time, nullable |
+
+14.4. Hydration mapping for Property (from properties table):
+
+| SQLite column | Go field | Type conversion |
+|---------------|----------|-----------------|
+| property_id | ID | string (direct) |
+| name | Name | string (direct) |
+| description | Description | string (direct) |
+| value_type | ValueType | string (direct) |
+| created_at | CreatedAt | RFC 3339 → time.Time |
+
+14.5. Hydration mapping for Metadata (from metadata table):
+
+| SQLite column | Go field | Type conversion |
+|---------------|----------|-----------------|
+| metadata_id | ID | string (direct) |
+| table_name | TableName | string (direct) |
+| crumb_id | CrumbID | string (direct) |
+| property_id | PropertyID | string, nullable |
+| content | Content | string (direct) |
+| created_at | CreatedAt | RFC 3339 → time.Time |
+
+14.6. Hydration mapping for Link (from links table):
+
+| SQLite column | Go field | Type conversion |
+|---------------|----------|-----------------|
+| link_type | LinkType | string (direct) |
+| from_id | FromID | string (direct) |
+| to_id | ToID | string (direct) |
+| created_at | CreatedAt | RFC 3339 → time.Time |
+
+14.7. Hydration mapping for Stash (from stashes table):
+
+| SQLite column | Go field | Type conversion |
+|---------------|----------|-----------------|
+| stash_id | ID | string (direct) |
+| trail_id | TrailID | string, nullable |
+| name | Name | string (direct) |
+| stash_type | StashType | string (direct) |
+| value | Value | JSON string → any |
+| version | Version | integer (direct) |
+| created_at | CreatedAt | RFC 3339 → time.Time |
+| updated_at | UpdatedAt | RFC 3339 → time.Time |
+
+14.8. Nullable columns hydrate to pointer types or zero values. If the column is NULL and the Go field is a pointer, set it to nil. If the Go field is not a pointer, return an error (schema violation).
+
+14.9. Time conversion uses time.Parse with RFC 3339 format. Invalid timestamps cause hydration to fail with an error.
+
+### R15: Entity Persistence
+
+15.1. Persistence (dehydration) converts an entity struct into SQL parameters for INSERT or UPDATE.
+
+15.2. Dehydration is the inverse of hydration. Each table accessor maps Go struct fields to SQL column values.
+
+15.3. Time fields convert to RFC 3339 strings using time.Format.
+
+15.4. Pointer fields convert to NULL if nil, otherwise to the dereferenced value.
+
+15.5. For Stash.Value (any type), persistence must JSON-encode the value before storing.
+
+15.6. Set determines INSERT vs UPDATE by checking if a row with the given ID exists. If no row exists, INSERT; if row exists, UPDATE.
+
+15.7. UUID v7 generation occurs in Set when the entity ID field is empty. The generated ID is assigned to the entity before persistence.
+
+15.8. After SQLite persistence, the entity must be written to the corresponding JSON file following the atomic write pattern (R5.2).
+
 ## Non-Goals
 
 1. This PRD does not define the Cupboard interface operations. Those are in prd-cupboard-core and the interface PRDs.
@@ -550,6 +707,11 @@ CREATE INDEX idx_stash_history_version ON stash_history(stash_id, version);
 - [ ] Concurrency model specified (R8)
 - [ ] Built-in properties and categories specified (R9)
 - [ ] Graph audit functions specified (R10)
+- [ ] Cupboard interface implementation specified (R11)
+- [ ] Table name routing documented (R12)
+- [ ] Table interface implementation specified (R13)
+- [ ] Entity hydration pattern documented (R14)
+- [ ] Entity persistence pattern documented (R15)
 - [ ] File saved at docs/product-requirements/prd-sqlite-backend.md
 
 ## Constraints
