@@ -72,8 +72,8 @@ run_claude() {
   local prompt="$1"
   # --dangerously-skip-permissions: auto-approve all tool use
   # -p: non-interactive mode, exit when done
-  # --verbose --output-format stream-json: stream events as they happen
-  echo "$prompt" | claude --dangerously-skip-permissions -p --verbose --output-format stream-json
+  # --output-format text: human-readable output
+  echo "$prompt" | claude --dangerously-skip-permissions -p --output-format text
 }
 
 close_task() {
