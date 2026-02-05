@@ -41,7 +41,7 @@ Read VISION.md and ARCHITECTURE.md for context. For PRDs also scan existing `doc
 ## 4. After writing
 
 1. **Check completeness** against the issue Acceptance Criteria and the format rule checklist.
-2. **Calculate metrics**: tokens used; lines added/modified for this change (e.g. `git diff --stat` for the new/changed file). When summarizing changes, run `./scripts/summarize-loc-docs.sh` and include its output (Go production/test LOC, doc words) in the summary.
+2. **Calculate metrics**: tokens used; lines added/modified for this change (e.g. `git diff --stat` for the new/changed file). When summarizing changes, run `./scripts/stats.sh` and include its output (Go production/test LOC, doc words) in the summary.
 3. **Log metrics and close**:
    ```bash
    bd comments add <issue-id> "tokens: <count>, loc: <lines_added>+<lines_modified>"
@@ -59,4 +59,4 @@ IMPORTANT:
 - Always commit `.beads/issues.jsonl` with your doc changes.
 - Track token usage and lines of code for every issue closed.
 
-Show what you completed and what's next. When summarizing, run `./scripts/summarize-loc-docs.sh` and include its output.
+Show what you completed and what's next. When summarizing, run `./scripts/stats.sh` and include its output.

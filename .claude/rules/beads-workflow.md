@@ -42,15 +42,15 @@ bd close atlas-123
 
 **Track lines of code and documentation changes per issue:**
 
-1. **At start of issue** - Run `./scripts/summarize-loc-docs.sh` and note the baseline:
+1. **At start of issue** - Run `./scripts/stats.sh` and note the baseline:
    ```bash
-   ./scripts/summarize-loc-docs.sh
+   ./scripts/stats.sh
    # Save: LOC_PROD=441, LOC_TEST=0, DOC_WORDS=21032
    ```
 
 2. **When closing issue** - Run the script again and calculate the delta:
    ```bash
-   ./scripts/summarize-loc-docs.sh
+   ./scripts/stats.sh
    # New: LOC_PROD=520, LOC_TEST=45, DOC_WORDS=21900
    # Delta: +79 LOC (prod), +45 LOC (test), +868 words (docs)
    ```
@@ -93,7 +93,7 @@ bd close atlas-123
    (Do not run `git push`; we have no remote access. Commit works locally.)
 5. **Clean up** - Clear stashes; skip remote operations (we are offline).
 6. **Verify** - All changes committed locally.
-7. **Hand off** - Provide context for next session; inform user that changes are committed locally and they can push when they have network access. **When summarizing changes in code or markdown**, run `./scripts/summarize-loc-docs.sh` and include its output (Go production/test LOC, doc words) in the summary.
+7. **Hand off** - Provide context for next session; inform user that changes are committed locally and they can push when they have network access. **When summarizing changes in code or markdown**, run `./scripts/stats.sh` and include its output (Go production/test LOC, doc words) in the summary.
 
 **CRITICAL RULES:**
 - Work is NOT complete until changes are committed locally

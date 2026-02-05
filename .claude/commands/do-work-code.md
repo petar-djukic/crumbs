@@ -32,7 +32,7 @@ Read VISION.md and ARCHITECTURE.md for context.
 ## 4. After implementation
 
 1. **Run any tests** to verify your work.
-2. **Calculate metrics**: tokens used; lines added/modified for this change (e.g. `git diff --stat`). When summarizing changes, run `./scripts/summarize-loc-docs.sh` and include its output (Go production/test LOC, doc words) in the summary.
+2. **Calculate metrics**: tokens used; lines added/modified for this change (e.g. `git diff --stat`). When summarizing changes, run `./scripts/stats.sh` and include its output (Go production/test LOC, doc words) in the summary.
 3. **Log metrics and close**:
    ```bash
    bd comments add <issue-id> "tokens: <count>, loc: <lines_added>+<lines_modified>"
@@ -59,7 +59,7 @@ When you close the **last issue in an epic** (all child tasks complete), perform
 4. **Run full test suite** and any integration tests
 5. **File follow-up issues** for any technical debt, refactoring, or improvements discovered
 6. **Check for doc updates needed**: if implementation revealed design changes or clarifications, **ask the user** before updating architecture or PRD docs
-7. **Summarize epic completion**: run `./scripts/summarize-loc-docs.sh` and report:
+7. **Summarize epic completion**: run `./scripts/stats.sh` and report:
    - What was built (components, features)
    - Total metrics (tokens, LOC across all child issues)
    - Any deviations from original design
@@ -71,4 +71,4 @@ IMPORTANT:
 - Track token usage and lines of code for every issue closed.
 - **Link code to docs**: identify PRDs/architecture → implement to fit → commit with PRD refs → optional PRD list in file/package comments.
 
-Show what you completed and what's next. When summarizing, run `./scripts/summarize-loc-docs.sh` and include its output.
+Show what you completed and what's next. When summarizing, run `./scripts/stats.sh` and include its output.

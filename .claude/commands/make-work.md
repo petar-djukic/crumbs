@@ -12,7 +12,7 @@ Then, summarize:
 1. What problem this project solves
 2. The high-level architecture (major components and how they fit together)
 3. The current state of implementation (what's done, what's in progress)
-4. Current repo size: run `./scripts/summarize-loc-docs.sh` and include its output (Go production/test LOC, doc words)
+4. Current repo size: run `./scripts/stats.sh` and include its output (Go production/test LOC, doc words)
 
 Based on this, propose next steps:
 
