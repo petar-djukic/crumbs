@@ -57,8 +57,7 @@ pick_task() {
   ISSUE_JSON=$(bd ready -n 1 --json --type "task" 2>/dev/null)
 
   if [ -z "$ISSUE_JSON" ] || [ "$ISSUE_JSON" = "[]" ]; then
-    echo "No tasks available. Run 'bd ready' to see all issues."
-    exit 0
+    return 1  # No tasks available
   fi
 
   ISSUE_ID=$(echo "$ISSUE_JSON" | jq -r '.[0].id // empty')
@@ -68,13 +67,14 @@ pick_task() {
 
   if [ -z "$ISSUE_ID" ]; then
     echo "Failed to parse issue from beads output."
-    exit 1
+    return 1
   fi
 
   BRANCH_NAME="task/$ISSUE_ID"
   WORKTREE_DIR="$WORKTREE_BASE/$ISSUE_ID"
 
   echo "Picking up task: $ISSUE_ID - $ISSUE_TITLE"
+  return 0
 }
 
 claim_task() {
@@ -175,14 +175,27 @@ close_task() {
   echo "Done."
 }
 
-main() {
-  pick_task
+do_one_task() {
   claim_task
   create_worktree
   run_claude "$(build_prompt)"
   merge_branch
   cleanup_worktree
   close_task
+}
+
+main() {
+  local task_count=0
+
+  while pick_task; do
+    do_one_task
+    task_count=$((task_count + 1))
+    echo ""
+    echo "----------------------------------------"
+    echo ""
+  done
+
+  echo "No more tasks available. Completed $task_count task(s)."
 }
 
 main
