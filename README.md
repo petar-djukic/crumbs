@@ -5,7 +5,7 @@ A storage system for work items with built-in support for exploratory work sessi
 ## Installation
 
 ```bash
-go install github.com/petardjukic/crumbs/cmd/crumbs@latest
+go install github.com/petardjukic/crumbs/cmd/cupboard@latest
 ```
 
 Or build from source:
@@ -13,35 +13,35 @@ Or build from source:
 ```bash
 git clone https://github.com/petardjukic/crumbs.git
 cd crumbs
-go build -o bin/crumbs ./cmd/crumbs
+go build -o bin/cupboard ./cmd/cupboard
 ```
 
 ## Quick Start
 
 ```bash
 # Initialize a cupboard in the current directory
-crumbs init
+cupboard init
 
 # Create a crumb (work item)
-crumbs set crumbs "" '{"Name":"Implement feature X","State":"draft"}'
+cupboard set crumbs "" '{"Name":"Implement feature X","State":"draft"}'
 
 # List all crumbs
-crumbs list crumbs
+cupboard list crumbs
 
 # Filter by state
-crumbs list crumbs State=ready
+cupboard list crumbs State=ready
 
 # Create a trail for exploration
-crumbs set trails "" '{"State":"active"}'
+cupboard set trails "" '{"State":"active"}'
 
 # Get a specific entity
-crumbs get crumbs <id>
+cupboard get crumbs <id>
 
 # Update an entity
-crumbs set crumbs <id> '{"CrumbID":"<id>","Name":"Updated name","State":"taken"}'
+cupboard set crumbs <id> '{"CrumbID":"<id>","Name":"Updated name","State":"taken"}'
 
 # Delete an entity
-crumbs delete crumbs <id>
+cupboard delete crumbs <id>
 ```
 
 ## Configuration
@@ -57,14 +57,14 @@ Or place `config.yaml` in `~/.crumbs/` for global configuration.
 
 ## CLI Commands
 
-| Command                            | Description                                        |
-| ---------------------------------- | -------------------------------------------------- |
-| `crumbs init`                      | Initialize the cupboard storage                    |
-| `crumbs set <table> <id> <json>`   | Create or update an entity (empty id creates new)  |
-| `crumbs get <table> <id>`          | Get an entity by ID                                |
-| `crumbs list <table> [filter...]`  | List entities with optional filters                |
-| `crumbs delete <table> <id>`       | Delete an entity                                   |
-| `crumbs version`                   | Print version                                      |
+| Command                              | Description                                        |
+| ------------------------------------ | -------------------------------------------------- |
+| `cupboard init`                      | Initialize the cupboard storage                    |
+| `cupboard set <table> <id> <json>`   | Create or update an entity (empty id creates new)  |
+| `cupboard get <table> <id>`          | Get an entity by ID                                |
+| `cupboard list <table> [filter...]`  | List entities with optional filters                |
+| `cupboard delete <table> <id>`       | Delete an entity                                   |
+| `cupboard version`                   | Print version                                      |
 
 Tables: `crumbs`, `trails`, `links`, `properties`, `metadata`, `stashes`
 
@@ -83,7 +83,7 @@ Tables: `crumbs`, `trails`, `links`, `properties`, `metadata`, `stashes`
 
 ```text
 crumbs/
-├── cmd/crumbs/          # CLI entry point
+├── cmd/cupboard/        # CLI entry point
 ├── pkg/types/           # Public API: interfaces and types
 ├── internal/sqlite/     # SQLite backend implementation
 ├── docs/                # Documentation (VISION, ARCHITECTURE, PRDs)

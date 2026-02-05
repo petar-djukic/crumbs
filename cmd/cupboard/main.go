@@ -1,4 +1,4 @@
-// Package main provides the crumbs CLI.
+// Package main provides the cupboard CLI.
 // Implements: prd-cupboard-core R2, R4, R5;
 //             docs/ARCHITECTURE § CLI.
 package main
@@ -29,9 +29,9 @@ func main() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "crumbs",
-	Short: "Crumbs is a breadcrumb storage system",
-	Long: `Crumbs is a storage system for managing development breadcrumbs,
+	Use:   "cupboard",
+	Short: "Cupboard is a breadcrumb storage system",
+	Long: `Cupboard is a storage system for managing development breadcrumbs,
 trails, and related metadata. It provides a CLI interface for interacting
 with the Cupboard storage backend.`,
 	PersistentPreRunE: initCupboard,
@@ -67,7 +67,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version number",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("crumbs v0.1.0")
+		fmt.Println("cupboard v0.1.0")
 	},
 }
 

@@ -25,7 +25,7 @@ NC='\033[0m' # No Color
 TEST_DIR=$(mktemp -d)
 CONFIG_FILE="$TEST_DIR/.crumbs.yaml"
 DATA_DIR="$TEST_DIR/.crumbs-data"
-CRUMBS_BIN="${CRUMBS_BIN:-./bin/crumbs}"
+CUPBOARD_BIN="${CUPBOARD_BIN:-./bin/cupboard}"
 
 # Counters
 TESTS_RUN=0
@@ -58,18 +58,18 @@ run_test() {
     TESTS_RUN=$((TESTS_RUN + 1))
 }
 
-crumbs() {
-    "$CRUMBS_BIN" --config "$CONFIG_FILE" "$@"
+cupboard() {
+    "$CUPBOARD_BIN" --config "$CONFIG_FILE" "$@"
 }
 
 # Ensure binary exists
-if [[ ! -x "$CRUMBS_BIN" ]]; then
-    log "Building crumbs binary..."
-    go build -o ./bin/crumbs ./cmd/crumbs || fail "Failed to build crumbs"
-    CRUMBS_BIN="./bin/crumbs"
+if [[ ! -x "$CUPBOARD_BIN" ]]; then
+    log "Building cupboard binary..."
+    go build -o ./bin/cupboard ./cmd/cupboard || fail "Failed to build cupboard"
+    CUPBOARD_BIN="./bin/cupboard"
 fi
 
-log "Using crumbs binary: $CRUMBS_BIN"
+log "Using cupboard binary: $CUPBOARD_BIN"
 log "Test directory: $TEST_DIR"
 
 # Create config file
@@ -83,7 +83,7 @@ EOF
 # =============================================================================
 run_test
 log "Test 1: Initialize cupboard"
-crumbs init >/dev/null || fail "Failed to initialize cupboard"
+cupboard init >/dev/null || fail "Failed to initialize cupboard"
 [[ -d "$DATA_DIR" ]] || fail "Data directory not created"
 [[ -f "$DATA_DIR/crumbs.json" ]] || fail "crumbs.json not created"
 pass "Cupboard initialized"
@@ -95,17 +95,17 @@ run_test
 log "Test 2: Create crumbs for work tracking"
 
 # Create first crumb - a task in draft state
-CRUMB1_JSON=$(crumbs set crumbs "" '{"Name":"Implement feature X","State":"draft"}')
+CRUMB1_JSON=$(cupboard set crumbs "" '{"Name":"Implement feature X","State":"draft"}')
 CRUMB1_ID=$(echo "$CRUMB1_JSON" | jq -r '.CrumbID')
 [[ -n "$CRUMB1_ID" && "$CRUMB1_ID" != "null" ]] || fail "Failed to create crumb 1"
 
 # Create second crumb
-CRUMB2_JSON=$(crumbs set crumbs "" '{"Name":"Write tests for feature X","State":"draft"}')
+CRUMB2_JSON=$(cupboard set crumbs "" '{"Name":"Write tests for feature X","State":"draft"}')
 CRUMB2_ID=$(echo "$CRUMB2_JSON" | jq -r '.CrumbID')
 [[ -n "$CRUMB2_ID" && "$CRUMB2_ID" != "null" ]] || fail "Failed to create crumb 2"
 
 # Create third crumb for abandonment test
-CRUMB3_JSON=$(crumbs set crumbs "" '{"Name":"Try approach A","State":"draft"}')
+CRUMB3_JSON=$(cupboard set crumbs "" '{"Name":"Try approach A","State":"draft"}')
 CRUMB3_ID=$(echo "$CRUMB3_JSON" | jq -r '.CrumbID')
 [[ -n "$CRUMB3_ID" && "$CRUMB3_ID" != "null" ]] || fail "Failed to create crumb 3"
 
@@ -118,16 +118,16 @@ run_test
 log "Test 3: Track crumb progress through states"
 
 # Transition crumb1: draft -> ready -> taken -> completed
-crumbs set crumbs "$CRUMB1_ID" "{\"CrumbID\":\"$CRUMB1_ID\",\"Name\":\"Implement feature X\",\"State\":\"ready\"}" >/dev/null
-STATE=$(crumbs get crumbs "$CRUMB1_ID" | jq -r '.State')
+cupboard set crumbs "$CRUMB1_ID" "{\"CrumbID\":\"$CRUMB1_ID\",\"Name\":\"Implement feature X\",\"State\":\"ready\"}" >/dev/null
+STATE=$(cupboard get crumbs "$CRUMB1_ID" | jq -r '.State')
 [[ "$STATE" == "ready" ]] || fail "Expected state ready, got $STATE"
 
-crumbs set crumbs "$CRUMB1_ID" "{\"CrumbID\":\"$CRUMB1_ID\",\"Name\":\"Implement feature X\",\"State\":\"taken\"}" >/dev/null
-STATE=$(crumbs get crumbs "$CRUMB1_ID" | jq -r '.State')
+cupboard set crumbs "$CRUMB1_ID" "{\"CrumbID\":\"$CRUMB1_ID\",\"Name\":\"Implement feature X\",\"State\":\"taken\"}" >/dev/null
+STATE=$(cupboard get crumbs "$CRUMB1_ID" | jq -r '.State')
 [[ "$STATE" == "taken" ]] || fail "Expected state taken, got $STATE"
 
-crumbs set crumbs "$CRUMB1_ID" "{\"CrumbID\":\"$CRUMB1_ID\",\"Name\":\"Implement feature X\",\"State\":\"completed\"}" >/dev/null
-STATE=$(crumbs get crumbs "$CRUMB1_ID" | jq -r '.State')
+cupboard set crumbs "$CRUMB1_ID" "{\"CrumbID\":\"$CRUMB1_ID\",\"Name\":\"Implement feature X\",\"State\":\"completed\"}" >/dev/null
+STATE=$(cupboard get crumbs "$CRUMB1_ID" | jq -r '.State')
 [[ "$STATE" == "completed" ]] || fail "Expected state completed, got $STATE"
 
 pass "Crumb state transitions work: draft -> ready -> taken -> completed"
@@ -139,15 +139,15 @@ run_test
 log "Test 4: Query crumbs with filters"
 
 # Count draft crumbs (should be 2: crumb2 and crumb3)
-DRAFT_COUNT=$(crumbs list crumbs State=draft | jq 'length')
+DRAFT_COUNT=$(cupboard list crumbs State=draft | jq 'length')
 [[ "$DRAFT_COUNT" -eq 2 ]] || fail "Expected 2 draft crumbs, got $DRAFT_COUNT"
 
 # Count completed crumbs (should be 1: crumb1)
-COMPLETED_COUNT=$(crumbs list crumbs State=completed | jq 'length')
+COMPLETED_COUNT=$(cupboard list crumbs State=completed | jq 'length')
 [[ "$COMPLETED_COUNT" -eq 1 ]] || fail "Expected 1 completed crumb, got $COMPLETED_COUNT"
 
 # List all crumbs (should be 3)
-TOTAL_COUNT=$(crumbs list crumbs | jq 'length')
+TOTAL_COUNT=$(cupboard list crumbs | jq 'length')
 [[ "$TOTAL_COUNT" -eq 3 ]] || fail "Expected 3 total crumbs, got $TOTAL_COUNT"
 
 pass "Query filters work: 2 draft, 1 completed, 3 total"
@@ -159,12 +159,12 @@ run_test
 log "Test 5: Create trail for feature exploration"
 
 # Create a trail in active state
-TRAIL1_JSON=$(crumbs set trails "" '{"State":"active"}')
+TRAIL1_JSON=$(cupboard set trails "" '{"State":"active"}')
 TRAIL1_ID=$(echo "$TRAIL1_JSON" | jq -r '.TrailID')
 [[ -n "$TRAIL1_ID" && "$TRAIL1_ID" != "null" ]] || fail "Failed to create trail 1"
 
 # Create a second trail for abandonment test
-TRAIL2_JSON=$(crumbs set trails "" '{"State":"active"}')
+TRAIL2_JSON=$(cupboard set trails "" '{"State":"active"}')
 TRAIL2_ID=$(echo "$TRAIL2_JSON" | jq -r '.TrailID')
 [[ -n "$TRAIL2_ID" && "$TRAIL2_ID" != "null" ]] || fail "Failed to create trail 2"
 
@@ -177,17 +177,17 @@ run_test
 log "Test 6: Add crumbs to trails via belongs_to links"
 
 # Link crumb2 to trail1 (the good exploration)
-LINK1_JSON=$(crumbs set links "" "{\"LinkType\":\"belongs_to\",\"FromID\":\"$CRUMB2_ID\",\"ToID\":\"$TRAIL1_ID\"}")
+LINK1_JSON=$(cupboard set links "" "{\"LinkType\":\"belongs_to\",\"FromID\":\"$CRUMB2_ID\",\"ToID\":\"$TRAIL1_ID\"}")
 LINK1_ID=$(echo "$LINK1_JSON" | jq -r '.LinkID')
 [[ -n "$LINK1_ID" && "$LINK1_ID" != "null" ]] || fail "Failed to create link 1"
 
 # Link crumb3 to trail2 (the bad exploration)
-LINK2_JSON=$(crumbs set links "" "{\"LinkType\":\"belongs_to\",\"FromID\":\"$CRUMB3_ID\",\"ToID\":\"$TRAIL2_ID\"}")
+LINK2_JSON=$(cupboard set links "" "{\"LinkType\":\"belongs_to\",\"FromID\":\"$CRUMB3_ID\",\"ToID\":\"$TRAIL2_ID\"}")
 LINK2_ID=$(echo "$LINK2_JSON" | jq -r '.LinkID')
 [[ -n "$LINK2_ID" && "$LINK2_ID" != "null" ]] || fail "Failed to create link 2"
 
 # Verify links exist
-LINK_COUNT=$(crumbs list links | jq 'length')
+LINK_COUNT=$(cupboard list links | jq 'length')
 [[ "$LINK_COUNT" -eq 2 ]] || fail "Expected 2 links, got $LINK_COUNT"
 
 pass "Created belongs_to links: crumb2 -> trail1, crumb3 -> trail2"
@@ -199,8 +199,8 @@ run_test
 log "Test 7: Complete trail (successful exploration)"
 
 # Complete trail1
-crumbs set trails "$TRAIL1_ID" "{\"TrailID\":\"$TRAIL1_ID\",\"State\":\"completed\"}" >/dev/null
-STATE=$(crumbs get trails "$TRAIL1_ID" | jq -r '.State')
+cupboard set trails "$TRAIL1_ID" "{\"TrailID\":\"$TRAIL1_ID\",\"State\":\"completed\"}" >/dev/null
+STATE=$(cupboard get trails "$TRAIL1_ID" | jq -r '.State')
 [[ "$STATE" == "completed" ]] || fail "Expected trail state completed, got $STATE"
 
 pass "Trail completed successfully"
@@ -212,8 +212,8 @@ run_test
 log "Test 8: Abandon trail (failed exploration)"
 
 # Abandon trail2
-crumbs set trails "$TRAIL2_ID" "{\"TrailID\":\"$TRAIL2_ID\",\"State\":\"abandoned\"}" >/dev/null
-STATE=$(crumbs get trails "$TRAIL2_ID" | jq -r '.State')
+cupboard set trails "$TRAIL2_ID" "{\"TrailID\":\"$TRAIL2_ID\",\"State\":\"abandoned\"}" >/dev/null
+STATE=$(cupboard get trails "$TRAIL2_ID" | jq -r '.State')
 [[ "$STATE" == "abandoned" ]] || fail "Expected trail state abandoned, got $STATE"
 
 pass "Trail abandoned successfully"
@@ -225,12 +225,12 @@ run_test
 log "Test 9: Archive crumb from abandoned trail"
 
 # Archive crumb3 (the one linked to the abandoned trail)
-crumbs set crumbs "$CRUMB3_ID" "{\"CrumbID\":\"$CRUMB3_ID\",\"Name\":\"Try approach A\",\"State\":\"archived\"}" >/dev/null
-STATE=$(crumbs get crumbs "$CRUMB3_ID" | jq -r '.State')
+cupboard set crumbs "$CRUMB3_ID" "{\"CrumbID\":\"$CRUMB3_ID\",\"Name\":\"Try approach A\",\"State\":\"archived\"}" >/dev/null
+STATE=$(cupboard get crumbs "$CRUMB3_ID" | jq -r '.State')
 [[ "$STATE" == "archived" ]] || fail "Expected crumb state archived, got $STATE"
 
 # Verify archived crumb not in draft list
-DRAFT_COUNT=$(crumbs list crumbs State=draft | jq 'length')
+DRAFT_COUNT=$(cupboard list crumbs State=draft | jq 'length')
 [[ "$DRAFT_COUNT" -eq 1 ]] || fail "Expected 1 draft crumb after archive, got $DRAFT_COUNT"
 
 pass "Crumb archived (soft delete)"
@@ -270,17 +270,17 @@ run_test
 log "Test 11: Full workflow validation"
 
 # Final counts
-FINAL_CRUMBS=$(crumbs list crumbs | jq 'length')
-FINAL_TRAILS=$(crumbs list trails | jq 'length')
-FINAL_LINKS=$(crumbs list links | jq 'length')
+FINAL_CRUMBS=$(cupboard list crumbs | jq 'length')
+FINAL_TRAILS=$(cupboard list trails | jq 'length')
+FINAL_LINKS=$(cupboard list links | jq 'length')
 
 # Summary state counts
-COMPLETED_CRUMBS=$(crumbs list crumbs State=completed | jq 'length')
-ARCHIVED_CRUMBS=$(crumbs list crumbs State=archived | jq 'length')
-DRAFT_CRUMBS=$(crumbs list crumbs State=draft | jq 'length')
+COMPLETED_CRUMBS=$(cupboard list crumbs State=completed | jq 'length')
+ARCHIVED_CRUMBS=$(cupboard list crumbs State=archived | jq 'length')
+DRAFT_CRUMBS=$(cupboard list crumbs State=draft | jq 'length')
 
-COMPLETED_TRAILS=$(crumbs list trails State=completed | jq 'length')
-ABANDONED_TRAILS=$(crumbs list trails State=abandoned | jq 'length')
+COMPLETED_TRAILS=$(cupboard list trails State=completed | jq 'length')
+ABANDONED_TRAILS=$(cupboard list trails State=abandoned | jq 'length')
 
 [[ "$FINAL_CRUMBS" -eq 3 ]] || fail "Expected 3 crumbs, got $FINAL_CRUMBS"
 [[ "$FINAL_TRAILS" -eq 2 ]] || fail "Expected 2 trails, got $FINAL_TRAILS"
