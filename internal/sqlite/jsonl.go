@@ -467,6 +467,77 @@ func (b *Backend) appendStashHistoryJSONL(h *stashHistoryJSON) error {
 	return appendToJSONLFile(path, data)
 }
 
+// saveCrumbPropertyToJSONL persists a crumb property value to JSONL file.
+// Uses composite key (crumb_id + property_id) for updates.
+func (b *Backend) saveCrumbPropertyToJSONL(crumbID, propertyID, valueType string, value any) error {
+	path := filepath.Join(b.config.DataDir, crumbPropsJSONL)
+	return updateCrumbPropertyJSONLFile(path, crumbID, propertyID, func() ([]byte, error) {
+		return json.Marshal(crumbPropertyJSON{
+			CrumbID:    crumbID,
+			PropertyID: propertyID,
+			ValueType:  valueType,
+			Value:      value,
+		})
+	})
+}
+
+// updateCrumbPropertyJSONLFile updates or appends a crumb property in the JSONL file.
+// Uses composite key (crumb_id + property_id) for matching.
+func updateCrumbPropertyJSONLFile(path, crumbID, propertyID string, marshal func() ([]byte, error)) error {
+	var lines [][]byte
+	found := false
+
+	f, err := os.Open(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err == nil {
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			line := scanner.Bytes()
+			if len(line) == 0 {
+				continue
+			}
+			var record map[string]any
+			if err := json.Unmarshal(line, &record); err != nil {
+				lineCopy := make([]byte, len(line))
+				copy(lineCopy, line)
+				lines = append(lines, lineCopy)
+				continue
+			}
+			// Check composite key
+			if record["crumb_id"] == crumbID && record["property_id"] == propertyID {
+				newLine, err := marshal()
+				if err != nil {
+					f.Close()
+					return err
+				}
+				lines = append(lines, newLine)
+				found = true
+			} else {
+				lineCopy := make([]byte, len(line))
+				copy(lineCopy, line)
+				lines = append(lines, lineCopy)
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			f.Close()
+			return err
+		}
+		f.Close()
+	}
+
+	if !found {
+		newLine, err := marshal()
+		if err != nil {
+			return err
+		}
+		lines = append(lines, newLine)
+	}
+
+	return writeJSONLAtomic(path, lines)
+}
+
 // updateJSONLFile updates or appends a record in a JSONL file (read-modify-write per R6.2).
 func updateJSONLFile(path, id, idField string, marshal func() ([]byte, error)) error {
 	// Read existing records

@@ -3,6 +3,7 @@
 //
 //	prd-configuration-directories R6;
 //	prd-cupboard-core R3;
+//	prd-crumbs-interface R3.7 (property initialization on crumb creation);
 //	docs/ARCHITECTURE § Table Interfaces.
 package sqlite
 
@@ -218,7 +219,8 @@ func (t *Table) getCrumb(id string) (*types.Crumb, error) {
 }
 
 func (t *Table) setCrumb(id string, crumb *types.Crumb) (string, error) {
-	if id == "" {
+	isNewCrumb := id == ""
+	if isNewCrumb {
 		id = generateUUID()
 	}
 	crumb.CrumbID = id
@@ -248,6 +250,14 @@ func (t *Table) setCrumb(id string, crumb *types.Crumb) (string, error) {
 	// Persist to JSONL (per prd-configuration-directories R6)
 	if err := t.backend.saveCrumbToJSONL(crumb); err != nil {
 		return "", fmt.Errorf("persist crumb to JSONL: %w", err)
+	}
+
+	// Initialize all defined properties with type-based defaults on crumb creation
+	// (per prd-crumbs-interface R3.7, prd-properties-interface R3.5)
+	if isNewCrumb {
+		if err := t.initializeCrumbProperties(crumb); err != nil {
+			return "", fmt.Errorf("initialize crumb properties: %w", err)
+		}
 	}
 
 	return id, nil
@@ -1007,4 +1017,120 @@ func hydrateStashRow(rows *sql.Rows) (*types.Stash, error) {
 		_ = json.Unmarshal([]byte(valueJSON), &stash.Value)
 	}
 	return &stash, nil
+}
+
+// Property initialization helpers
+// Implements: prd-crumbs-interface R3.7; prd-properties-interface R3.5
+
+// propertyInit holds data for a property to be initialized on a crumb.
+type propertyInit struct {
+	propertyID string
+	valueType  string
+	value      any
+}
+
+// initializeCrumbProperties initializes all defined properties on a crumb with type-based defaults.
+// Called when creating a new crumb (empty ID passed to Set).
+func (t *Table) initializeCrumbProperties(crumb *types.Crumb) error {
+	// Query all defined properties
+	rows, err := t.backend.db.Query(
+		"SELECT property_id, value_type FROM properties ORDER BY created_at ASC",
+	)
+	if err != nil {
+		return err
+	}
+
+	// Collect all property definitions first (close rows before doing more DB operations)
+	var props []propertyInit
+	for rows.Next() {
+		var propertyID, valueType string
+		if err := rows.Scan(&propertyID, &valueType); err != nil {
+			rows.Close()
+			return err
+		}
+		props = append(props, propertyInit{propertyID: propertyID, valueType: valueType})
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+
+	// Initialize Properties map if nil
+	if crumb.Properties == nil {
+		crumb.Properties = make(map[string]any)
+	}
+
+	// For each property, get default value and set on crumb
+	for i := range props {
+		props[i].value = getPropertyDefaultValue(props[i].valueType, t.backend, props[i].propertyID)
+		crumb.Properties[props[i].propertyID] = props[i].value
+	}
+
+	// Persist all properties to SQLite
+	for _, prop := range props {
+		valueJSON, err := json.Marshal(prop.value)
+		if err != nil {
+			return fmt.Errorf("marshal default value for property %s: %w", prop.propertyID, err)
+		}
+		_, err = t.backend.db.Exec(
+			`INSERT INTO crumb_properties (crumb_id, property_id, value_type, value)
+			 VALUES (?, ?, ?, ?)
+			 ON CONFLICT(crumb_id, property_id) DO UPDATE SET
+			 value_type = excluded.value_type,
+			 value = excluded.value`,
+			crumb.CrumbID, prop.propertyID, prop.valueType, string(valueJSON),
+		)
+		if err != nil {
+			return fmt.Errorf("persist crumb property %s: %w", prop.propertyID, err)
+		}
+	}
+
+	// Persist all properties to JSONL (after all SQLite operations complete)
+	for _, prop := range props {
+		if err := t.backend.saveCrumbPropertyToJSONL(crumb.CrumbID, prop.propertyID, prop.valueType, prop.value); err != nil {
+			return fmt.Errorf("persist crumb property %s to JSONL: %w", prop.propertyID, err)
+		}
+	}
+
+	return nil
+}
+
+// getPropertyDefaultValue returns the default value for a property type.
+// Per prd-properties-interface R3.5:
+//   - categorical: first category by ordinal, or empty string if no categories
+//   - text: empty string
+//   - integer: 0
+//   - boolean: false
+//   - timestamp: null (zero time)
+//   - list: empty list
+func getPropertyDefaultValue(valueType string, backend *Backend, propertyID string) any {
+	switch valueType {
+	case types.ValueTypeCategorical:
+		// Get first category by ordinal for this property
+		var categoryID sql.NullString
+		_ = backend.db.QueryRow(
+			`SELECT category_id FROM categories
+			 WHERE property_id = ?
+			 ORDER BY ordinal ASC, name ASC
+			 LIMIT 1`,
+			propertyID,
+		).Scan(&categoryID)
+		if categoryID.Valid {
+			return categoryID.String
+		}
+		return "" // No categories defined yet
+	case types.ValueTypeText:
+		return ""
+	case types.ValueTypeInteger:
+		return int64(0)
+	case types.ValueTypeBoolean:
+		return false
+	case types.ValueTypeTimestamp:
+		return nil // null timestamp per R3.5
+	case types.ValueTypeList:
+		return []string{}
+	default:
+		return nil
+	}
 }

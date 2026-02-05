@@ -583,3 +583,422 @@ func TestTable_TimestampPersistence(t *testing.T) {
 		t.Error("UpdatedAt should be set automatically")
 	}
 }
+
+// Tests for property auto-initialization on crumb creation.
+// Implements: prd-crumbs-interface R3.7; prd-properties-interface R3.5
+
+func TestCrumbTable_PropertyAutoInit_TextProperty(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	propTbl, _ := b.GetTable(types.PropertiesTable)
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+
+	// Define a text property
+	prop := &types.Property{
+		Name:        "description",
+		Description: "Task description",
+		ValueType:   types.ValueTypeText,
+	}
+	propID, err := propTbl.Set("", prop)
+	if err != nil {
+		t.Fatalf("Create property failed: %v", err)
+	}
+
+	// Create a new crumb
+	crumb := &types.Crumb{
+		Name:  "Test Task",
+		State: types.StateDraft,
+	}
+	_, err = crumbTbl.Set("", crumb)
+	if err != nil {
+		t.Fatalf("Create crumb failed: %v", err)
+	}
+
+	// Verify the crumb has the property initialized with default value
+	if crumb.Properties == nil {
+		t.Fatal("Properties map should be initialized")
+	}
+
+	val, ok := crumb.Properties[propID]
+	if !ok {
+		t.Fatalf("Property %s should be present in crumb.Properties", propID)
+	}
+
+	if val != "" {
+		t.Errorf("Text property default should be empty string, got %v", val)
+	}
+}
+
+func TestCrumbTable_PropertyAutoInit_IntegerProperty(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	propTbl, _ := b.GetTable(types.PropertiesTable)
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+
+	// Define an integer property
+	prop := &types.Property{
+		Name:        "priority_level",
+		Description: "Numeric priority",
+		ValueType:   types.ValueTypeInteger,
+	}
+	propID, err := propTbl.Set("", prop)
+	if err != nil {
+		t.Fatalf("Create property failed: %v", err)
+	}
+
+	// Create a new crumb
+	crumb := &types.Crumb{
+		Name:  "Test Task",
+		State: types.StateDraft,
+	}
+	_, err = crumbTbl.Set("", crumb)
+	if err != nil {
+		t.Fatalf("Create crumb failed: %v", err)
+	}
+
+	val, ok := crumb.Properties[propID]
+	if !ok {
+		t.Fatalf("Property %s should be present in crumb.Properties", propID)
+	}
+
+	// Integer default should be 0
+	intVal, ok := val.(int64)
+	if !ok {
+		t.Fatalf("Integer property should be int64, got %T", val)
+	}
+	if intVal != 0 {
+		t.Errorf("Integer property default should be 0, got %d", intVal)
+	}
+}
+
+func TestCrumbTable_PropertyAutoInit_BooleanProperty(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	propTbl, _ := b.GetTable(types.PropertiesTable)
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+
+	// Define a boolean property
+	prop := &types.Property{
+		Name:        "is_urgent",
+		Description: "Urgency flag",
+		ValueType:   types.ValueTypeBoolean,
+	}
+	propID, err := propTbl.Set("", prop)
+	if err != nil {
+		t.Fatalf("Create property failed: %v", err)
+	}
+
+	// Create a new crumb
+	crumb := &types.Crumb{
+		Name:  "Test Task",
+		State: types.StateDraft,
+	}
+	_, err = crumbTbl.Set("", crumb)
+	if err != nil {
+		t.Fatalf("Create crumb failed: %v", err)
+	}
+
+	val, ok := crumb.Properties[propID]
+	if !ok {
+		t.Fatalf("Property %s should be present in crumb.Properties", propID)
+	}
+
+	// Boolean default should be false
+	boolVal, ok := val.(bool)
+	if !ok {
+		t.Fatalf("Boolean property should be bool, got %T", val)
+	}
+	if boolVal != false {
+		t.Errorf("Boolean property default should be false, got %v", boolVal)
+	}
+}
+
+func TestCrumbTable_PropertyAutoInit_ListProperty(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	propTbl, _ := b.GetTable(types.PropertiesTable)
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+
+	// Define a list property
+	prop := &types.Property{
+		Name:        "labels",
+		Description: "Task labels",
+		ValueType:   types.ValueTypeList,
+	}
+	propID, err := propTbl.Set("", prop)
+	if err != nil {
+		t.Fatalf("Create property failed: %v", err)
+	}
+
+	// Create a new crumb
+	crumb := &types.Crumb{
+		Name:  "Test Task",
+		State: types.StateDraft,
+	}
+	_, err = crumbTbl.Set("", crumb)
+	if err != nil {
+		t.Fatalf("Create crumb failed: %v", err)
+	}
+
+	val, ok := crumb.Properties[propID]
+	if !ok {
+		t.Fatalf("Property %s should be present in crumb.Properties", propID)
+	}
+
+	// List default should be empty slice
+	listVal, ok := val.([]string)
+	if !ok {
+		t.Fatalf("List property should be []string, got %T", val)
+	}
+	if len(listVal) != 0 {
+		t.Errorf("List property default should be empty, got %v", listVal)
+	}
+}
+
+func TestCrumbTable_PropertyAutoInit_TimestampProperty(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	propTbl, _ := b.GetTable(types.PropertiesTable)
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+
+	// Define a timestamp property
+	prop := &types.Property{
+		Name:        "due_date",
+		Description: "Due date",
+		ValueType:   types.ValueTypeTimestamp,
+	}
+	propID, err := propTbl.Set("", prop)
+	if err != nil {
+		t.Fatalf("Create property failed: %v", err)
+	}
+
+	// Create a new crumb
+	crumb := &types.Crumb{
+		Name:  "Test Task",
+		State: types.StateDraft,
+	}
+	_, err = crumbTbl.Set("", crumb)
+	if err != nil {
+		t.Fatalf("Create crumb failed: %v", err)
+	}
+
+	val, ok := crumb.Properties[propID]
+	if !ok {
+		t.Fatalf("Property %s should be present in crumb.Properties", propID)
+	}
+
+	// Timestamp default should be nil (null)
+	if val != nil {
+		t.Errorf("Timestamp property default should be nil, got %v", val)
+	}
+}
+
+func TestCrumbTable_PropertyAutoInit_CategoricalProperty_NoCategories(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	propTbl, _ := b.GetTable(types.PropertiesTable)
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+
+	// Define a categorical property (without categories)
+	prop := &types.Property{
+		Name:        "status",
+		Description: "Status enum",
+		ValueType:   types.ValueTypeCategorical,
+	}
+	propID, err := propTbl.Set("", prop)
+	if err != nil {
+		t.Fatalf("Create property failed: %v", err)
+	}
+
+	// Create a new crumb
+	crumb := &types.Crumb{
+		Name:  "Test Task",
+		State: types.StateDraft,
+	}
+	_, err = crumbTbl.Set("", crumb)
+	if err != nil {
+		t.Fatalf("Create crumb failed: %v", err)
+	}
+
+	val, ok := crumb.Properties[propID]
+	if !ok {
+		t.Fatalf("Property %s should be present in crumb.Properties", propID)
+	}
+
+	// Categorical without categories defaults to empty string
+	if val != "" {
+		t.Errorf("Categorical property without categories should default to empty string, got %v", val)
+	}
+}
+
+func TestCrumbTable_PropertyAutoInit_MultipleProperties(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	propTbl, _ := b.GetTable(types.PropertiesTable)
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+
+	// Define multiple properties
+	textProp := &types.Property{Name: "desc", ValueType: types.ValueTypeText}
+	intProp := &types.Property{Name: "count", ValueType: types.ValueTypeInteger}
+	boolProp := &types.Property{Name: "done", ValueType: types.ValueTypeBoolean}
+
+	textID, _ := propTbl.Set("", textProp)
+	intID, _ := propTbl.Set("", intProp)
+	boolID, _ := propTbl.Set("", boolProp)
+
+	// Create a new crumb
+	crumb := &types.Crumb{
+		Name:  "Test Task",
+		State: types.StateDraft,
+	}
+	_, err := crumbTbl.Set("", crumb)
+	if err != nil {
+		t.Fatalf("Create crumb failed: %v", err)
+	}
+
+	// Verify all properties are initialized
+	if len(crumb.Properties) != 3 {
+		t.Errorf("Expected 3 properties, got %d", len(crumb.Properties))
+	}
+
+	if crumb.Properties[textID] != "" {
+		t.Errorf("Text property should be empty string")
+	}
+	if crumb.Properties[intID] != int64(0) {
+		t.Errorf("Integer property should be 0")
+	}
+	if crumb.Properties[boolID] != false {
+		t.Errorf("Boolean property should be false")
+	}
+}
+
+func TestCrumbTable_PropertyAutoInit_UpdateDoesNotReinitialize(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	propTbl, _ := b.GetTable(types.PropertiesTable)
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+
+	// Define a text property
+	prop := &types.Property{
+		Name:      "description",
+		ValueType: types.ValueTypeText,
+	}
+	propID, _ := propTbl.Set("", prop)
+
+	// Create a new crumb
+	crumb := &types.Crumb{
+		Name:  "Test Task",
+		State: types.StateDraft,
+	}
+	crumbID, _ := crumbTbl.Set("", crumb)
+
+	// Modify the property value
+	crumb.Properties[propID] = "custom value"
+
+	// Update the crumb (with existing ID)
+	_, err := crumbTbl.Set(crumbID, crumb)
+	if err != nil {
+		t.Fatalf("Update crumb failed: %v", err)
+	}
+
+	// The property value should remain "custom value", not be reset to default
+	if crumb.Properties[propID] != "custom value" {
+		t.Errorf("Property should retain custom value after update, got %v", crumb.Properties[propID])
+	}
+}
+
+func TestCrumbTable_PropertyAutoInit_NoPropertiesDefined(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+
+	// Create a new crumb without any properties defined
+	crumb := &types.Crumb{
+		Name:  "Test Task",
+		State: types.StateDraft,
+	}
+	_, err := crumbTbl.Set("", crumb)
+	if err != nil {
+		t.Fatalf("Create crumb failed: %v", err)
+	}
+
+	// Properties map should be initialized but empty
+	if crumb.Properties == nil {
+		t.Error("Properties map should be initialized even with no properties defined")
+	}
+	if len(crumb.Properties) != 0 {
+		t.Errorf("Properties map should be empty when no properties defined, got %d", len(crumb.Properties))
+	}
+}
