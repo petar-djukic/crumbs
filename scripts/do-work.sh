@@ -44,4 +44,5 @@ EOF
 # Invoke Claude with the prompt
 # --dangerously-skip-permissions: auto-approve all tool use
 # --print: non-interactive mode, exit when done
-exec claude --dangerously-skip-permissions --print "$prompt"
+# --verbose: show full turn-by-turn output
+exec claude --dangerously-skip-permissions --print --verbose "$prompt"
