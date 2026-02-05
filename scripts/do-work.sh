@@ -71,9 +71,9 @@ EOF
 run_claude() {
   local prompt="$1"
   # --dangerously-skip-permissions: auto-approve all tool use
-  # --print: non-interactive mode, exit when done
+  # -p: non-interactive mode, exit when done
   # --verbose: show full turn-by-turn output
-  claude --dangerously-skip-permissions --print --verbose "$prompt"
+  echo "$prompt" | claude --dangerously-skip-permissions -p --verbose
 }
 
 close_task() {
