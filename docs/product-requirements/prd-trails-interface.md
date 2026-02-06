@@ -6,18 +6,17 @@ Applications need to support exploratory work sessions where users can try diffe
 
 We need a way to group crumbs into exploratory sessions (trails) that can later be committed (made permanent) or abandoned (discarded entirely). This enables backtracking and branching without cluttering the main work stream with abandoned attempts.
 
-This PRD defines the Trail entity: its struct fields, entity methods for lifecycle operations (Complete, Abandon), and entity methods for managing crumb associations (AddCrumb, RemoveCrumb, GetCrumbs). Trail membership is stored via the links table (belongs_to relationship); this PRD specifies the semantics while prd-sqlite-backend specifies the storage.
+This PRD defines the Trail entity: its struct fields and entity methods for lifecycle operations (Complete, Abandon). Entity methods update the Trail struct in memory; the caller persists changes via Table.Set, at which point the backend performs cascade operations (removing links or deleting crumbs). Trail membership is stored via the links table (belongs_to relationship); this PRD specifies the semantics while prd-sqlite-backend specifies the storage.
 
 ## Goals
 
 1. Define the Trail struct with all required fields
 2. Define trail states and their meaning
 3. Specify entity methods for lifecycle operations (Complete, Abandon)
-4. Specify entity methods for crumb association (AddCrumb, RemoveCrumb, GetCrumbs)
-5. Specify Complete method semantics (crumbs become permanent)
-6. Specify Abandon method semantics (crumbs are deleted)
-7. Document error conditions for all entity methods
-8. Define how trails are accessed via the Table interface
+4. Specify Complete method semantics (entity updates state; backend cascades on persist)
+5. Specify Abandon method semantics (entity updates state; backend cascades on persist)
+6. Document error conditions for entity methods
+7. Define how trails are accessed via the Table interface
 
 ## Requirements
 
@@ -65,7 +64,7 @@ trail := &Trail{
     State:         "active",
     CreatedAt:     time.Now(),
 }
-err := trailsTable.Set("", trail)  // empty ID triggers generation
+id, err := trailsTable.Set("", trail)  // empty ID triggers generation
 ```
 
 3.2. The backend must generate a UUID v7 for TrailID when Set is called with an empty ID.
@@ -81,7 +80,7 @@ err := trailsTable.Set("", trail)  // empty ID triggers generation
 4.1. Trails are retrieved via the Table interface:
 
 ```go
-trailsTable := cupboard.GetTable("trails")
+trailsTable, _ := cupboard.GetTable("trails")
 obj, err := trailsTable.Get(trailID)
 trail := obj.(*Trail)  // type assertion
 ```
@@ -92,81 +91,59 @@ trail := obj.(*Trail)  // type assertion
 
 4.4. Get must return ErrInvalidID if id is empty.
 
-### R5: GetCrumbs Entity Method
+### R5: Complete Entity Method
 
-5.1. GetCrumbs is an entity method on Trail that lists all crumbs belonging to the trail:
-
-```go
-func (t *Trail) GetCrumbs(cupboard Cupboard) ([]*Crumb, error)
-```
-
-5.2. GetCrumbs queries the links table for belongs_to links where to_id equals the trail ID.
-
-5.3. GetCrumbs must return an empty slice (not nil) if the trail has no crumbs.
-
-5.4. Results are ordered by crumb CreatedAt ascending (oldest first, preserving creation order).
-
-5.5. GetCrumbs returns the full Crumb objects, not just IDs.
-
-5.6. GetCrumbs requires the Cupboard reference to access the links and crumbs tables.
-
-### R6: Complete Entity Method
-
-6.1. Complete is an entity method on Trail that marks it as finished and makes its crumbs permanent:
+5.1. Complete is an entity method on Trail that marks it as finished:
 
 ```go
-func (t *Trail) Complete(cupboard Cupboard) error
+func (t *Trail) Complete() error
 ```
 
-6.2. Complete must set the trail's State field to "completed".
+5.2. Complete must set the trail's State field to "completed".
 
-6.3. Complete must set the CompletedAt field to the current time.
+5.3. Complete must set the CompletedAt field to the current time.
 
-6.4. Complete must remove all belongs_to links for crumbs on this trail. After completion, the crumbs exist but do not belong to any trail.
+5.4. Complete must return ErrInvalidState if the trail is not in "active" state.
 
-6.5. Complete must return ErrInvalidState if the trail is not in "active" state.
+5.5. Complete only updates the Trail struct in memory. The caller must persist changes via Table.Set.
 
-6.6. Complete must persist the updated Trail via cupboard.GetTable("trails").Set(t.TrailID, t).
+5.6. When the trail is persisted via Table.Set, the backend removes all belongs_to links for crumbs on this trail. After persistence, the crumbs exist but do not belong to any trail.
 
-6.7. Complete must be atomic: all changes succeed or none do.
+5.7. The backend must perform the cascade operation atomically with the trail update.
 
-6.8. After Complete, the crumbs are indistinguishable from crumbs that were never on a trail. They have become permanent parts of the work graph.
+5.8. After completion and persistence, the crumbs are indistinguishable from crumbs that were never on a trail. They have become permanent parts of the work graph.
 
-6.9. Complete requires the Cupboard reference to access the links and trails tables.
+### R6: Abandon Entity Method
 
-### R7: Abandon Entity Method
-
-7.1. Abandon is an entity method on Trail that discards it and deletes all its crumbs:
+6.1. Abandon is an entity method on Trail that marks it as discarded:
 
 ```go
-func (t *Trail) Abandon(cupboard Cupboard) error
+func (t *Trail) Abandon() error
 ```
 
-7.2. Abandon must set the trail's State field to "abandoned".
+6.2. Abandon must set the trail's State field to "abandoned".
 
-7.3. Abandon must set the CompletedAt field to the current time.
+6.3. Abandon must set the CompletedAt field to the current time.
 
-7.4. Abandon must delete all crumbs that belong to this trail (via belongs_to links).
+6.4. Abandon must return ErrInvalidState if the trail is not in "active" state.
 
-7.5. For each deleted crumb, Abandon must also delete:
+6.5. Abandon only updates the Trail struct in memory. The caller must persist changes via Table.Set.
+
+6.6. When the trail is persisted via Table.Set, the backend deletes all crumbs that belong to this trail (via belongs_to links).
+
+6.7. For each deleted crumb, the backend must also delete:
 
 - All property values for the crumb (crumb_properties)
 - All metadata for the crumb
 - All links where the crumb is from_id or to_id (belongs_to, child_of)
 
-7.6. Abandon must return ErrInvalidState if the trail is not in "active" state.
+6.8. The backend must perform all cascade deletions atomically with the trail update.
 
-7.7. Abandon must persist the updated Trail via cupboard.GetTable("trails").Set(t.TrailID, t).
+6.9. After abandonment and persistence, the trail remains in the database (for audit purposes) but has no associated crumbs.
 
-7.8. Abandon must be atomic: all deletions succeed or none do.
+### R7: Crumb Membership
 
-7.9. After Abandon, the trail remains in the database (for audit purposes) but has no associated crumbs.
-
-7.10. Abandon requires the Cupboard reference to access the links, crumbs, and trails tables.
-
-### R8: Crumb Membership
-
-8.1. A crumb belongs to a trail via a belongs_to link in the links table:
+7.1. A crumb belongs to a trail via a belongs_to link in the links table:
 
 | Field | Value |
 |-------|-------|
@@ -174,74 +151,31 @@ func (t *Trail) Abandon(cupboard Cupboard) error
 | from_id | crumb_id |
 | to_id | trail_id |
 
-8.2. A crumb can belong to at most one trail at a time. The backend must enforce this constraint.
+7.2. A crumb can belong to at most one trail at a time. The backend must enforce this constraint.
 
-8.3. Crumbs not on any trail (no belongs_to link) are considered permanent or "untracked."
+7.3. Crumbs not on any trail (no belongs_to link) are considered permanent or "untracked."
 
-8.4. The Table interface provides low-level link operations via the links table. Trail entity methods AddCrumb and RemoveCrumb (R10, R11) provide higher-level operations for managing membership.
+7.4. Crumb-to-trail membership is managed via the links table. Applications create belongs_to links using the Table interface for the links table.
 
-8.5. Moving a crumb between trails requires removing from the old trail and adding to the new one.
+7.5. Moving a crumb between trails requires removing the old belongs_to link and creating a new one.
 
-### R9: Error Types
+### R8: Error Types
 
-9.1. Trail entity methods must return these sentinel errors:
+8.1. Trail entity methods must return these sentinel errors:
 
 | Error | When |
 |-------|------|
-| ErrNotFound | Trail or crumb ID does not exist |
-| ErrInvalidID | Trail ID is empty |
 | ErrInvalidState | Operation not valid for current trail state |
-| ErrAlreadyInTrail | Crumb already belongs to another trail |
-| ErrNotInTrail | Crumb does not belong to the specified trail |
-| ErrCupboardClosed | Cupboard has been closed |
 
-9.2. All errors must be checkable with errors.Is.
+8.2. All errors must be checkable with errors.Is.
 
-9.3. ErrInvalidState should include the current state and expected state in the error message for debugging.
+8.3. Table operations (Get, Set, Fetch) may return additional errors as defined in prd-cupboard-core R7:
 
-### R10: AddCrumb Entity Method
-
-10.1. AddCrumb is an entity method on Trail that adds a crumb to the trail:
-
-```go
-func (t *Trail) AddCrumb(cupboard Cupboard, crumbID string) error
-```
-
-10.2. AddCrumb must validate that the crumb exists (ErrNotFound if not).
-
-10.3. AddCrumb must validate that the trail is in "active" state (ErrInvalidState if not).
-
-10.4. AddCrumb must validate that the crumb does not already belong to another trail (ErrAlreadyInTrail if it does).
-
-10.5. AddCrumb must create a belongs_to link from the crumb to the trail via the links table.
-
-10.6. AddCrumb must return ErrInvalidID if crumbID is empty.
-
-10.7. AddCrumb is idempotent: adding a crumb that already belongs to this trail succeeds without error.
-
-10.8. AddCrumb requires the Cupboard reference to access the links and crumbs tables.
-
-### R11: RemoveCrumb Entity Method
-
-11.1. RemoveCrumb is an entity method on Trail that removes a crumb from the trail:
-
-```go
-func (t *Trail) RemoveCrumb(cupboard Cupboard, crumbID string) error
-```
-
-11.2. RemoveCrumb must validate that the crumb exists (ErrNotFound if not).
-
-11.3. RemoveCrumb must validate that the trail is in "active" state (ErrInvalidState if not).
-
-11.4. RemoveCrumb must remove the belongs_to link from the crumb to the trail via the links table.
-
-11.5. RemoveCrumb must return ErrInvalidID if crumbID is empty.
-
-11.6. RemoveCrumb is idempotent: removing a crumb that does not belong to this trail succeeds without error.
-
-11.7. After RemoveCrumb, the crumb still exists but is no longer associated with any trail (becomes permanent).
-
-11.8. RemoveCrumb requires the Cupboard reference to access the links and crumbs tables.
+| Error | When |
+|-------|------|
+| ErrNotFound | Trail ID does not exist |
+| ErrInvalidID | Trail ID is empty |
+| ErrCupboardDetached | Cupboard has been detached |
 
 ## Non-Goals
 
@@ -257,20 +191,20 @@ func (t *Trail) RemoveCrumb(cupboard Cupboard, crumbID string) error
 
 6. This PRD does not define a specialized TrailTable interface. Trails are accessed via the standard Table interface from prd-cupboard-core.
 
+7. This PRD does not define entity methods for adding or removing crumbs from trails. Crumb membership is managed via the links table using the standard Table interface.
+
 ## Acceptance Criteria
 
 - [ ] Trail struct defined with TrailID, ParentCrumbID, State, CreatedAt, CompletedAt
 - [ ] State values documented (active, completed, abandoned)
 - [ ] Trail creation specified via Table.Set interface
 - [ ] Trail retrieval specified via Table.Get interface
-- [ ] GetCrumbs entity method specified (list crumbs via belongs_to links)
-- [ ] Complete entity method specified (mark completed, remove belongs_to links)
-- [ ] Abandon entity method specified (mark abandoned, delete crumbs and links)
+- [ ] Complete entity method specified with no arguments (updates State and CompletedAt)
+- [ ] Complete documents backend cascade responsibility (remove belongs_to links on Table.Set)
+- [ ] Abandon entity method specified with no arguments (updates State and CompletedAt)
+- [ ] Abandon documents backend cascade responsibility (delete crumbs on Table.Set)
 - [ ] Crumb membership semantics documented (belongs_to link, one trail per crumb)
-- [ ] AddCrumb entity method specified (add crumb to trail, validation)
-- [ ] RemoveCrumb entity method specified (remove crumb from trail, idempotent)
-- [ ] Error types documented (including ErrAlreadyInTrail, ErrNotInTrail)
-- [ ] All entity methods accept Cupboard parameter for table access
+- [ ] Error types documented (ErrInvalidState for entity methods)
 - [ ] All requirements numbered and specific
 - [ ] File saved at docs/product-requirements/prd-trails-interface.md
 
