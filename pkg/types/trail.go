@@ -19,6 +19,7 @@ type Trail struct {
 	TrailID string
 
 	// ParentCrumbID is an optional crumb ID this trail deviates from; nil if standalone.
+	// TODO(crumbs-wy7.11): Migrate to branches_from link per Decision 10.
 	ParentCrumbID *string
 
 	// State is the trail state (active, completed, abandoned).

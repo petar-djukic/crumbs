@@ -6,10 +6,12 @@ package types
 
 import "time"
 
-// Link type constants.
+// Link type constants (see ARCHITECTURE Decision 10).
 const (
-	LinkTypeBelongsTo = "belongs_to"
-	LinkTypeChildOf   = "child_of"
+	LinkTypeBelongsTo    = "belongs_to"    // crumb → trail membership
+	LinkTypeChildOf      = "child_of"      // crumb → crumb dependencies
+	LinkTypeBranchesFrom = "branches_from" // trail → crumb branch point
+	LinkTypeScopedTo     = "scoped_to"     // stash → trail scope
 )
 
 // Link represents a directed edge in the entity graph.
@@ -17,7 +19,7 @@ type Link struct {
 	// LinkID is a UUID v7, generated on creation.
 	LinkID string
 
-	// LinkType is the relationship type (belongs_to, child_of).
+	// LinkType is the relationship type (belongs_to, child_of, branches_from, scoped_to).
 	LinkType string
 
 	// FromID is the source entity ID.
