@@ -58,14 +58,14 @@ crumb.SetState("taken")      // actively working
 crumbsTable.Set(crumb.CrumbID, crumb)
 ```
 
-7. **Complete or archive**: When implementation is done, use entity methods:
+7. **Pebble or dust**: When implementation is done, use entity methods:
 
 ```go
-crumb.Complete()             // transitions to completed
+crumb.Pebble()               // transitions to pebble (success)
 crumbsTable.Set(crumb.CrumbID, crumb)
 
-// or for abandoned work
-crumb.Archive()              // transitions to archived
+// or for abandoned/failed work
+crumb.Dust()                 // transitions to dust (failed/abandoned)
 crumbsTable.Set(crumb.CrumbID, crumb)
 ```
 
@@ -126,7 +126,7 @@ trail.Complete(cupboard)  // crumbs become permanent, trail marked completed
 | Table (crumbs) | Get, Set, Delete, Fetch |
 | Table (trails) | Get, Set, Delete, Fetch |
 | Table (stashes) | Get, Set, Delete, Fetch |
-| Crumb entity | SetState, Complete, Archive, Fail, SetProperty, GetProperty |
+| Crumb entity | SetState, Pebble, Dust, SetProperty, GetProperty |
 | Trail entity | AddCrumb, RemoveCrumb, GetCrumbs, Complete, Abandon |
 
 ## Success Criteria
@@ -158,7 +158,7 @@ crumb.SetState("ready")
 crumbsTable.Set(crumb.CrumbID, crumb)
 crumb.SetState("taken")
 crumbsTable.Set(crumb.CrumbID, crumb)
-crumb.Complete()
+crumb.Pebble()
 crumbsTable.Set(crumb.CrumbID, crumb)
 
 // Phase 3: Explore with trails

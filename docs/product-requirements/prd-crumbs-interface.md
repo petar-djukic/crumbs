@@ -10,7 +10,7 @@ This PRD defines the Crumb entity: the struct fields, entity methods for state m
 
 1. Define the Crumb struct with all required fields
 2. Define state values and their meaning
-3. Define entity methods for state transitions (SetState, Complete, Archive, Fail)
+3. Define entity methods for state transitions (SetState, Pebble, Dust)
 4. Define entity methods for property access (SetProperty, GetProperty, GetProperties, ClearProperty)
 5. Specify how crumbs are created, stored, and queried via the Table interface
 6. Specify state validation rules for entity methods
@@ -51,9 +51,8 @@ This PRD defines the Crumb entity: the struct fields, entity methods for state m
 | pending | Created but not ready for work (e.g., waiting for dependencies) |
 | ready | Available for assignment |
 | taken | Currently being worked on |
-| completed | Successfully finished |
-| failed | Terminated with error |
-| archived | Stored and inactive; moved to cold storage |
+| pebble | Successfully finished (permanent, enduring - like pebbles in the story) |
+| dust | Failed or abandoned (swept away - like crumbs eaten by birds) |
 
 2.2. Initial state on creation is draft.
 
@@ -61,7 +60,7 @@ This PRD defines the Crumb entity: the struct fields, entity methods for state m
 
 2.4. State is stored as a string, not an enum, for JSON compatibility.
 
-2.5. The states form a logical progression: draft → pending → ready → taken → (completed|failed) → archived. Entity methods enforce this progression where appropriate.
+2.5. The states form a logical progression: draft → pending → ready → taken → pebble (success) or dust (failure/abandonment). Entity methods enforce this progression where appropriate.
 
 ### R3: Creating Crumbs
 
@@ -94,9 +93,8 @@ err := table.Set("", crumb)
 
 ```go
 func (c *Crumb) SetState(state string) error
-func (c *Crumb) Complete() error
-func (c *Crumb) Archive() error
-func (c *Crumb) Fail() error
+func (c *Crumb) Pebble() error
+func (c *Crumb) Dust() error
 ```
 
 4.2. SetState transitions the crumb to the specified state:
@@ -106,29 +104,23 @@ func (c *Crumb) Fail() error
 - Must update the UpdatedAt timestamp
 - Is idempotent: setting to the current state succeeds without error
 
-4.3. Complete transitions the crumb to the completed state:
+4.3. Pebble transitions the crumb to the pebble state (completed successfully):
 
 - Must validate that the current state is taken (return ErrInvalidTransition if not)
-- Must set State to "completed"
+- Must set State to "pebble"
 - Must update UpdatedAt
 
-4.4. Archive transitions the crumb to the archived state (soft delete):
+4.4. Dust transitions the crumb to the dust state (failed or abandoned):
 
 - Can be called from any state
-- Must set State to "archived"
+- Must set State to "dust"
 - Must update UpdatedAt
-- Is idempotent: archiving an already-archived crumb succeeds without error
+- Is idempotent: dusting an already-dust crumb succeeds without error
 
-4.5. Fail transitions the crumb to the failed state:
-
-- Must validate that the current state is taken (return ErrInvalidTransition if not)
-- Must set State to "failed"
-- Must update UpdatedAt
-
-4.6. After calling any state transition method, the caller must save the crumb with Table.Set to persist the changes:
+4.5. After calling any state transition method, the caller must save the crumb with Table.Set to persist the changes:
 
 ```go
-crumb.Complete()
+crumb.Pebble()
 err := table.Set(crumb.CrumbID, crumb)
 ```
 
@@ -230,12 +222,12 @@ err := table.Set(id, crumb)
 
 ### R8: Deleting Crumbs
 
-8.1. To soft-delete a crumb, use the Archive entity method and save:
+8.1. To soft-delete a crumb, use the Dust entity method and save:
 
 ```go
 entity, _ := table.Get(id)
 crumb := entity.(*Crumb)
-crumb.Archive()
+crumb.Dust()
 table.Set(id, crumb)
 ```
 
@@ -257,7 +249,7 @@ err := table.Delete(id)
 
 8.6. Table.Delete must be atomic: all deletions succeed or none do.
 
-8.7. Archived crumbs remain queryable via Table.Fetch. Applications filter by state to exclude archived crumbs from active views.
+8.7. Dust crumbs remain queryable via Table.Fetch. Applications filter by state to exclude dust crumbs from active views.
 
 ### R9: Filter Map
 
@@ -326,7 +318,7 @@ for i, entity := range entities {
 | ErrInvalidID | Crumb ID is empty (Table.Get, Table.Set, Table.Delete) |
 | ErrInvalidName | Name is empty (Table.Set) |
 | ErrInvalidState | State value is not recognized (SetState) |
-| ErrInvalidTransition | State transition is not allowed (Complete, Fail) |
+| ErrInvalidTransition | State transition is not allowed (Pebble requires taken state) |
 | ErrInvalidFilter | Filter value has wrong type (Table.Fetch) |
 | ErrPropertyNotFound | Property ID does not exist (SetProperty, GetProperty, ClearProperty) |
 | ErrInvalidCategory | Category ID is not valid for the property (SetProperty) |
@@ -343,9 +335,9 @@ for i, entity := range entities {
 
 3. This PRD does not define property definitions. See prd-properties-interface.
 
-4. This PRD does not define complex state transition rules beyond Complete and Fail validation. Applications may add additional validation logic.
+4. This PRD does not define complex state transition rules beyond Pebble validation. Applications may add additional validation logic.
 
-5. This PRD does not define batch operations (e.g., bulk archive, bulk update).
+5. This PRD does not define batch operations (e.g., bulk dust, bulk update).
 
 6. This PRD does not define full-text search on crumb names or content.
 
@@ -354,16 +346,16 @@ for i, entity := range entities {
 ## Acceptance Criteria
 
 - [ ] Crumb struct defined with CrumbID, Name, State, CreatedAt, UpdatedAt, Properties fields
-- [ ] State values documented (draft, pending, ready, taken, completed, failed, archived)
-- [ ] State transition methods defined (SetState, Complete, Archive, Fail)
-- [ ] State transition validation rules documented (Complete and Fail require taken state)
+- [ ] State values documented (draft, pending, ready, taken, pebble, dust)
+- [ ] State transition methods defined (SetState, Pebble, Dust)
+- [ ] State transition validation rules documented (Pebble requires taken state)
 - [ ] Property methods defined (SetProperty, GetProperty, GetProperties, ClearProperty)
 - [ ] Property method behavior documented (validation, defaults, UpdatedAt)
 - [ ] Crumb creation via Table.Set specified (ID generation, state initialization, property initialization)
 - [ ] Crumb retrieval via Table.Get specified (type assertion to *Crumb)
 - [ ] Crumb update pattern documented (Get, modify, Set)
 - [ ] Crumb deletion via Table.Delete specified (hard delete, cascade)
-- [ ] Soft delete via Archive method documented
+- [ ] Soft delete via Dust method documented
 - [ ] Filter map defined with states, trail_id, parent_id, properties, limit, offset
 - [ ] Query via Table.Fetch specified (filter map, type assertion, pagination)
 - [ ] Error types documented (including ErrInvalidTransition)

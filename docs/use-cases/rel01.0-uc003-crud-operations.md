@@ -24,11 +24,11 @@ The actor is a developer or automated test harness. The trigger is the need to v
 
 7. **Fetch with filter**: Call `Crumbs().Fetch({"states": ["ready"]})`. Verify only the first crumb (state "ready") is returned.
 
-8. **Archive a crumb**: Call `Crumbs().Archive(secondCrumbID)`. Verify the crumb's state becomes "archived" and UpdatedAt changes.
+8. **Dust a crumb**: Call `crumb.Dust()` to mark as failed/abandoned. Verify the crumb's state becomes "dust" and UpdatedAt changes.
 
-9. **Fetch excludes archived**: Call `Crumbs().Fetch({"states": ["draft", "ready"]})`. Verify the archived crumb is not returned.
+9. **Fetch excludes dust**: Call `Crumbs().Fetch({"states": ["draft", "ready"]})`. Verify the dust crumb is not returned.
 
-10. **Purge archived crumb**: Call `Crumbs().Purge(secondCrumbID)`. Verify the crumb is permanently removed.
+10. **Delete dust crumb**: Call `Table.Delete(secondCrumbID)`. Verify the crumb is permanently removed.
 
 11. **Close the cupboard**: Call `Close()`. Verify all resources are released and subsequent operations return ErrCupboardClosed.
 
@@ -41,13 +41,13 @@ This use case exercises the following interfaces and components:
 | Interface | Operations Used |
 |-----------|-----------------|
 | Cupboard | OpenCupboard, Close |
-| CrumbTable | Add, Get, Archive, Purge, Fetch |
+| CrumbTable | Add, Get, Dust, Delete, Fetch |
 
 We validate:
 
 - SQLite backend initialization and JSON file creation (prd-sqlite-backend R1, R4)
 - Crumb creation with UUID v7 and timestamp initialization (prd-crumbs-interface R3)
-- State transitions and archive behavior (prd-crumbs-interface R5)
+- State transitions and dust behavior (prd-crumbs-interface R5)
 - Filter-based queries (prd-crumbs-interface R7, R8)
 - Purge cascade behavior (prd-crumbs-interface R6)
 - Cupboard lifecycle and ErrCupboardClosed (prd-cupboard-core R4, R5)
@@ -62,8 +62,8 @@ The demo succeeds when:
 - [ ] State transitions update the state field and UpdatedAt
 - [ ] Fetch returns all crumbs when no filter is applied
 - [ ] Fetch correctly filters by state
-- [ ] Archive changes state to "archived" without deleting data
-- [ ] Purge removes crumb permanently
+- [ ] Dust changes state to "dust" without deleting data
+- [ ] Delete removes crumb permanently
 - [ ] Close prevents further operations with ErrCupboardClosed
 - [ ] DataDir removal cleans up all files
 
