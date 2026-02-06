@@ -66,6 +66,7 @@ dolt:
 dynamodb:
   table_name: crumbs
   region: us-east-1
+  endpoint: ""  # Optional endpoint override for local testing
 ```
 
 1.6. If the configuration directory does not exist, the CLI must create it on first run with a default config.yaml.
@@ -198,13 +199,13 @@ dynamodb:
 ```go
 type Config struct {
     Backend        string          // Backend type: "sqlite", "dolt", "dynamodb"
-    DataDir        string          // Data directory for backend (required)
-    DoltConfig     *DoltConfig     // Dolt-specific settings
-    DynamoDBConfig *DynamoDBConfig // DynamoDB-specific settings
+    DataDir        string          // Data directory for backend; ignored for cloud backends
+    DoltConfig     *DoltConfig     // Dolt-specific settings; nil if not using Dolt
+    DynamoDBConfig *DynamoDBConfig // DynamoDB-specific settings; nil if not using DynamoDB
 }
 ```
 
-8.2. DataDir is now clearly documented as the data directory, not a general-purpose directory.
+8.2. DataDir holds the directory for local backends (sqlite, dolt); ignored for cloud backends.
 
 8.3. CLI configuration (config.yaml) is outside the Cupboard interface. The CLI reads config.yaml and constructs a Config struct to pass to Attach.
 
