@@ -4,7 +4,7 @@
 
 Crumbs is a storage system for work items with first-class support for exploratory trails. The core insight is that coding agents need backtracking: an agent drops crumbs as it explores an implementation approach, and if the approach leads nowhere, the agent abandons the entire trail without polluting the permanent task list.
 
-The system provides a Go library (`pkg/types`) for agents and a command-line tool (`cupboard` CLI) for development and personal use. The primary use case is a VS Code coding agent that uses trails to explore implementation approaches. The SQLite backend is implemented; Dolt and DynamoDB backends are planned. All operations use UUID v7 identifiers (time-ordered, sortable). Backend selection happens via configuration at startup.
+The system provides a Go library (`pkg/types`) for agents and a command-line tool (`cupboard` CLI) for development and personal use. Any agent that needs backtracking can use Crumbs: coding agents exploring implementation approaches, task boards, game-playing agents (chess, go), planning systems, and more. The SQLite backend is implemented. All operations use UUID v7 identifiers (time-ordered, sortable).
 
 We use an ORM-style pattern for data access. Applications call `Cupboard.GetTable(name)` to get a table accessor, then use uniform CRUD operations (Get, Set, Delete, Fetch) that work with entity objects (Crumb, Trail, Property, etc.). Entity methods modify structs in memory; callers persist changes by calling `Table.Set`. This separates storage mechanics from domain logic and keeps the interface consistent across all entity types.
 
@@ -14,7 +14,8 @@ We use an ORM-style pattern for data access. Applications call `Cupboard.GetTabl
 skinparam backgroundColor white
 
 package "Applications" {
-  [VS Code Agent]
+  [Agents] <<coding, game, planning>>
+  [Task Boards]
   [CLI Tool]
 }
 
@@ -26,22 +27,16 @@ package "pkg/types" {
 
 package "internal/sqlite" {
   [SQLite Backend]
-  [JSON Persistence]
+  [JSONL Persistence]
 }
 
-package "Future Backends" {
-  [Dolt Backend]
-  [DynamoDB Backend]
-}
-
-[VS Code Agent] --> [Cupboard Interface]
+[Agents] --> [Cupboard Interface]
+[Task Boards] --> [Cupboard Interface]
 [CLI Tool] --> [Cupboard Interface]
 [Cupboard Interface] --> [Table Interfaces]
 [Table Interfaces] ..> [Entity Types]
 [SQLite Backend] ..|> [Cupboard Interface] : implements
-[Dolt Backend] ..|> [Cupboard Interface] : implements
-[DynamoDB Backend] ..|> [Cupboard Interface] : implements
-[SQLite Backend] --> [JSON Persistence]
+[SQLite Backend] --> [JSONL Persistence]
 
 @enduml
 ```
@@ -175,8 +170,6 @@ Attach is idempotent (returns ErrAlreadyAttached if called twice). Detach blocks
 
 **CLI (cmd/cupboard)**: Command-line tool for development and personal use. Commands map to Cupboard operations. Config file selects backend.
 
-**Future Backends**: Dolt backend (SQL with version control) and DynamoDB backend (serverless NoSQL) are planned but not yet implemented. Each backend implements the full Cupboard interface (prd-cupboard-core).
-
 ## Design Decisions
 
 **Decision 1: UUID v7 for all identifiers**. We chose UUID v7 (time-ordered UUIDs per RFC 9562) because they are sortable by creation time without separate timestamp columns. This simplifies pagination, reduces index size, and works across distributed backends. Alternative: auto-increment IDs are not suitable for distributed systems; UUID v4 lacks time ordering.
@@ -185,9 +178,9 @@ Attach is idempotent (returns ErrAlreadyAttached if called twice). Detach blocks
 
 **Decision 3: Trails with complete/abandon semantics**. Trails represent agent exploration sessions. CompleteTrail merges crumbs into the permanent record by clearing trail_id. AbandonTrail removes crumbs entirely (backtracking). This keeps the permanent task list clean and makes agent exploration explicit—try an approach, abandon if it fails, complete if it succeeds. Alternative: marking crumbs as "tentative" is less clear and requires agents to manually track and clean up failed explorations.
 
-**Decision 4: Pluggable backends with full interface**. Each backend implements the entire Cupboard interface. This allows backend-specific optimizations (Dolt version history, DynamoDB single-table design) without leaking details into the API. Alternative: a generic SQL backend with schema generation is less flexible and cannot leverage backend-specific features.
+**Decision 4: Pluggable backends with full interface**. Each backend implements the entire Cupboard interface. This allows backend-specific optimizations without leaking details into the API. Alternative: a generic SQL backend with schema generation is less flexible and cannot leverage backend-specific features.
 
-**Decision 5: Synchronous API with future async support**. Current operations are synchronous for simplicity. The architecture supports adding async patterns (goroutines, channels) when remote backends (DynamoDB) require non-blocking I/O. Alternative: starting with async adds complexity before we need it.
+**Decision 5: Synchronous API**. Operations are synchronous for simplicity. Alternative: async adds complexity before we need it.
 
 **Decision 6: JSONL as source of truth for SQLite backend**. The SQLite backend uses JSONL files (one JSON object per line) as the canonical data store. SQLite (modernc.org/sqlite, pure Go) serves as a query engine to reuse SQL code across backends and avoid reimplementing filtering, joins, and indexing. On startup, we load JSONL into SQLite; on writes, we persist back to JSONL. This gives us human-readable files, easy backup, and code reuse. Alternative: raw JSON with custom query logic duplicates work that SQL handles well; pure SQLite loses the human-readable file benefit.
 
@@ -204,42 +197,8 @@ Attach is idempotent (returns ErrAlreadyAttached if called twice). Detach blocks
 | Language | Go | CLI tool and library; strong concurrency, static typing |
 | Identifiers | UUID v7 (RFC 9562) | Time-ordered, sortable, distributed-safe IDs |
 | CLI | cobra + viper | Command parsing and config management |
-| SQLite backend | modernc.org/sqlite | Local development; JSONL files as source of truth, SQLite as query engine |
-| Dolt backend (planned) | go-mysql-driver + Dolt SQL | Version-controlled relational storage |
-| DynamoDB backend (planned) | AWS SDK for Go v2 | Serverless NoSQL cloud storage |
+| SQLite backend | modernc.org/sqlite | JSONL files as source of truth, SQLite as query engine |
 | Testing | Go testing + testify | Unit and integration tests |
-
-## Project Structure
-
-```text
-crumbs/
-├── cmd/
-│   └── cupboard/            # CLI entry point
-├── pkg/
-│   └── types/               # Public API: Cupboard interface, entity types
-├── internal/
-│   └── sqlite/              # SQLite backend implementation
-├── docs/
-│   ├── VISION.md
-│   ├── ARCHITECTURE.md
-│   ├── product-requirements/
-│   │   ├── prd-cupboard-core.md
-│   │   ├── prd-sqlite-backend.md
-│   │   ├── prd-crumbs-interface.md
-│   │   ├── prd-trails-interface.md
-│   │   ├── prd-properties-interface.md
-│   │   ├── prd-metadata-interface.md
-│   │   └── prd-stash-interface.md
-│   └── use-cases/
-│       └── rel01.0-uc001-cupboard-lifecycle.md
-└── .claude/                 # Project rules and commands
-```
-
-**pkg/types**: Public API. Applications import this package to access the Cupboard interface, Table interface, and all entity types (Crumb, Trail, Property, Category, Stash, Metadata, Link). Contains interfaces and structs only; no implementation.
-
-**internal/sqlite**: SQLite backend implementation. Implements the Cupboard and Table interfaces for all entity types. Handles entity hydration (row to struct) and dehydration (struct to row). JSONL files are the source of truth; SQLite is a query cache.
-
-**cmd/cupboard**: CLI tool. Parses commands, loads config, calls Attach, and invokes Table operations.
 
 ## Implementation Status
 
@@ -264,5 +223,3 @@ Success criteria (from VISION): operations complete with low latency, agents int
 ## References
 
 - RFC 9562: UUID v7 specification
-- Dolt documentation: SQL with Git semantics
-- DynamoDB best practices: Single-table design, GSI patterns

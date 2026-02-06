@@ -6,7 +6,7 @@ Crumbs is a general-purpose storage system for work items with built-in support 
 
 ## The Problem
 
-Coding agents need storage for work items that supports how they actually work—exploring solutions, hitting dead ends, and backtracking. When an agent explores a solution approach, it creates tasks and subtasks. Sometimes the approach works and those tasks become permanent work. Sometimes the agent realizes the approach will not work and needs to abandon the entire exploration without polluting the main task list.
+Agents that explore solutions need storage that supports how they actually work—exploring, hitting dead ends, and backtracking. A coding agent exploring implementation approaches, a chess engine evaluating move sequences, a planning system testing strategies—all create tasks and subtasks as they explore. Sometimes the approach works and those tasks become permanent work. Sometimes the agent realizes the approach will not work and needs to abandon the entire exploration without polluting the main task list.
 
 Current task storage systems lack support for this exploratory workflow. They couple directly to a specific database or workflow engine, making it difficult to switch backends. More importantly, they have no concept of tentative work sessions. Agents must either commit failed exploration tasks to the permanent record or manually track and clean up abandoned items. Neither is acceptable—the first pollutes the task history with dead ends, the second is error-prone and complex.
 
@@ -28,9 +28,9 @@ The **Cupboard** interface provides table access and lifecycle management. You c
 
 Entity types have methods that modify struct fields in memory. Crumbs have `Pebble()` (mark completed) and `Dust()` (mark failed/abandoned), plus property methods. Trails have `Complete()` and `Abandon()`. After calling entity methods, you persist changes with `Table.Set`. Crumbs are linked to trails via the links table using `belongs_to` relationships.
 
-The storage system currently provides a SQLite backend with JSONL files as the source of truth and SQLite as the query engine. The architecture supports pluggable backends (Dolt for version control, DynamoDB for cloud scale are planned). All identifiers use UUID v7 for time-ordered, sortable IDs. Properties are first-class entities—you define new properties at runtime without schema migrations.
+The storage system provides a SQLite backend with JSONL files as the source of truth and SQLite as the query engine. All identifiers use UUID v7 for time-ordered, sortable IDs. Properties are first-class entities—you define new properties at runtime without schema migrations.
 
-We provide both a command-line tool and a Go library. The primary use case is coding agents—a VS Code coding agent that uses trails to explore implementation approaches, complete successful paths, and abandon dead ends. The library and CLI also support personal task tracking and other agent workflows.
+We provide both a command-line tool and a Go library. Any agent that needs backtracking can use Crumbs: coding agents exploring implementation approaches, task boards managing work items, game-playing agents (chess, go) evaluating move sequences, planning systems testing strategies, and more. The library and CLI also support personal task tracking.
 
 ## What Success Looks Like
 
@@ -46,7 +46,7 @@ Developers integrate the Go library quickly. The API is synchronous and type-saf
 
 ### Agent Workflow
 
-Coding agents create trails for exploration, drop crumbs as they plan implementation steps, and mark trails as abandoned or completed. Trail state changes are recorded; cleanup and merging semantics are handled by the backend or coordination layer. The VS Code agent demonstrates that trail-based exploration feels natural and improves code quality by encouraging agents to explore alternatives.
+Agents create trails for exploration, drop crumbs as they work, and mark trails as abandoned or completed. Trail state changes are recorded; cleanup and merging semantics are handled by the backend or coordination layer. Trail-based exploration feels natural for any agent that needs to try approaches, backtrack from dead ends, and commit successful paths.
 
 ## What This Is NOT
 
@@ -56,6 +56,6 @@ We are not building a message queue. Crumbs stores work items; it does not route
 
 We are not building an HTTP/RPC API. Applications using Crumbs define their own APIs. The command-line tool provides a local interface; distributed coordination is out of scope.
 
-We are not building replication or multi-region support. Backends may provide these features natively (DynamoDB global tables, Dolt remotes), but replication is not a core Crumbs concern.
+We are not building replication or multi-region support.
 
 We are not building a general-purpose database. Crumbs is purpose-built for work item storage with trails, properties, and metadata.

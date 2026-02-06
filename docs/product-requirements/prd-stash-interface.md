@@ -384,6 +384,7 @@ err := table.Delete(id)
 - Lock operations are non-blocking; callers handle waiting
 - Entity methods update struct fields in memory; caller must call Table.Set to persist changes
 - Type assertions are required when retrieving entities from Table.Get and Table.Fetch
+- Stashes use a direct TrailID field rather than the links table. A stash has at most one trail (or is global when nil), making this a simple 1:optional relationship. The links table is reserved for many-to-many relationships (crumb→trail via belongs_to, crumb→crumb via child_of). If stash→crumb relationships are needed in the future, we could add a link type to the links table without changing the TrailID field.
 
 ## References
 
