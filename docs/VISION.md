@@ -24,11 +24,13 @@ Crumbs solves this by providing storage with first-class support for trails. We 
 
 **Cupboard** is the storage system that holds all crumbs, trails, and stashes.
 
-When you **add a crumb**, you get the crumbs table from the cupboard and call Set with an empty ID to create a new entity (via `cupboard.GetTable("crumbs").Set("", crumb)`). When you **start a trail**, you create a trail entity the same way (via `cupboard.GetTable("trails").Set("", trail)`). Crumbs are linked to trails via the links table. If the trail leads nowhere, you **abandon** it (via `trail.Abandon()`) and all crumbs on the trail are deleted atomically. When a trail succeeds, you **complete** it (via `trail.Complete()`) and crumbs become permanent (no longer associated with the trail).
+The **Cupboard** interface provides table access and lifecycle management. You call `cupboard.GetTable("crumbs")` to get a Table, then use uniform CRUD operations: `Get(id)`, `Set(id, entity)`, `Delete(id)`, and `Fetch(filter)`. When `id` is empty, Set generates a UUID v7 and creates a new entity. All entity types (Crumb, Trail, Property, Link, Stash, Metadata) use the same Table interface.
 
-The storage system supports multiple backends (local JSON files, Dolt for version control, DynamoDB for cloud scale) with a pluggable architecture. All identifiers use UUID v7 for time-ordered, sortable IDs. Properties are first-class entities with extensible schemas—you define new properties at runtime. Metadata tables (comments, attachments, logs) can be added without changing the core schema.
+Entity types have methods that modify struct fields in memory. Crumbs have `Pebble()` (mark completed) and `Dust()` (mark failed/abandoned), plus property methods. Trails have `Complete()` and `Abandon()`. After calling entity methods, you persist changes with `Table.Set`. Crumbs are linked to trails via the links table using `belongs_to` relationships.
 
-We provide both a command-line tool and a Go library. The primary use case is coding agents—the first implementation is a VS Code coding agent that uses trails to explore implementation approaches, complete successful paths, and abandon dead ends atomically. The library and CLI also support personal task tracking and other agent workflows.
+The storage system currently provides a SQLite backend with JSONL files as the source of truth and SQLite as the query engine. The architecture supports pluggable backends (Dolt for version control, DynamoDB for cloud scale are planned). All identifiers use UUID v7 for time-ordered, sortable IDs. Properties are first-class entities—you define new properties at runtime without schema migrations.
+
+We provide both a command-line tool and a Go library. The primary use case is coding agents—a VS Code coding agent that uses trails to explore implementation approaches, complete successful paths, and abandon dead ends. The library and CLI also support personal task tracking and other agent workflows.
 
 ## What Success Looks Like
 
@@ -40,11 +42,11 @@ Operations complete with low latency as crumb counts and concurrent trails grow.
 
 ### Developer Experience
 
-Developers integrate the Go library quickly. The API is asynchronous, type-safe, and self-explanatory. Adding a new backend takes hours, not days. Defining new properties or metadata tables requires no schema migrations.
+Developers integrate the Go library quickly. The API is synchronous and type-safe, using a uniform Table interface for all entity types. Adding a new backend takes hours, not days. Defining new properties or metadata tables requires no schema migrations.
 
 ### Agent Workflow
 
-Coding agents create trails for exploration, drop crumbs as they plan implementation steps, and abandon dead-end approaches without manual cleanup. Completed trails merge seamlessly into the permanent task list. The VS Code agent demonstrates that trail-based exploration feels natural and improves code quality by encouraging agents to explore alternatives.
+Coding agents create trails for exploration, drop crumbs as they plan implementation steps, and mark trails as abandoned or completed. Trail state changes are recorded; cleanup and merging semantics are handled by the backend or coordination layer. The VS Code agent demonstrates that trail-based exploration feels natural and improves code quality by encouraging agents to explore alternatives.
 
 ## What This Is NOT
 
