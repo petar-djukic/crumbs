@@ -134,9 +134,9 @@ func (b *Backend) loadTrailsJSONL(path string) error {
 			return nil
 		}
 		_, err := b.db.Exec(
-			`INSERT INTO trails (trail_id, parent_crumb_id, state, created_at, completed_at)
-			 VALUES (?, ?, ?, ?, ?)`,
-			t.TrailID, t.ParentCrumbID, t.State, t.CreatedAt, t.CompletedAt,
+			`INSERT INTO trails (trail_id, state, created_at, completed_at)
+			 VALUES (?, ?, ?, ?)`,
+			t.TrailID, t.State, t.CreatedAt, t.CompletedAt,
 		)
 		if err != nil {
 			return fmt.Errorf("insert trail %s: %w", t.TrailID, err)
@@ -264,9 +264,9 @@ func (b *Backend) loadStashesJSONL(path string) error {
 			return nil
 		}
 		_, err = b.db.Exec(
-			`INSERT INTO stashes (stash_id, trail_id, name, stash_type, value, version, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			s.StashID, s.TrailID, s.Name, s.StashType, string(valueJSON), s.Version, s.CreatedAt, s.UpdatedAt,
+			`INSERT INTO stashes (stash_id, name, stash_type, value, version, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			s.StashID, s.Name, s.StashType, string(valueJSON), s.Version, s.CreatedAt, s.UpdatedAt,
 		)
 		if err != nil {
 			return fmt.Errorf("insert stash %s: %w", s.StashID, err)
@@ -358,11 +358,10 @@ func (b *Backend) saveTrailToJSONL(trail *types.Trail) error {
 			completedAt = &s
 		}
 		return json.Marshal(trailJSON{
-			TrailID:       trail.TrailID,
-			ParentCrumbID: trail.ParentCrumbID,
-			State:         trail.State,
-			CreatedAt:     trail.CreatedAt.Format(time.RFC3339),
-			CompletedAt:   completedAt,
+			TrailID:     trail.TrailID,
+			State:       trail.State,
+			CreatedAt:   trail.CreatedAt.Format(time.RFC3339),
+			CompletedAt: completedAt,
 		})
 	})
 }
@@ -440,7 +439,6 @@ func (b *Backend) saveStashToJSONL(stash *types.Stash, updatedAt time.Time) erro
 	return updateJSONLFile(path, stash.StashID, "stash_id", func() ([]byte, error) {
 		return json.Marshal(stashJSON{
 			StashID:   stash.StashID,
-			TrailID:   stash.TrailID,
 			Name:      stash.Name,
 			StashType: stash.StashType,
 			Value:     stash.Value,

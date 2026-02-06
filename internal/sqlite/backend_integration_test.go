@@ -161,20 +161,6 @@ func TestIntegration_TrailCRUD(t *testing.T) {
 		t.Errorf("State mismatch: expected %q, got %q", types.TrailStateActive, retrieved.State)
 	}
 
-	// Update with ParentCrumbID
-	parentID := "parent-crumb-123"
-	trail.ParentCrumbID = &parentID
-	_, err = table.Set(id, trail)
-	if err != nil {
-		t.Fatalf("Set (update) failed: %v", err)
-	}
-
-	// Verify JSON update
-	jsonRecord := readJSONLRecord(t, filepath.Join(tmpDir, trailsJSONL), "trail_id", id)
-	if jsonRecord["parent_crumb_id"] != parentID {
-		t.Errorf("JSON parent_crumb_id mismatch: expected %q, got %v", parentID, jsonRecord["parent_crumb_id"])
-	}
-
 	// Complete the trail
 	if err := trail.Complete(); err != nil {
 		t.Fatalf("Trail.Complete failed: %v", err)
@@ -334,21 +320,6 @@ func TestIntegration_StashCRUD(t *testing.T) {
 	}
 	if retrieved.StashType != types.StashTypeCounter {
 		t.Errorf("StashType mismatch: expected %q, got %q", types.StashTypeCounter, retrieved.StashType)
-	}
-
-	// Update with trail scope
-	trailID := "trail-scope-123"
-	stash.TrailID = &trailID
-	stash.Version = 2
-	_, err = table.Set(id, stash)
-	if err != nil {
-		t.Fatalf("Set (update) failed: %v", err)
-	}
-
-	// Verify JSON update
-	jsonRecord := readJSONLRecord(t, filepath.Join(tmpDir, stashesJSONL), "stash_id", id)
-	if jsonRecord["trail_id"] != trailID {
-		t.Errorf("JSON trail_id mismatch: expected %q, got %v", trailID, jsonRecord["trail_id"])
 	}
 
 	// Test Increment

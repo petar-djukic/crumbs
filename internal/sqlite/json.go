@@ -18,12 +18,12 @@ type crumbJSON struct {
 }
 
 // trailJSON represents a trail in trails.jsonl.
+// Trail branching uses branches_from links in links.jsonl.
 type trailJSON struct {
-	TrailID       string  `json:"trail_id"`
-	ParentCrumbID *string `json:"parent_crumb_id"`
-	State         string  `json:"state"`
-	CreatedAt     string  `json:"created_at"`
-	CompletedAt   *string `json:"completed_at"`
+	TrailID     string  `json:"trail_id"`
+	State       string  `json:"state"`
+	CreatedAt   string  `json:"created_at"`
+	CompletedAt *string `json:"completed_at"`
 }
 
 // linkJSON represents a link in links.jsonl.
@@ -71,15 +71,15 @@ type metadataJSON struct {
 }
 
 // stashJSON represents a stash in stashes.jsonl.
+// Stash scoping uses scoped_to links in links.jsonl.
 type stashJSON struct {
-	StashID   string  `json:"stash_id"`
-	TrailID   *string `json:"trail_id"`
-	Name      string  `json:"name"`
-	StashType string  `json:"stash_type"`
-	Value     any     `json:"value"`
-	Version   int64   `json:"version"`
-	CreatedAt string  `json:"created_at"`
-	UpdatedAt string  `json:"updated_at"`
+	StashID   string `json:"stash_id"`
+	Name      string `json:"name"`
+	StashType string `json:"stash_type"`
+	Value     any    `json:"value"`
+	Version   int64  `json:"version"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
 }
 
 // stashHistoryJSON represents a stash history entry in stash_history.jsonl.

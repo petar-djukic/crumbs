@@ -14,18 +14,22 @@ We store data as a directed acyclic graph (DAG). Crumbs and trails are nodes; re
 
 **Nodes**: Crumbs and trails are stored in separate tables. Both are nodes in the graph.
 
-**Edges (links)**: Relationships between nodes are stored in dedicated link tables:
+**Edges (links)**: Relationships between nodes are stored in the links table (see ARCHITECTURE Decision 10):
 
 | Link type | From | To | Cardinality |
-|------------|-------|--------|---------------------------------------------|
+|--------------|--------|--------|---------------------------------------------|
 | belongs_to | crumb | trail | many-to-one (crumb belongs to one trail) |
 | child_of | crumb | crumb | many-to-many (DAG of crumbs within a trail) |
+| branches_from | trail | crumb | one-to-one (trail branches from a crumb) |
+| scoped_to | stash | trail | one-to-one (stash scoped to a trail) |
 
 **Query patterns**:
 
-- Find all crumbs in a trail: query belongs_to by trail_id
-- Find child crumbs of a crumb: query child_of by parent_id
-- Find parent crumbs of a crumb: query child_of by child_id
+- Find all crumbs in a trail: query belongs_to by to_id (trail_id)
+- Find child crumbs of a crumb: query child_of by to_id (parent crumb_id)
+- Find parent crumbs of a crumb: query child_of by from_id (child crumb_id)
+- Find branch point of a trail: query branches_from by from_id (trail_id)
+- Find stashes scoped to a trail: query scoped_to by to_id (trail_id)
 - Traverse the DAG: recursive CTE on child_of
 
 **Integrity**: Audit functions validate the graph (no cycles, valid references, DAG structure).
@@ -84,8 +88,10 @@ Note: trail membership is stored in links.jsonl (belongs_to), not as a field on 
 2.3. trails.jsonl format (one line per trail):
 
 ```json
-{"trail_id": "01945a3c-...", "parent_crumb_id": null, "state": "active", "created_at": "2025-01-15T10:30:00Z", "completed_at": null}
+{"trail_id": "01945a3c-...", "state": "active", "created_at": "2025-01-15T10:30:00Z", "completed_at": null}
 ```
+
+Note: Trail branching (deviating from a crumb) uses `branches_from` links in links.jsonl, not a field on the trail.
 
 2.4. properties.jsonl format (one line per property):
 
@@ -131,9 +137,11 @@ Link types:
 2.9. stashes.jsonl format (one line per stash):
 
 ```json
-{"stash_id": "01945a40-...", "trail_id": "01945a3c-...", "name": "working_directory", "stash_type": "resource", "value": {"uri": "file:///tmp/project-123", "kind": "directory"}, "version": 3, "created_at": "2025-01-15T10:30:00Z", "updated_at": "2025-01-15T11:45:00Z"}
-{"stash_id": "01945a41-...", "trail_id": null, "name": "deploy_lock", "stash_type": "lock", "value": {"holder": "crumb-789", "acquired_at": "2025-01-15T11:00:00Z"}, "version": 5, "created_at": "2025-01-15T10:00:00Z", "updated_at": "2025-01-15T11:00:00Z"}
+{"stash_id": "01945a40-...", "name": "working_directory", "stash_type": "resource", "value": {"uri": "file:///tmp/project-123", "kind": "directory"}, "version": 3, "created_at": "2025-01-15T10:30:00Z", "updated_at": "2025-01-15T11:45:00Z"}
+{"stash_id": "01945a41-...", "name": "deploy_lock", "stash_type": "lock", "value": {"holder": "crumb-789", "acquired_at": "2025-01-15T11:00:00Z"}, "version": 5, "created_at": "2025-01-15T10:00:00Z", "updated_at": "2025-01-15T11:00:00Z"}
 ```
+
+Note: Stash scope (trail or global) uses `scoped_to` links in links.jsonl, not a field on the stash. Stashes without a `scoped_to` link are global.
 
 2.10. stash_history.jsonl format (one line per history entry, append-only):
 
@@ -163,7 +171,6 @@ CREATE TABLE crumbs (
 
 CREATE TABLE trails (
     trail_id TEXT PRIMARY KEY,
-    parent_crumb_id TEXT,
     state TEXT NOT NULL,
     created_at TEXT NOT NULL,
     completed_at TEXT
@@ -215,14 +222,12 @@ CREATE TABLE metadata (
 
 CREATE TABLE stashes (
     stash_id TEXT PRIMARY KEY,
-    trail_id TEXT,
     name TEXT NOT NULL,
     stash_type TEXT NOT NULL,
     value TEXT NOT NULL,
     version INTEGER NOT NULL,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    FOREIGN KEY (trail_id) REFERENCES trails(trail_id)
+    updated_at TEXT NOT NULL
 );
 
 CREATE TABLE stash_history (
@@ -250,8 +255,7 @@ CREATE INDEX idx_crumb_properties_property ON crumb_properties(property_id);
 CREATE INDEX idx_metadata_crumb ON metadata(crumb_id);
 CREATE INDEX idx_metadata_table ON metadata(table_name);
 CREATE INDEX idx_categories_property ON categories(property_id);
-CREATE INDEX idx_stashes_trail ON stashes(trail_id);
-CREATE INDEX idx_stashes_name ON stashes(trail_id, name);
+CREATE INDEX idx_stashes_name ON stashes(name);
 CREATE INDEX idx_stash_history_stash ON stash_history(stash_id);
 CREATE INDEX idx_stash_history_version ON stash_history(stash_id, version);
 ```
@@ -419,6 +423,8 @@ Note: crumb dependencies use `child_of` links in the links table, not a property
 | ValidateDAG | Ensure no cycles exist in child_of links |
 | ValidateReferences | Ensure all link from_id and to_id reference existing entities |
 | ValidateBelongsTo | Ensure each crumb belongs to at most one trail |
+| ValidateBranchesFrom | Ensure each trail has at most one branches_from link |
+| ValidateScopedTo | Ensure each stash has at most one scoped_to link |
 | ValidateTrailCrumbs | Ensure abandoned trails have no crumbs |
 
 10.2. ValidateDAG must detect cycles using depth-first search or topological sort. If a cycle is found, return an error listing the crumb_ids involved.
@@ -427,6 +433,8 @@ Note: crumb dependencies use `child_of` links in the links table, not a property
 
 - belongs_to links: from_id exists in crumbs, to_id exists in trails
 - child_of links: both from_id and to_id exist in crumbs
+- branches_from links: from_id exists in trails, to_id exists in crumbs
+- scoped_to links: from_id exists in stashes, to_id exists in trails
 
 10.4. Audit functions run on startup after loading JSONL. If validation fails, Attach returns an error.
 
@@ -513,7 +521,6 @@ type Table interface {
 | SQLite column | Go field | Type conversion |
 |---------------|----------|-----------------|
 | trail_id | ID | string (direct) |
-| parent_crumb_id | ParentCrumbID | string, nullable |
 | state | State | string (direct) |
 | created_at | CreatedAt | RFC 3339 → time.Time |
 | completed_at | CompletedAt | RFC 3339 → *time.Time, nullable |
@@ -554,7 +561,6 @@ type Table interface {
 | SQLite column | Go field | Type conversion |
 |---------------|----------|-----------------|
 | stash_id | ID | string (direct) |
-| trail_id | TrailID | string, nullable |
 | name | Name | string (direct) |
 | stash_type | StashType | string (direct) |
 | value | Value | JSON string → any |

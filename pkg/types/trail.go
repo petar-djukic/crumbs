@@ -14,13 +14,10 @@ const (
 )
 
 // Trail represents an exploratory work session that groups crumbs.
+// Trail branching uses branches_from links in the links table (ARCHITECTURE Decision 10).
 type Trail struct {
 	// TrailID is a UUID v7, generated on creation.
 	TrailID string
-
-	// ParentCrumbID is an optional crumb ID this trail deviates from; nil if standalone.
-	// TODO(crumbs-wy7.11): Migrate to branches_from link per Decision 10.
-	ParentCrumbID *string
 
 	// State is the trail state (active, completed, abandoned).
 	State string

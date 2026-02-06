@@ -115,14 +115,14 @@ Entities are plain structs with fields. Entity methods (SetState, Pebble, Dust, 
 | Entity | Description | Key fields | PRD |
 |--------|-------------|------------|-----|
 | Crumb | Work item | CrumbID, Name, State, CreatedAt, UpdatedAt, Properties | prd-crumbs-interface |
-| Trail | Exploration session | TrailID, ParentCrumbID*, State, CreatedAt, CompletedAt | prd-trails-interface |
+| Trail | Exploration session | TrailID, State, CreatedAt, CompletedAt | prd-trails-interface |
 | Property | Property definition | PropertyID, Name, ValueType, Description, CreatedAt | prd-properties-interface |
 | Category | Categorical value | CategoryID, PropertyID, Name, Ordinal | prd-properties-interface |
-| Stash | Shared state | StashID, TrailID*, Name, StashType, Value, Version, CreatedAt | prd-stash-interface |
+| Stash | Shared state | StashID, Name, StashType, Value, Version, CreatedAt | prd-stash-interface |
 | Metadata | Supplementary data | MetadataID, CrumbID, TableName, Content, PropertyID, CreatedAt | prd-metadata-interface |
 | Link | Graph edge | LinkID, LinkType, FromID, ToID, CreatedAt | prd-sqlite-backend |
 
-*Fields marked with asterisk will migrate to links table per Decision 10: ParentCrumbID → `branches_from` link, TrailID → `scoped_to` link.
+Relationships use the links table (Decision 10): `branches_from` (trail→crumb branch point), `scoped_to` (stash→trail scope), `belongs_to` (crumb→trail membership), `child_of` (crumb→crumb dependencies).
 
 ### Usage Pattern
 

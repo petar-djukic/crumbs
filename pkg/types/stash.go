@@ -25,12 +25,11 @@ const (
 )
 
 // Stash represents shared state scoped to a trail or global.
+// Stash scoping uses scoped_to links in the links table (ARCHITECTURE Decision 10).
+// Global stashes have no scoped_to link.
 type Stash struct {
 	// StashID is a UUID v7, generated on creation.
 	StashID string
-
-	// TrailID is the trail scope; nil for global stashes.
-	TrailID *string
 
 	// Name is a human-readable name, unique within scope.
 	Name string

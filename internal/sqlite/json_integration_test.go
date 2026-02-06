@@ -139,31 +139,15 @@ func TestJSON_TrailFormat(t *testing.T) {
 	// Read and verify JSON format
 	record := readJSONLRecord(t, filepath.Join(tmpDir, trailsJSONL), "trail_id", id)
 
-	// Required fields per R2.3
+	// Required fields per R2.3 (ParentCrumbID removed - now uses branches_from links)
 	if record["trail_id"] != id {
 		t.Errorf("trail_id mismatch: expected %q, got %v", id, record["trail_id"])
 	}
 	if record["state"] != types.TrailStateActive {
 		t.Errorf("state mismatch: expected %q, got %v", types.TrailStateActive, record["state"])
 	}
-	if record["parent_crumb_id"] != nil {
-		t.Errorf("parent_crumb_id should be null, got %v", record["parent_crumb_id"])
-	}
 	if record["completed_at"] != nil {
 		t.Errorf("completed_at should be null for active trail, got %v", record["completed_at"])
-	}
-
-	// Test trail with parent
-	parentID := "parent-crumb-456"
-	trail2 := &types.Trail{
-		ParentCrumbID: &parentID,
-		State:         types.TrailStateActive,
-	}
-	id2, _ := table.Set("", trail2)
-
-	record2 := readJSONLRecord(t, filepath.Join(tmpDir, trailsJSONL), "trail_id", id2)
-	if record2["parent_crumb_id"] != parentID {
-		t.Errorf("parent_crumb_id mismatch: expected %q, got %v", parentID, record2["parent_crumb_id"])
 	}
 }
 
@@ -333,12 +317,9 @@ func TestJSON_StashFormat(t *testing.T) {
 
 	record := readJSONLRecord(t, filepath.Join(tmpDir, stashesJSONL), "stash_id", id)
 
-	// Verify fields per R2.10
+	// Verify fields per R2.10 (TrailID removed - now uses scoped_to links)
 	if record["stash_id"] != id {
 		t.Errorf("stash_id mismatch: expected %q, got %v", id, record["stash_id"])
-	}
-	if record["trail_id"] != nil {
-		t.Errorf("trail_id should be null for global stash, got %v", record["trail_id"])
 	}
 	if record["name"] != "global_context" {
 		t.Errorf("name mismatch: expected %q, got %v", "global_context", record["name"])
@@ -363,22 +344,6 @@ func TestJSON_StashFormat(t *testing.T) {
 		t.Errorf("version should be numeric, got %T", record["version"])
 	} else if int64(version) != 1 {
 		t.Errorf("version mismatch: expected 1, got %v", version)
-	}
-
-	// Test trail-scoped stash
-	trailID := "trail-scope-123"
-	stash2 := &types.Stash{
-		TrailID:   &trailID,
-		Name:      "trail_artifact",
-		StashType: types.StashTypeArtifact,
-		Value:     map[string]any{"output": "result"},
-		Version:   1,
-	}
-	id2, _ := table.Set("", stash2)
-
-	record2 := readJSONLRecord(t, filepath.Join(tmpDir, stashesJSONL), "stash_id", id2)
-	if record2["trail_id"] != trailID {
-		t.Errorf("trail_id mismatch: expected %q, got %v", trailID, record2["trail_id"])
 	}
 }
 

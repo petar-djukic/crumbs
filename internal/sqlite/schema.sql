@@ -11,9 +11,9 @@ CREATE TABLE IF NOT EXISTS crumbs (
 );
 
 -- Trails table: exploratory work sessions
+-- Trail branching uses branches_from links in the links table (ARCHITECTURE Decision 10)
 CREATE TABLE IF NOT EXISTS trails (
     trail_id TEXT PRIMARY KEY,
-    parent_crumb_id TEXT,
     state TEXT NOT NULL,
     created_at TEXT NOT NULL,
     completed_at TEXT
@@ -70,16 +70,15 @@ CREATE TABLE IF NOT EXISTS metadata (
 );
 
 -- Stashes table: shared state for trails
+-- Stash scoping uses scoped_to links in the links table (ARCHITECTURE Decision 10)
 CREATE TABLE IF NOT EXISTS stashes (
     stash_id TEXT PRIMARY KEY,
-    trail_id TEXT,
     name TEXT NOT NULL,
     stash_type TEXT NOT NULL,
     value TEXT NOT NULL,
     version INTEGER NOT NULL,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    FOREIGN KEY (trail_id) REFERENCES trails(trail_id)
+    updated_at TEXT NOT NULL
 );
 
 -- Stash history table: append-only history of stash changes
@@ -105,7 +104,6 @@ CREATE INDEX IF NOT EXISTS idx_crumb_properties_property ON crumb_properties(pro
 CREATE INDEX IF NOT EXISTS idx_metadata_crumb ON metadata(crumb_id);
 CREATE INDEX IF NOT EXISTS idx_metadata_table ON metadata(table_name);
 CREATE INDEX IF NOT EXISTS idx_categories_property ON categories(property_id);
-CREATE INDEX IF NOT EXISTS idx_stashes_trail ON stashes(trail_id);
-CREATE INDEX IF NOT EXISTS idx_stashes_name ON stashes(trail_id, name);
+CREATE INDEX IF NOT EXISTS idx_stashes_name ON stashes(name);
 CREATE INDEX IF NOT EXISTS idx_stash_history_stash ON stash_history(stash_id);
 CREATE INDEX IF NOT EXISTS idx_stash_history_version ON stash_history(stash_id, version);

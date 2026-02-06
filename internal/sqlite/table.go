@@ -343,7 +343,7 @@ func hydrateCrumbRow(rows *sql.Rows) (*types.Crumb, error) {
 
 func (t *Table) getTrail(id string) (*types.Trail, error) {
 	row := t.backend.db.QueryRow(
-		"SELECT trail_id, parent_crumb_id, state, created_at, completed_at FROM trails WHERE trail_id = ?",
+		"SELECT trail_id, state, created_at, completed_at FROM trails WHERE trail_id = ?",
 		id,
 	)
 	return hydrateTrail(row)
@@ -359,23 +359,18 @@ func (t *Table) setTrail(id string, trail *types.Trail) (string, error) {
 		trail.CreatedAt = time.Now()
 	}
 
-	var parentCrumbID, completedAt interface{}
-	if trail.ParentCrumbID != nil {
-		parentCrumbID = *trail.ParentCrumbID
-	}
+	var completedAt interface{}
 	if trail.CompletedAt != nil {
 		completedAt = trail.CompletedAt.Format(time.RFC3339)
 	}
 
 	_, err := t.backend.db.Exec(
-		`INSERT INTO trails (trail_id, parent_crumb_id, state, created_at, completed_at)
-		 VALUES (?, ?, ?, ?, ?)
+		`INSERT INTO trails (trail_id, state, created_at, completed_at)
+		 VALUES (?, ?, ?, ?)
 		 ON CONFLICT(trail_id) DO UPDATE SET
-		 parent_crumb_id = excluded.parent_crumb_id,
 		 state = excluded.state,
 		 completed_at = excluded.completed_at`,
 		trail.TrailID,
-		parentCrumbID,
 		trail.State,
 		trail.CreatedAt.Format(time.RFC3339),
 		completedAt,
@@ -412,7 +407,7 @@ func (t *Table) fetchTrails(filter map[string]any) ([]any, error) {
 }
 
 func buildTrailQuery(filter map[string]any) (string, []any) {
-	query := "SELECT trail_id, parent_crumb_id, state, created_at, completed_at FROM trails"
+	query := "SELECT trail_id, state, created_at, completed_at FROM trails"
 	var conditions []string
 	var args []any
 
@@ -432,20 +427,19 @@ func buildTrailQuery(filter map[string]any) (string, []any) {
 
 func trailFieldToColumn(field string) string {
 	mapping := map[string]string{
-		"TrailID":       "trail_id",
-		"ParentCrumbID": "parent_crumb_id",
-		"State":         "state",
-		"CreatedAt":     "created_at",
-		"CompletedAt":   "completed_at",
+		"TrailID":     "trail_id",
+		"State":       "state",
+		"CreatedAt":   "created_at",
+		"CompletedAt": "completed_at",
 	}
 	return mapping[field]
 }
 
 func hydrateTrail(row *sql.Row) (*types.Trail, error) {
 	var trail types.Trail
-	var parentCrumbID, completedAt sql.NullString
+	var completedAt sql.NullString
 	var createdAt string
-	err := row.Scan(&trail.TrailID, &parentCrumbID, &trail.State, &createdAt, &completedAt)
+	err := row.Scan(&trail.TrailID, &trail.State, &createdAt, &completedAt)
 	if err == sql.ErrNoRows {
 		return nil, types.ErrNotFound
 	}
@@ -453,9 +447,6 @@ func hydrateTrail(row *sql.Row) (*types.Trail, error) {
 		return nil, err
 	}
 	trail.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	if parentCrumbID.Valid {
-		trail.ParentCrumbID = &parentCrumbID.String
-	}
 	if completedAt.Valid {
 		t, _ := time.Parse(time.RFC3339, completedAt.String)
 		trail.CompletedAt = &t
@@ -465,16 +456,13 @@ func hydrateTrail(row *sql.Row) (*types.Trail, error) {
 
 func hydrateTrailRow(rows *sql.Rows) (*types.Trail, error) {
 	var trail types.Trail
-	var parentCrumbID, completedAt sql.NullString
+	var completedAt sql.NullString
 	var createdAt string
-	err := rows.Scan(&trail.TrailID, &parentCrumbID, &trail.State, &createdAt, &completedAt)
+	err := rows.Scan(&trail.TrailID, &trail.State, &createdAt, &completedAt)
 	if err != nil {
 		return nil, err
 	}
 	trail.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	if parentCrumbID.Valid {
-		trail.ParentCrumbID = &parentCrumbID.String
-	}
 	if completedAt.Valid {
 		t, _ := time.Parse(time.RFC3339, completedAt.String)
 		trail.CompletedAt = &t
@@ -969,7 +957,7 @@ func hydrateLinkRow(rows *sql.Rows) (*types.Link, error) {
 
 func (t *Table) getStash(id string) (*types.Stash, error) {
 	row := t.backend.db.QueryRow(
-		"SELECT stash_id, trail_id, name, stash_type, value, version, created_at, updated_at FROM stashes WHERE stash_id = ?",
+		"SELECT stash_id, name, stash_type, value, version, created_at, updated_at FROM stashes WHERE stash_id = ?",
 		id,
 	)
 	return hydrateStash(row)
@@ -986,11 +974,6 @@ func (t *Table) setStash(id string, stash *types.Stash) (string, error) {
 		stash.CreatedAt = now
 	}
 
-	var trailID interface{}
-	if stash.TrailID != nil {
-		trailID = *stash.TrailID
-	}
-
 	// JSON encode the value
 	valueJSON, err := json.Marshal(stash.Value)
 	if err != nil {
@@ -998,17 +981,15 @@ func (t *Table) setStash(id string, stash *types.Stash) (string, error) {
 	}
 
 	_, err = t.backend.db.Exec(
-		`INSERT INTO stashes (stash_id, trail_id, name, stash_type, value, version, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO stashes (stash_id, name, stash_type, value, version, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(stash_id) DO UPDATE SET
-		 trail_id = excluded.trail_id,
 		 name = excluded.name,
 		 stash_type = excluded.stash_type,
 		 value = excluded.value,
 		 version = excluded.version,
 		 updated_at = excluded.updated_at`,
 		stash.StashID,
-		trailID,
 		stash.Name,
 		stash.StashType,
 		string(valueJSON),
@@ -1048,7 +1029,7 @@ func (t *Table) fetchStashes(filter map[string]any) ([]any, error) {
 }
 
 func buildStashQuery(filter map[string]any) (string, []any) {
-	query := "SELECT stash_id, trail_id, name, stash_type, value, version, created_at, updated_at FROM stashes"
+	query := "SELECT stash_id, name, stash_type, value, version, created_at, updated_at FROM stashes"
 	var conditions []string
 	var args []any
 
@@ -1069,7 +1050,6 @@ func buildStashQuery(filter map[string]any) (string, []any) {
 func stashFieldToColumn(field string) string {
 	mapping := map[string]string{
 		"StashID":   "stash_id",
-		"TrailID":   "trail_id",
 		"Name":      "name",
 		"StashType": "stash_type",
 		"Value":     "value",
@@ -1082,9 +1062,8 @@ func stashFieldToColumn(field string) string {
 
 func hydrateStash(row *sql.Row) (*types.Stash, error) {
 	var stash types.Stash
-	var trailID sql.NullString
 	var valueJSON, createdAt, updatedAt string
-	err := row.Scan(&stash.StashID, &trailID, &stash.Name, &stash.StashType, &valueJSON, &stash.Version, &createdAt, &updatedAt)
+	err := row.Scan(&stash.StashID, &stash.Name, &stash.StashType, &valueJSON, &stash.Version, &createdAt, &updatedAt)
 	if err == sql.ErrNoRows {
 		return nil, types.ErrNotFound
 	}
@@ -1092,9 +1071,6 @@ func hydrateStash(row *sql.Row) (*types.Stash, error) {
 		return nil, err
 	}
 	stash.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	if trailID.Valid {
-		stash.TrailID = &trailID.String
-	}
 	// Unmarshal JSON value
 	if valueJSON != "" {
 		_ = json.Unmarshal([]byte(valueJSON), &stash.Value)
@@ -1104,16 +1080,12 @@ func hydrateStash(row *sql.Row) (*types.Stash, error) {
 
 func hydrateStashRow(rows *sql.Rows) (*types.Stash, error) {
 	var stash types.Stash
-	var trailID sql.NullString
 	var valueJSON, createdAt, updatedAt string
-	err := rows.Scan(&stash.StashID, &trailID, &stash.Name, &stash.StashType, &valueJSON, &stash.Version, &createdAt, &updatedAt)
+	err := rows.Scan(&stash.StashID, &stash.Name, &stash.StashType, &valueJSON, &stash.Version, &createdAt, &updatedAt)
 	if err != nil {
 		return nil, err
 	}
 	stash.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	if trailID.Valid {
-		stash.TrailID = &trailID.String
-	}
 	// Unmarshal JSON value
 	if valueJSON != "" {
 		_ = json.Unmarshal([]byte(valueJSON), &stash.Value)

@@ -257,16 +257,20 @@ func TestTrailTable_CRUD(t *testing.T) {
 		t.Errorf("expected State='active', got %q", gotTrail.State)
 	}
 
-	// Update with parent crumb
-	parentID := "parent-123"
-	trail.ParentCrumbID = &parentID
+	// Update state
 	trail.TrailID = id
+	trail.State = types.TrailStateCompleted
+	now := time.Now()
+	trail.CompletedAt = &now
 	tbl.Set(id, trail)
 
 	result, _ = tbl.Get(id)
 	gotTrail = result.(*types.Trail)
-	if gotTrail.ParentCrumbID == nil || *gotTrail.ParentCrumbID != "parent-123" {
-		t.Errorf("expected ParentCrumbID='parent-123', got %v", gotTrail.ParentCrumbID)
+	if gotTrail.State != types.TrailStateCompleted {
+		t.Errorf("expected State='completed', got %q", gotTrail.State)
+	}
+	if gotTrail.CompletedAt == nil {
+		t.Error("expected CompletedAt to be set")
 	}
 
 	// Delete
@@ -423,17 +427,16 @@ func TestStashTable_CRUD(t *testing.T) {
 		t.Errorf("expected StashType='counter', got %q", gotStash.StashType)
 	}
 
-	// Update stash with trail scope
-	trailID := "trail-789"
-	stash.TrailID = &trailID
+	// Update stash version
 	stash.StashID = id
 	stash.Version = 2
+	stash.Value = map[string]any{"value": int64(10)}
 	tbl.Set(id, stash)
 
 	result, _ = tbl.Get(id)
 	gotStash = result.(*types.Stash)
-	if gotStash.TrailID == nil || *gotStash.TrailID != "trail-789" {
-		t.Errorf("expected TrailID='trail-789', got %v", gotStash.TrailID)
+	if gotStash.Version != 2 {
+		t.Errorf("expected Version=2, got %d", gotStash.Version)
 	}
 
 	// Delete
