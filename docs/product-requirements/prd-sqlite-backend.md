@@ -2,11 +2,11 @@
 
 ## Problem
 
-The SQLite backend needs a detailed specification for how JSON files and SQLite interact. prd-cupboard-core establishes that JSON is the source of truth and SQLite serves as a query engine, but it does not specify the JSON file format, SQLite schema, sync lifecycle, or error handling. Without this detail, implementation will make ad-hoc decisions that may not align with project goals.
+The SQLite backend needs a detailed specification for how JSONL files and SQLite interact. prd-cupboard-core establishes that JSONL is the source of truth and SQLite serves as a query engine, but it does not specify the JSONL file format, SQLite schema, sync lifecycle, or error handling. Without this detail, implementation will make ad-hoc decisions that may not align with project goals.
 
 The backend must also implement the uniform Table interface defined in prd-cupboard-core. Applications access data through `cupboard.GetTable("crumbs").Get(id)`, not through entity-specific methods. The backend must hydrate table rows into entity objects and persist entity objects back to rows. This ORM-style pattern keeps the interface consistent while allowing each entity type to have its own struct.
 
-This PRD specifies the SQLite backend internals: JSON file layout, SQLite schema, startup loading, write persistence, shutdown flushing, error recovery, concurrency model, and the ORM layer that maps between Table operations and entity types.
+This PRD specifies the SQLite backend internals: JSONL file layout, SQLite schema, startup loading, write persistence, shutdown flushing, error recovery, concurrency model, and the ORM layer that maps between Table operations and entity types.
 
 ## Graph Model
 
@@ -32,10 +32,10 @@ We store data as a directed acyclic graph (DAG). Crumbs and trails are nodes; re
 
 ## Goals
 
-1. Define the JSON file format and directory layout within DataDir
-2. Define the SQLite schema that mirrors the JSON structure
-3. Specify the startup sequence: loading JSON into SQLite
-4. Specify write behavior: updating SQLite and persisting to JSON
+1. Define the JSONL file format and directory layout within DataDir
+2. Define the SQLite schema that mirrors the JSONL structure
+3. Specify the startup sequence: loading JSONL into SQLite
+4. Specify write behavior: updating SQLite and persisting to JSONL
 5. Specify shutdown behavior: flushing pending writes
 6. Define error handling for corrupt files, schema mismatches, and I/O failures
 7. Define the concurrency model for safe concurrent access
@@ -54,213 +54,103 @@ We store data as a directed acyclic graph (DAG). Crumbs and trails are nodes; re
 
 | File | Purpose |
 |------|---------|
-| crumbs.json | All crumbs (source of truth) |
-| trails.json | All trails (source of truth) |
-| links.json | Graph edges: belongs_to, child_of relationships |
-| properties.json | Property definitions (source of truth) |
-| categories.json | Category definitions for categorical properties |
-| crumb_properties.json | Property values for crumbs |
-| metadata.json | All metadata entries |
-| stashes.json | Stash definitions and current values |
-| stash_history.json | Append-only history of stash changes |
-| cupboard.db | SQLite database (ephemeral cache, regenerated from JSON) |
+| crumbs.jsonl | All crumbs (source of truth) |
+| trails.jsonl | All trails (source of truth) |
+| links.jsonl | Graph edges: belongs_to, child_of, branches_from, scoped_to relationships |
+| properties.jsonl | Property definitions (source of truth) |
+| categories.jsonl | Category definitions for categorical properties |
+| crumb_properties.jsonl | Property values for crumbs |
+| metadata.jsonl | All metadata entries |
+| stashes.jsonl | Stash definitions and current values |
+| stash_history.jsonl | Append-only history of stash changes |
+| cupboard.db | SQLite database (ephemeral cache, regenerated from JSONL) |
 
-1.3. If DataDir does not exist, OpenCupboard must create it.
+1.3. If DataDir does not exist, Attach must create it.
 
-1.4. If JSON files do not exist, OpenCupboard must create empty files with valid JSON (empty arrays).
+1.4. If JSONL files do not exist, Attach must create empty files (zero bytes, not empty arrays).
 
-### R2: JSON File Format
+### R2: JSONL File Format
 
-2.1. Each JSON file contains an array of objects. One object per entity.
+2.1. Each JSONL file contains one JSON object per line. Empty lines are skipped during loading.
 
-2.2. crumbs.json format:
+2.2. crumbs.jsonl format (one line per crumb):
 
 ```json
-[
-  {
-    "crumb_id": "01945a3b-...",
-    "name": "Implement feature X",
-    "state": "pending",
-    "created_at": "2025-01-15T10:30:00Z",
-    "updated_at": "2025-01-15T10:30:00Z"
-  }
-]
+{"crumb_id": "01945a3b-...", "name": "Implement feature X", "state": "pending", "created_at": "2025-01-15T10:30:00Z", "updated_at": "2025-01-15T10:30:00Z"}
 ```
 
-Note: trail membership is stored in links.json (belongs_to), not as a field on the crumb.
+Note: trail membership is stored in links.jsonl (belongs_to), not as a field on the crumb.
 
-2.3. trails.json format:
+2.3. trails.jsonl format (one line per trail):
 
 ```json
-[
-  {
-    "trail_id": "01945a3c-...",
-    "parent_crumb_id": null,
-    "state": "active",
-    "created_at": "2025-01-15T10:30:00Z",
-    "completed_at": null
-  }
-]
+{"trail_id": "01945a3c-...", "parent_crumb_id": null, "state": "active", "created_at": "2025-01-15T10:30:00Z", "completed_at": null}
 ```
 
-2.4. properties.json format:
+2.4. properties.jsonl format (one line per property):
 
 ```json
-[
-  {
-    "property_id": "01945a3d-...",
-    "name": "priority",
-    "description": "Task priority level",
-    "value_type": "categorical",
-    "created_at": "2025-01-15T10:30:00Z"
-  }
-]
+{"property_id": "01945a3d-...", "name": "priority", "description": "Task priority level", "value_type": "categorical", "created_at": "2025-01-15T10:30:00Z"}
 ```
 
-2.5. categories.json format:
+2.5. categories.jsonl format (one line per category):
 
 ```json
-[
-  {
-    "category_id": "01945a3e-...",
-    "property_id": "01945a3d-...",
-    "name": "high",
-    "ordinal": 0
-  }
-]
+{"category_id": "01945a3e-...", "property_id": "01945a3d-...", "name": "high", "ordinal": 0}
 ```
 
-2.6. crumb_properties.json format (unified, type in field):
+2.6. crumb_properties.jsonl format (one line per property value, unified with type in field):
 
 ```json
-[
-  {
-    "crumb_id": "01945a3b-...",
-    "property_id": "01945a3d-...",
-    "value_type": "categorical",
-    "value": "01945a3e-..."
-  },
-  {
-    "crumb_id": "01945a3b-...",
-    "property_id": "01945a4a-...",
-    "value_type": "text",
-    "value": "Some description text"
-  },
-  {
-    "crumb_id": "01945a3b-...",
-    "property_id": "01945a4b-...",
-    "value_type": "integer",
-    "value": 42
-  },
-  {
-    "crumb_id": "01945a3b-...",
-    "property_id": "01945a4c-...",
-    "value_type": "list",
-    "value": ["item1", "item2"]
-  }
-]
+{"crumb_id": "01945a3b-...", "property_id": "01945a3d-...", "value_type": "categorical", "value": "01945a3e-..."}
+{"crumb_id": "01945a3b-...", "property_id": "01945a4a-...", "value_type": "text", "value": "Some description text"}
+{"crumb_id": "01945a3b-...", "property_id": "01945a4b-...", "value_type": "integer", "value": 42}
+{"crumb_id": "01945a3b-...", "property_id": "01945a4c-...", "value_type": "list", "value": ["item1", "item2"]}
 ```
 
-2.7. links.json format (graph edges):
+2.7. links.jsonl format (one line per link, graph edges):
 
 ```json
-[
-  {
-    "link_type": "belongs_to",
-    "from_id": "01945a3b-...",
-    "to_id": "01945a3c-...",
-    "created_at": "2025-01-15T10:30:00Z"
-  },
-  {
-    "link_type": "child_of",
-    "from_id": "01945a3d-...",
-    "to_id": "01945a3b-...",
-    "created_at": "2025-01-15T10:35:00Z"
-  }
-]
+{"link_id": "01945a3a-...", "link_type": "belongs_to", "from_id": "01945a3b-...", "to_id": "01945a3c-...", "created_at": "2025-01-15T10:30:00Z"}
+{"link_id": "01945a3e-...", "link_type": "child_of", "from_id": "01945a3d-...", "to_id": "01945a3b-...", "created_at": "2025-01-15T10:35:00Z"}
 ```
 
 Link types:
 
 - `belongs_to`: from_id is crumb_id, to_id is trail_id (crumb belongs to trail)
 - `child_of`: from_id is child crumb_id, to_id is parent crumb_id (DAG edge)
+- `branches_from`: from_id is trail_id, to_id is crumb_id (trail branches from crumb)
+- `scoped_to`: from_id is stash_id, to_id is trail_id (stash scoped to trail)
 
-2.9. metadata.json format:
-
-```json
-[
-  {
-    "metadata_id": "01945a3f-...",
-    "table_name": "comments",
-    "crumb_id": "01945a3b-...",
-    "property_id": null,
-    "content": "Started working on this",
-    "created_at": "2025-01-15T11:00:00Z"
-  }
-]
-```
-
-2.10. stashes.json format:
+2.8. metadata.jsonl format (one line per metadata entry):
 
 ```json
-[
-  {
-    "stash_id": "01945a40-...",
-    "trail_id": "01945a3c-...",
-    "name": "working_directory",
-    "stash_type": "resource",
-    "value": {"uri": "file:///tmp/project-123", "kind": "directory"},
-    "version": 3,
-    "created_at": "2025-01-15T10:30:00Z",
-    "updated_at": "2025-01-15T11:45:00Z"
-  },
-  {
-    "stash_id": "01945a41-...",
-    "trail_id": null,
-    "name": "deploy_lock",
-    "stash_type": "lock",
-    "value": {"holder": "crumb-789", "acquired_at": "2025-01-15T11:00:00Z"},
-    "version": 5,
-    "created_at": "2025-01-15T10:00:00Z",
-    "updated_at": "2025-01-15T11:00:00Z"
-  }
-]
+{"metadata_id": "01945a3f-...", "table_name": "comments", "crumb_id": "01945a3b-...", "property_id": null, "content": "Started working on this", "created_at": "2025-01-15T11:00:00Z"}
 ```
 
-2.11. stash_history.json format:
+2.9. stashes.jsonl format (one line per stash):
 
 ```json
-[
-  {
-    "history_id": "01945a42-...",
-    "stash_id": "01945a40-...",
-    "version": 1,
-    "value": {"uri": "file:///tmp/project-123", "kind": "directory"},
-    "operation": "create",
-    "changed_by": "01945a3b-...",
-    "created_at": "2025-01-15T10:30:00Z"
-  },
-  {
-    "history_id": "01945a43-...",
-    "stash_id": "01945a41-...",
-    "version": 5,
-    "value": {"holder": "crumb-789", "acquired_at": "2025-01-15T11:00:00Z"},
-    "operation": "acquire",
-    "changed_by": "01945a3b-...",
-    "created_at": "2025-01-15T11:00:00Z"
-  }
-]
+{"stash_id": "01945a40-...", "trail_id": "01945a3c-...", "name": "working_directory", "stash_type": "resource", "value": {"uri": "file:///tmp/project-123", "kind": "directory"}, "version": 3, "created_at": "2025-01-15T10:30:00Z", "updated_at": "2025-01-15T11:45:00Z"}
+{"stash_id": "01945a41-...", "trail_id": null, "name": "deploy_lock", "stash_type": "lock", "value": {"holder": "crumb-789", "acquired_at": "2025-01-15T11:00:00Z"}, "version": 5, "created_at": "2025-01-15T10:00:00Z", "updated_at": "2025-01-15T11:00:00Z"}
 ```
 
-2.12. All timestamps must be RFC 3339 format (ISO 8601 with timezone).
+2.10. stash_history.jsonl format (one line per history entry, append-only):
 
-2.11. All UUIDs must be lowercase hyphenated format.
+```json
+{"history_id": "01945a42-...", "stash_id": "01945a40-...", "version": 1, "value": {"uri": "file:///tmp/project-123", "kind": "directory"}, "operation": "create", "changed_by": "01945a3b-...", "created_at": "2025-01-15T10:30:00Z"}
+{"history_id": "01945a43-...", "stash_id": "01945a41-...", "version": 5, "value": {"holder": "crumb-789", "acquired_at": "2025-01-15T11:00:00Z"}, "operation": "acquire", "changed_by": "01945a3b-...", "created_at": "2025-01-15T11:00:00Z"}
+```
+
+2.11. All timestamps must be RFC 3339 format (ISO 8601 with timezone).
+
+2.12. All UUIDs must be lowercase hyphenated format.
 
 ### R3: SQLite Schema
 
 3.1. The SQLite database uses a single file (cupboard.db) in DataDir.
 
-3.2. SQLite schema must mirror JSON structure for direct loading:
+3.2. SQLite schema must mirror JSONL structure for direct loading:
 
 ```sql
 CREATE TABLE crumbs (
@@ -280,11 +170,11 @@ CREATE TABLE trails (
 );
 
 CREATE TABLE links (
+    link_id TEXT PRIMARY KEY,
     link_type TEXT NOT NULL,
     from_id TEXT NOT NULL,
     to_id TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY (link_type, from_id, to_id)
+    created_at TEXT NOT NULL
 );
 
 CREATE TABLE properties (
@@ -370,19 +260,19 @@ CREATE INDEX idx_stash_history_version ON stash_history(stash_id, version);
 
 ### R4: Startup Sequence
 
-4.1. On OpenCupboard with sqlite backend:
+4.1. On Attach with sqlite backend:
 
 1. Create DataDir if it does not exist
-2. Create empty JSON files if they do not exist
+2. Create empty JSONL files if they do not exist
 3. Delete cupboard.db if it exists (ephemeral cache)
 4. Create new cupboard.db with schema (R3)
-5. Load each JSON file into corresponding SQLite table
+5. Load each JSONL file into corresponding SQLite table
 6. Validate foreign key relationships
 7. Return ready Cupboard instance
 
-4.2. If any JSON file is malformed (invalid JSON), OpenCupboard must return an error describing which file and the parse error.
+4.2. If any JSONL file contains malformed lines (invalid JSON), skip those lines and log a warning. Malformed lines do not halt loading.
 
-4.3. If foreign key validation fails (e.g., crumb references non-existent trail), OpenCupboard must return an error. We do not auto-repair.
+4.3. If foreign key validation fails (e.g., crumb references non-existent trail), Attach must return an error. We do not auto-repair.
 
 4.4. Loading must be transactional: if any load fails, the database remains empty.
 
@@ -393,76 +283,82 @@ CREATE INDEX idx_stash_history_version ON stash_history(stash_id, version);
 1. Begin SQLite transaction
 2. Execute SQL changes
 3. Commit SQLite transaction
-4. Persist affected JSON file(s)
+4. Persist affected JSONL file(s)
 
-5.2. JSON persistence must be atomic: write to temp file, then rename. This prevents corrupt files on crash.
+5.2. JSONL persistence must be atomic: write to temp file, fsync, then rename. This prevents corrupt files on crash.
 
-5.3. Write operations must persist immediately (no batching). This ensures JSON files are always current.
+5.3. Write operations must persist immediately (no batching). This ensures JSONL files are always current.
 
-5.4. If JSON persistence fails after SQLite commit, the operation must return an error. The next OpenCupboard will reload from JSON (the source of truth), so SQLite and JSON will reconcile.
+5.4. If JSONL persistence fails after SQLite commit, the operation must return an error. The next Attach will reload from JSONL (the source of truth), so SQLite and JSONL will reconcile.
 
-5.5. Operations that affect multiple tables must persist all affected JSON files:
+5.5. Table operations and the JSONL files they affect:
 
-| Operation | JSON files affected |
-|-----------|---------------------|
-| AddCrumb | crumbs.json |
-| ArchiveCrumb | crumbs.json |
-| PurgeCrumb | crumbs.json, crumb_properties.json, metadata.json, links.json |
-| StartTrail | trails.json |
-| CompleteTrail | trails.json, crumbs.json |
-| AbandonTrail | trails.json, crumbs.json, crumb_properties.json, metadata.json |
-| DefineProperty | properties.json |
-| DefineCategory | categories.json |
-| SetCrumbProperty | crumb_properties.json |
-| ClearCrumbProperty | crumb_properties.json |
-| AddMetadata | metadata.json |
-| CreateStash | stashes.json, stash_history.json |
-| SetStash | stashes.json, stash_history.json |
-| IncrementStash | stashes.json, stash_history.json |
-| AcquireStash | stashes.json, stash_history.json |
-| ReleaseStash | stashes.json, stash_history.json |
-| DeleteStash | stashes.json, stash_history.json |
+| Table.Operation | JSONL files affected |
+|-----------------|----------------------|
+| crumbs.Set | crumbs.jsonl, crumb_properties.jsonl (on creation) |
+| crumbs.Delete | crumbs.jsonl, crumb_properties.jsonl, metadata.jsonl, links.jsonl |
+| trails.Set | trails.jsonl; see R5.6 for cascade behavior |
+| trails.Delete | trails.jsonl |
+| properties.Set | properties.jsonl, crumb_properties.jsonl (backfill on creation) |
+| properties.Delete | properties.jsonl |
+| links.Set | links.jsonl |
+| links.Delete | links.jsonl |
+| metadata.Set | metadata.jsonl |
+| metadata.Delete | metadata.jsonl |
+| stashes.Set | stashes.jsonl, stash_history.jsonl |
+| stashes.Delete | stashes.jsonl, stash_history.jsonl |
+
+5.6. Trail cascade behavior on Table.Set:
+
+When a Trail is persisted via trails.Set and its State has changed:
+
+- **State → completed**: Remove all `belongs_to` links where to_id equals the trail ID. The crumbs remain but are no longer associated with any trail (they become permanent). Affects: trails.jsonl, links.jsonl.
+
+- **State → abandoned**: Delete all crumbs that belong to this trail (via belongs_to links). For each deleted crumb, also delete its property values, metadata, and all links involving the crumb. Affects: trails.jsonl, crumbs.jsonl, crumb_properties.jsonl, metadata.jsonl, links.jsonl.
+
+5.7. The cascade behavior is triggered by detecting a state change when persisting. Entity methods (Trail.Complete, Trail.Abandon) update the struct's State field; the backend detects the change and performs cascades during Set.
 
 ### R6: Shutdown Sequence
 
-6.1. On Close:
+6.1. On Detach:
 
 1. Wait for in-flight operations to complete (with timeout)
-2. Verify all JSON files are current (no pending writes)
+2. Verify all JSONL files are current (no pending writes)
 3. Close SQLite connection
 4. cupboard.db may be deleted or left for debugging
 
-6.2. Close must be idempotent. Subsequent calls return nil.
+6.2. Detach must be idempotent. Subsequent calls return nil.
 
-6.3. After Close, all operations must return ErrCupboardClosed.
+6.3. After Detach, all operations must return ErrCupboardDetached.
 
 ### R7: Error Handling
 
-7.1. Corrupt JSON on startup:
+7.1. Malformed JSONL lines on startup:
 
-- Return error with file name and parse details
-- Do not attempt repair
-- User must fix or delete the file
+- Log warning with file name, line number, and parse details
+- Skip malformed lines (do not halt loading)
+- User can fix the file if needed
 
-7.2. Schema mismatch (JSON has unknown fields):
+7.2. Schema mismatch (JSONL has unknown fields):
 
 - Ignore unknown fields (forward compatibility)
 - Log warning if verbose mode enabled
 
-7.3. Missing required fields in JSON:
+7.3. Missing required fields in JSONL:
 
-- Return error identifying the record and missing field
+- Log warning and skip the record
+- User can fix the file if needed
 
 7.4. I/O errors during write:
 
 - Return error to caller
-- SQLite may be ahead of JSON temporarily
-- Next OpenCupboard reconciles from JSON
+- SQLite may be ahead of JSONL temporarily
+- Next Attach reconciles from JSONL
 
 7.5. SQLite errors:
 
 - Return error to caller
-- Do not corrupt JSON files
+- Do not corrupt JSONL files
 - SQLite is regenerated on next startup
 
 ### R8: Concurrency Model
@@ -471,17 +367,17 @@ CREATE INDEX idx_stash_history_version ON stash_history(stash_id, version);
 
 8.2. Write operations acquire an exclusive lock. Only one write at a time.
 
-8.3. Read operations (GetCrumb, FetchCrumbs, etc.) can run concurrently with each other.
+8.3. Read operations (Table.Get, Table.Fetch) can run concurrently with each other.
 
-8.4. Read operations block during the write phase but can proceed during JSON persistence.
+8.4. Read operations block during the write phase but can proceed during JSONL persistence.
 
-8.5. Cross-process concurrency is not supported. Only one process should open a DataDir at a time. If a second process attempts to open, behavior is undefined (SQLite may lock, JSON writes may conflict).
+8.5. Cross-process concurrency is not supported. Only one process should open a DataDir at a time. If a second process attempts to open, behavior is undefined (SQLite may lock, JSONL writes may conflict).
 
 8.6. Future: file-based locking (lockfile in DataDir) may be added to detect multi-process access.
 
 ### R9: Built-in Properties
 
-9.1. On first startup (empty properties.json), the backend must seed built-in properties:
+9.1. On first startup (empty properties.jsonl), the backend must seed built-in properties:
 
 | property_id | name | value_type | description |
 |-------------|------|------------|-------------|
@@ -490,7 +386,6 @@ CREATE INDEX idx_stash_history_version ON stash_history(stash_id, version);
 | (generated) | description | text | Detailed description |
 | (generated) | owner | text | Assigned worker/user ID |
 | (generated) | labels | list | Capability tags |
-| (generated) | dependencies | list | Crumb IDs that must complete first |
 
 9.2. Built-in categories for priority:
 
@@ -511,7 +406,9 @@ CREATE INDEX idx_stash_history_version ON stash_history(stash_id, version);
 | bug | 2 |
 | chore | 3 |
 
-9.4. Seeding only occurs if properties.json is empty (first run). Existing data is never modified.
+9.4. Seeding only occurs if properties.jsonl is empty (first run). Existing data is never modified.
+
+Note: crumb dependencies use `child_of` links in the links table, not a property.
 
 ### R10: Graph Audit
 
@@ -531,7 +428,7 @@ CREATE INDEX idx_stash_history_version ON stash_history(stash_id, version);
 - belongs_to links: from_id exists in crumbs, to_id exists in trails
 - child_of links: both from_id and to_id exist in crumbs
 
-10.4. Audit functions run on startup after loading JSON. If validation fails, OpenCupboard returns an error.
+10.4. Audit functions run on startup after loading JSONL. If validation fails, Attach returns an error.
 
 10.5. Audit functions are also available as Cupboard methods for on-demand validation.
 
@@ -547,11 +444,11 @@ type Cupboard interface {
 }
 ```
 
-11.2. Attach must perform the startup sequence (R4): create DataDir, initialize JSON files, create SQLite schema, load JSON into SQLite, validate references.
+11.2. Attach must perform the startup sequence (R4): create DataDir, initialize JSONL files, create SQLite schema, load JSONL into SQLite, validate references.
 
 11.3. Attach must store the Config and mark the cupboard as attached. Subsequent Attach calls return ErrAlreadyAttached.
 
-11.4. Detach must perform the shutdown sequence (R6): wait for in-flight operations, verify JSON files are current, close SQLite connection.
+11.4. Detach must perform the shutdown sequence (R6): wait for in-flight operations, verify JSONL files are current, close SQLite connection.
 
 11.5. After Detach, all operations including GetTable must return ErrCupboardDetached.
 
@@ -559,14 +456,14 @@ type Cupboard interface {
 
 12.1. GetTable accepts a table name and returns a Table implementation for that entity type:
 
-| Table name | Entity type | JSON file | SQLite table |
-|------------|-------------|-----------|--------------|
-| crumbs | Crumb | crumbs.json | crumbs |
-| trails | Trail | trails.json | trails |
-| properties | Property | properties.json | properties |
-| metadata | Metadata | metadata.json | metadata |
-| links | Link | links.json | links |
-| stashes | Stash | stashes.json | stashes |
+| Table name | Entity type | JSONL file | SQLite table |
+|------------|-------------|------------|--------------|
+| crumbs | Crumb | crumbs.jsonl | crumbs |
+| trails | Trail | trails.jsonl | trails |
+| properties | Property | properties.jsonl | properties |
+| metadata | Metadata | metadata.jsonl | metadata |
+| links | Link | links.jsonl | links |
+| stashes | Stash | stashes.jsonl | stashes |
 
 12.2. GetTable must return ErrTableNotFound for unrecognized table names.
 
@@ -589,9 +486,9 @@ type Table interface {
 
 13.2. Get retrieves an entity by ID: query SQLite by primary key, hydrate the row into the entity struct (R14), return the entity or ErrNotFound.
 
-13.3. Set persists an entity: accept an entity struct (type assertion to expected type), generate UUID v7 if ID is empty, dehydrate the entity to row data (R15), execute SQLite INSERT or UPDATE, persist to JSON file (R5).
+13.3. Set persists an entity: accept an entity struct (type assertion to expected type), generate UUID v7 if ID is empty, dehydrate the entity to row data (R15), execute SQLite INSERT or UPDATE, persist to JSONL file (R5). For trails, detect state changes and perform cascade operations (R5.6).
 
-13.4. Delete removes an entity: delete from SQLite by primary key, persist to JSON file (R5), return ErrNotFound if entity does not exist.
+13.4. Delete removes an entity: delete from SQLite by primary key, persist to JSONL file (R5), return ErrNotFound if entity does not exist.
 
 13.5. Fetch queries entities matching a filter: build SQL WHERE clause from filter map, query SQLite, hydrate each row into entity struct, return slice of entities (as []any).
 
@@ -646,6 +543,7 @@ type Table interface {
 
 | SQLite column | Go field | Type conversion |
 |---------------|----------|-----------------|
+| link_id | LinkID | string (direct) |
 | link_type | LinkType | string (direct) |
 | from_id | FromID | string (direct) |
 | to_id | ToID | string (direct) |
@@ -684,7 +582,7 @@ type Table interface {
 
 15.7. UUID v7 generation occurs in Set when the entity ID field is empty. The generated ID is assigned to the entity before persistence.
 
-15.8. After SQLite persistence, the entity must be written to the corresponding JSON file following the atomic write pattern (R5.2).
+15.8. After SQLite persistence, the entity must be written to the corresponding JSONL file following the atomic write pattern (R5.2).
 
 ## Non-Goals
 
@@ -698,10 +596,11 @@ type Table interface {
 
 ## Acceptance Criteria
 
-- [ ] JSON file format specified for all entity types (R2)
+- [ ] JSONL file format specified for all entity types (R2)
 - [ ] SQLite schema specified with all tables and indexes (R3)
 - [ ] Startup sequence specified: create, load, validate (R4)
 - [ ] Write operation pattern specified: transaction, persist, atomicity (R5)
+- [ ] Trail cascade behavior documented for Table.Set (R5.6, R5.7)
 - [ ] Shutdown sequence specified (R6)
 - [ ] Error handling specified for all failure modes (R7)
 - [ ] Concurrency model specified (R8)
@@ -717,13 +616,13 @@ type Table interface {
 ## Constraints
 
 - modernc.org/sqlite is pure Go; no CGO dependencies
-- JSON files must be human-readable (pretty-printed with indentation)
-- Timestamps in JSON use RFC 3339 for interoperability
+- JSONL files are human-readable (one JSON object per line, no pretty-printing)
+- Timestamps in JSONL use RFC 3339 for interoperability
 - SQLite database is ephemeral; deleting cupboard.db loses nothing
 
 ## References
 
-- prd-cupboard-core (Cupboard interface, configuration, lifecycle)
-- prd-configuration-directories (directory structure, JSONL file format—supersedes R1, R2 file layout and format)
-- prd-crumbs-interface, prd-trails-interface, prd-properties-interface, prd-metadata-interface, prd-stash-interface
+- prd-cupboard-core (Cupboard interface, Table interface, configuration, lifecycle)
+- prd-trails-interface (Trail entity, Complete and Abandon semantics)
+- prd-crumbs-interface, prd-properties-interface, prd-metadata-interface, prd-stash-interface
 - modernc.org/sqlite documentation
