@@ -15,7 +15,7 @@ This PRD defines the Stash entity: the struct fields, stash types, entity method
 3. Define entity methods for value access (SetValue, GetValue)
 4. Define entity methods for counter operations (Increment)
 5. Define entity methods for lock operations (Acquire, Release)
-6. Define entity methods for history access (GetHistory, GetValueAtVersion)
+6. Define history entry structure for backend tracking
 7. Specify how stashes are created, stored, and queried via the Table interface
 8. Document error conditions for entity operations
 
@@ -104,7 +104,6 @@ func (s *Stash) GetValue() any
 4.2. SetValue updates the stash value:
 
 - Must increment Version
-- Must validate that value matches the expected schema for the stash type
 - Must return ErrInvalidStashType if called on a lock-type stash (use Acquire/Release instead)
 - After calling SetValue, the caller must save with Table.Set to persist changes
 
@@ -191,14 +190,9 @@ table.Set(stash.StashID, stash)
 
 6.5. Lock operations are non-blocking. For waiting behavior, callers implement retry loops with backoff.
 
-### R7: History Operations
+### R7: History Tracking
 
-7.1. The Stash struct provides methods for history access:
-
-```go
-func (s *Stash) GetHistory() ([]StashHistoryEntry, error)
-func (s *Stash) GetValueAtVersion(version int64) (any, error)
-```
+7.1. The backend maintains a history log of stash mutations. History is backend-managed, not accessed through entity methods.
 
 7.2. StashHistoryEntry contains:
 
@@ -211,32 +205,23 @@ func (s *Stash) GetValueAtVersion(version int64) (any, error)
 | ChangedBy | *string | Crumb ID that made the change (nullable) |
 | CreatedAt | time.Time | Timestamp of this change |
 
-7.3. Operation values:
+7.3. Operation constants (defined in pkg/types/stash.go):
 
-| Operation | When |
-|-----------|------|
-| create | Stash was created |
-| set | Value was set via SetValue |
-| increment | Counter was incremented |
-| acquire | Lock was acquired |
-| release | Lock was released |
+| Constant | Value | When |
+|----------|-------|------|
+| StashOpCreate | "create" | Stash was created |
+| StashOpSet | "set" | Value was set via SetValue |
+| StashOpIncrement | "increment" | Counter was incremented |
+| StashOpAcquire | "acquire" | Lock was acquired |
+| StashOpRelease | "release" | Lock was released |
 
-7.4. GetHistory retrieves the change history for the stash:
+7.4. History access is a backend concern. Backends may expose history through:
 
-- Returns history entries ordered by Version descending (newest first)
-- History is maintained by the backend; the entity method provides access
-- Returns an empty slice if no history exists (should not happen for valid stashes)
+- A dedicated history query method on the stash table
+- Filter parameters on Table.Fetch
+- A separate history service
 
-7.5. GetValueAtVersion retrieves the value at a specific version:
-
-- Returns the value recorded in the history entry for that version
-- Returns ErrVersionNotFound if no history entry exists for that version
-
-7.6. History operations require backend access. Implementations may:
-
-- Store a backend reference on the Stash struct
-- Provide a Stash.WithBackend method
-- Or provide history methods on a separate service
+7.5. The StashHistoryEntry struct is defined in pkg/types for backends to use when returning history data.
 
 ### R8: Retrieving Stashes
 
@@ -325,22 +310,22 @@ err := table.Delete(id)
 
 ### R12: Error Types
 
-12.1. Stash entity methods and Table operations must return these sentinel errors:
+12.1. Stash entity methods and Table operations use sentinel errors defined in pkg/types/table.go:
 
 | Error | When |
 |-------|------|
 | ErrNotFound | Stash ID does not exist |
 | ErrInvalidID | Stash ID is empty |
 | ErrInvalidName | Name is empty |
-| ErrDuplicateName | Name already exists in scope |
 | ErrInvalidStashType | StashType is not recognized or operation invalid for type |
 | ErrLockHeld | Cannot delete a lock that is held, or Acquire called on held lock |
 | ErrNotLockHolder | Release called by non-holder |
 | ErrInvalidHolder | Holder string is empty |
-| ErrVersionNotFound | History version does not exist |
 | ErrCupboardDetached | Cupboard has been detached |
 
-12.2. All errors must be checkable with errors.Is.
+12.2. All errors are checkable with errors.Is.
+
+12.3. Backend implementations may return additional errors for validation (e.g., duplicate names) as needed.
 
 ## Non-Goals
 
@@ -363,8 +348,8 @@ err := table.Delete(id)
 - [ ] Entity methods defined for value access (SetValue, GetValue)
 - [ ] Entity methods defined for counter operations (Increment)
 - [ ] Entity methods defined for lock operations (Acquire, Release)
-- [ ] Entity methods defined for history access (GetHistory, GetValueAtVersion)
-- [ ] StashHistoryEntry struct documented
+- [ ] StashHistoryEntry struct documented for backend history tracking
+- [ ] History operation constants documented (create, set, increment, acquire, release)
 - [ ] Stash creation via Table.Set specified (ID generation, version initialization)
 - [ ] Stash retrieval via Table.Get specified (type assertion to *Stash)
 - [ ] Filter map defined with trail_id, stash_type, name, limit, offset
