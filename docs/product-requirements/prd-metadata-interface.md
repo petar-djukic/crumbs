@@ -99,7 +99,7 @@ metadata := &Metadata{
     TableName: "comments",
     Content:   "This is a comment",
 }
-err := table.Set("", metadata)
+id, err := table.Set("", metadata)
 ```
 
 4.2. When Table.Set is called with an empty ID, the backend must:
