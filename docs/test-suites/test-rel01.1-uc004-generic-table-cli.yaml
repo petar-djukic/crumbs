@@ -1,0 +1,185 @@
+id: test-rel01.1-uc004-generic-table-cli
+title: Generic Table CLI Operations test suite
+description: >
+  Validates the generic table CLI commands (get, set, list, delete) across
+  multiple table types. Tests exercise JSON input/output, error handling,
+  filter parsing, and cross-table uniformity per prd-cupboard-cli R3.
+traces:
+  - rel01.1-uc004-generic-table-cli
+tags:
+  - cli
+  - integration
+  - generic-table
+
+preconditions:
+  - Cupboard binary built from cmd/cupboard
+  - Fresh temp data directory per test case
+  - Cupboard initialized with cupboard init
+
+test_cases:
+
+  # --- Get command tests ---
+
+  - name: Get crumb by ID returns JSON object
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Test crumb","State":"draft"}'
+      command: cupboard get crumbs <created-id>
+    expected:
+      exit_code: 0
+      stdout_json:
+        Name: "Test crumb"
+        State: draft
+
+  - name: Get nonexistent crumb returns exit 1
+    inputs:
+      command: cupboard get crumbs nonexistent-id-12345
+    expected:
+      exit_code: 1
+      stderr_contains: 'entity "nonexistent-id-12345" not found in table "crumbs"'
+
+  - name: Get with unknown table returns exit 1
+    inputs:
+      command: cupboard get invalid-table abc123
+    expected:
+      exit_code: 1
+      stderr_contains: 'unknown table "invalid-table"'
+
+  # --- Set command tests ---
+
+  - name: Set crumb with empty ID creates new entity
+    inputs:
+      command: cupboard set crumbs "" '{"Name":"New task","State":"draft"}'
+    expected:
+      exit_code: 0
+      stdout_contains: CrumbID
+      state:
+        crumb_count: 1
+        crumb_name: "New task"
+
+  - name: Set crumb with existing ID updates entity
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Original","State":"draft"}'
+      command: cupboard set crumbs <created-id> '{"CrumbID":"<created-id>","Name":"Updated","State":"ready"}'
+    expected:
+      exit_code: 0
+      stdout_json:
+        Name: Updated
+        State: ready
+
+  - name: Set trail creates new trail
+    inputs:
+      command: cupboard set trails "" '{"State":"active"}'
+    expected:
+      exit_code: 0
+      stdout_contains: TrailID
+
+  - name: Set with invalid JSON returns exit 1
+    inputs:
+      command: cupboard set crumbs "" '{not valid json}'
+    expected:
+      exit_code: 1
+      stderr_contains: "parse JSON"
+
+  - name: Set with unknown table returns exit 1
+    inputs:
+      command: cupboard set unknown-table "" '{"field":"value"}'
+    expected:
+      exit_code: 1
+      stderr_contains: 'unknown table "unknown-table"'
+
+  # --- List command tests ---
+
+  - name: List crumbs returns JSON array
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Task A","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Task B","State":"ready"}'
+      command: cupboard list crumbs
+    expected:
+      exit_code: 0
+      state:
+        list_count: 2
+
+  - name: List empty table returns empty JSON array
+    inputs:
+      command: cupboard list crumbs
+    expected:
+      exit_code: 0
+      stdout_equals: "[]"
+
+  - name: List with filter returns matching entities
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Draft task","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Ready task","State":"ready"}'
+      command: cupboard list crumbs State=draft
+    expected:
+      exit_code: 0
+      state:
+        list_count: 1
+        first_name: "Draft task"
+
+  - name: List with invalid filter returns exit 1
+    inputs:
+      command: cupboard list crumbs malformed-filter
+    expected:
+      exit_code: 1
+      stderr_contains: 'invalid filter "malformed-filter" (expected key=value)'
+
+  - name: List with unknown table returns exit 1
+    inputs:
+      command: cupboard list fake-table
+    expected:
+      exit_code: 1
+      stderr_contains: 'unknown table "fake-table"'
+
+  # --- Delete command tests ---
+
+  - name: Delete crumb by ID succeeds
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"To delete","State":"draft"}'
+      command: cupboard delete crumbs <created-id>
+    expected:
+      exit_code: 0
+      stdout_contains: "Deleted crumbs/"
+      state:
+        crumb_count: 0
+
+  - name: Delete nonexistent crumb returns exit 1
+    inputs:
+      command: cupboard delete crumbs nonexistent-id-xyz
+    expected:
+      exit_code: 1
+      stderr_contains: 'entity "nonexistent-id-xyz" not found in table "crumbs"'
+
+  - name: Delete with unknown table returns exit 1
+    inputs:
+      command: cupboard delete bad-table some-id
+    expected:
+      exit_code: 1
+      stderr_contains: 'unknown table "bad-table"'
+
+  # --- Cross-table tests ---
+
+  - name: Operations work on trails table
+    inputs:
+      command: cupboard set trails "" '{"State":"active"}'
+    expected:
+      exit_code: 0
+      stdout_contains: TrailID
+
+  - name: Operations work on links table
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Crumb","State":"draft"}'
+        - cupboard set trails "" '{"State":"active"}'
+      command: cupboard set links "" '{"LinkType":"belongs_to","FromID":"<crumb-id>","ToID":"<trail-id>"}'
+    expected:
+      exit_code: 0
+      stdout_contains: LinkID
+
+cleanup:
+  - Remove temp data directory after each test case

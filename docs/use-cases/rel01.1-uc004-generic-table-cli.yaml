@@ -1,0 +1,104 @@
+id: rel01.1-uc004-generic-table-cli
+title: Generic Table CLI Operations
+summary: |
+  A developer uses the cupboard CLI to perform CRUD operations on any table
+  using the generic table commands: get, set, list, and delete. These commands
+  provide uniform access to all tables (crumbs, trails, properties, metadata,
+  links, stashes) through the Table interface, accepting JSON input and producing
+  JSON output.
+actor: Developer using the cupboard CLI
+trigger: Invoking a generic table command (get, set, list, or delete)
+flow:
+  - F1: "Get entity by ID: run cupboard get <table> <id> to retrieve a single entity as JSON"
+  - F2: "Set entity: run cupboard set <table> <id> <json> to create (id empty) or update (id provided) an entity"
+  - F3: "List entities: run cupboard list <table> [filter...] to query entities with optional key=value filters"
+  - F4: "Delete entity: run cupboard delete <table> <id> to remove an entity by ID"
+  - F5: "Handle unknown table: commands return exit code 1 with error listing valid table names"
+  - F6: "Handle missing entity: get and delete return exit code 1 with entity not found message"
+  - F7: "Handle invalid JSON: set returns exit code 1 with parse error details"
+  - F8: "Handle invalid filter: list returns exit code 1 with expected key=value message"
+touchpoints:
+  - T1: "Cupboard interface: GetTable returns Table for any standard table name (prd-cupboard-core R2)"
+  - T2: "Table interface: Get, Set, Delete, Fetch operations (prd-cupboard-core R3)"
+  - T3: "cmd/cupboard/get.go: retrieves entity by ID, outputs JSON (prd-cupboard-cli R3.1)"
+  - T4: "cmd/cupboard/set.go: creates or updates entity from JSON input (prd-cupboard-cli R3.2)"
+  - T5: "cmd/cupboard/list.go: queries with key=value filters, outputs JSON array (prd-cupboard-cli R3.4)"
+  - T6: "cmd/cupboard/delete.go: removes entity by ID (prd-cupboard-cli R3.3)"
+  - T7: "Error handling: exit codes and message format (prd-cupboard-cli R8, R9)"
+  - T8: "Output format: JSON with 2-space indentation (prd-cupboard-cli R7)"
+success_criteria:
+  - S1: "cupboard get <table> <id> returns JSON object with exit 0 for valid entity"
+  - S2: "cupboard get <table> <id> returns exit 1 with 'not found' for missing entity"
+  - S3: "cupboard get <unknown-table> <id> returns exit 1 with valid table names listed"
+  - S4: "cupboard set <table> '' <json> creates new entity and returns JSON with generated ID"
+  - S5: "cupboard set <table> <id> <json> updates existing entity and returns JSON"
+  - S6: "cupboard set <table> <id> <invalid-json> returns exit 1 with parse error"
+  - S7: "cupboard list <table> returns JSON array of all entities with exit 0"
+  - S8: "cupboard list <table> State=draft returns filtered JSON array with exit 0"
+  - S9: "cupboard list <table> invalid-filter returns exit 1 with expected format message"
+  - S10: "cupboard delete <table> <id> removes entity and outputs confirmation with exit 0"
+  - S11: "cupboard delete <table> <id> returns exit 1 for missing entity"
+  - S12: "Commands work across all table types: crumbs, trails, links"
+out_of_scope:
+  - Entity-specific commands with friendly flags (cupboard crumb add --name)
+  - Human-readable table output (only JSON output tested)
+  - Issue-tracking workflow commands (ready, create, update, close)
+  - Property operations on crumbs
+test_suite: test-rel01.1-uc004-generic-table-cli
+dependencies:
+  - D1: prd-cupboard-core (Cupboard and Table interface definitions)
+  - D2: prd-cupboard-cli (generic table command specifications)
+  - D3: rel01.0-uc001-cupboard-lifecycle (Cupboard lifecycle must work)
+  - D4: rel01.0-uc002-sqlite-crud (Table CRUD operations must work)
+risks:
+  - K1: "JSON parsing differences across entity types | parseEntityJSON handles each type"
+  - K2: "Filter syntax edge cases | Tests cover malformed filters"
+  - K3: "Empty table returns null instead of empty array | Verify Fetch returns empty slice"
+demo: |
+  # Initialize cupboard
+  cupboard --data-dir=/tmp/demo init
+
+  # Create a crumb
+  cupboard --data-dir=/tmp/demo set crumbs "" '{"Name":"Demo task","State":"draft"}'
+  # Output: {"CrumbID": "...", "Name": "Demo task", "State": "draft", ...}
+
+  # Get the crumb by ID
+  cupboard --data-dir=/tmp/demo get crumbs <id>
+  # Output: {"CrumbID": "...", "Name": "Demo task", ...}
+
+  # List all crumbs
+  cupboard --data-dir=/tmp/demo list crumbs
+  # Output: [{"CrumbID": "...", ...}]
+
+  # List with filter
+  cupboard --data-dir=/tmp/demo list crumbs State=draft
+  # Output: [{"CrumbID": "...", "State": "draft", ...}]
+
+  # Create a trail
+  cupboard --data-dir=/tmp/demo set trails "" '{"State":"active"}'
+  # Output: {"TrailID": "...", "State": "active", ...}
+
+  # Create a link
+  cupboard --data-dir=/tmp/demo set links "" '{"LinkType":"belongs_to","FromID":"<crumb-id>","ToID":"<trail-id>"}'
+  # Output: {"LinkID": "...", ...}
+
+  # Delete the crumb
+  cupboard --data-dir=/tmp/demo delete crumbs <id>
+  # Output: Deleted crumbs/<id>
+
+  # Error cases
+  cupboard --data-dir=/tmp/demo get invalid-table abc
+  # Exit 1, stderr: unknown table "invalid-table" (valid: crumbs, trails, ...)
+
+  cupboard --data-dir=/tmp/demo get crumbs nonexistent-id
+  # Exit 1, stderr: entity "nonexistent-id" not found in table "crumbs"
+
+  cupboard --data-dir=/tmp/demo set crumbs "" '{invalid json}'
+  # Exit 1, stderr: parse JSON: ...
+
+  cupboard --data-dir=/tmp/demo list crumbs bad-filter
+  # Exit 1, stderr: invalid filter "bad-filter" (expected key=value)
+references:
+  - prd-cupboard-core
+  - prd-cupboard-cli
+  - docs/ARCHITECTURE.md
