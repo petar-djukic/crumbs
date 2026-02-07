@@ -26,39 +26,39 @@ cupboard --help
 
 The CLI prints usage information showing available commands (init, set, get, list, delete).
 
-3. Initialize a cupboard in a project directory:
+3. Initialize a cupboard in a project directory (prd-configuration-directories R1, R2):
 
 ```bash
 cd ~/my-project
 cupboard init
 ```
 
-This creates the data directory and configuration. The JSONL files (crumbs.jsonl, trails.jsonl, etc.) are created empty, ready for use.
+This creates the data directory (R2.1, R2.5) and configuration directory (R1.6). The JSONL files (crumbs.jsonl, trails.jsonl, etc.) are created empty per prd-sqlite-backend R4.1, R1.4.
 
-4. Create a crumb to verify the installation works end-to-end:
+4. Create a crumb to verify the installation works end-to-end (prd-cupboard-core R2, R3):
 
 ```bash
 cupboard set crumbs "" '{"Name":"First crumb","State":"draft"}'
 ```
 
-The CLI returns the created crumb as JSON with a generated UUID v7.
+The CLI calls `cupboard.GetTable("crumbs").Set()` (R2.3, R3.3). The backend generates a UUID v7 (R8.2) and returns the created crumb as JSON.
 
-5. List crumbs to confirm persistence:
+5. List crumbs to confirm persistence (prd-cupboard-core R3.5):
 
 ```bash
 cupboard list crumbs
 ```
 
-The output includes the crumb created in step 4.
+The CLI calls `cupboard.GetTable("crumbs").Fetch()` with an empty filter to return all crumbs. The output includes the crumb created in step 4.
 
 ## Architecture Touchpoints
 
-| Component | Role in this use case |
-|-----------|----------------------|
-| `cmd/cupboard` | CLI binary built by `go install` |
-| `pkg/types` | Config struct, entity types |
-| `internal/sqlite` | Backend that creates JSONL files and SQLite cache |
-| `internal/paths` | Resolves default config and data directories |
+| Component | Role in this use case | PRD reference |
+|-----------|----------------------|---------------|
+| `cmd/cupboard` | CLI binary built by `go install` | - |
+| `pkg/types` | Config struct, entity types | prd-cupboard-core R1 |
+| `internal/sqlite` | Backend that creates JSONL files and SQLite cache | prd-sqlite-backend R1, R4 |
+| `internal/paths` | Resolves default config and data directories | prd-configuration-directories R1, R2 |
 
 ## Success / Demo Criteria
 
@@ -76,6 +76,18 @@ The output includes the crumb created in step 4.
 - Cross-compilation or release binaries (goreleaser, GitHub releases)
 
 ## Dependencies
+
+### PRD Dependencies
+
+This use case requires the following PRDs to be implemented:
+
+| PRD | Requirements | Purpose |
+|-----|--------------|---------|
+| prd-cupboard-core | R1, R2, R3, R8 | Config struct, Cupboard and Table interfaces, UUID v7 generation |
+| prd-configuration-directories | R1, R2 | CLI config directory, backend data directory |
+| prd-sqlite-backend | R1, R4, R5 | Data directory layout, startup sequence, write operations |
+
+### Go Module Dependency
 
 The `go install` command requires that the module is published to the Go module proxy. While the `replace` directive in go.mod works for local development (`replace github.com/mesh-intelligence/crumbs => ./`), it must be removed before the module can be installed remotely. This use case assumes the module is available on the proxy (i.e., the repository is public and tagged).
 
