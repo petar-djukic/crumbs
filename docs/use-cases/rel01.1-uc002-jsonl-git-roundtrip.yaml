@@ -112,6 +112,76 @@ flow:
 
       Confirms the roundtrip works for modified data as well as initial data.
       Expected: TASK1_ID shows closed state, ready returns only TASK2_ID.
+  - F13: "Test on_close sync strategy: verify JSONL deferred until Detach"
+    detail: |
+      # Configure SQLiteConfig with SyncStrategy: "on_close"
+      config := types.Config{
+          Backend: "sqlite",
+          DataDir: "/tmp/on-close-test",
+          SQLiteConfig: &types.SQLiteConfig{
+              SyncStrategy: "on_close",
+          },
+      }
+      cupboard.Attach(config)
+
+      # Create crumbs - SQLite updated, JSONL NOT updated yet
+      crumbsTable.Set("", &types.Crumb{Name: "Deferred crumb"})
+
+      # Verify JSONL is empty (writes deferred)
+      cat data/crumbs.jsonl | wc -l  # Expected: 0
+
+      # Detach triggers flush
+      cupboard.Detach()
+
+      # Now JSONL has the data
+      cat data/crumbs.jsonl | wc -l  # Expected: 1
+
+      Per prd-sqlite-backend R16.3, on_close strategy defers all JSONL writes
+      until Detach. SQLite remains the write cache during the session.
+  - F14: "Test batch sync strategy: verify flush at BatchSize threshold"
+    detail: |
+      # Configure SQLiteConfig with SyncStrategy: "batch", BatchSize: 5
+      config := types.Config{
+          Backend: "sqlite",
+          DataDir: "/tmp/batch-test",
+          SQLiteConfig: &types.SQLiteConfig{
+              SyncStrategy: "batch",
+              BatchSize:    5,
+          },
+      }
+      cupboard.Attach(config)
+
+      # Create 4 crumbs - no flush yet (below threshold)
+      for i := 0; i < 4; i++ {
+          crumbsTable.Set("", &types.Crumb{Name: fmt.Sprintf("Crumb %d", i)})
+      }
+      cat data/crumbs.jsonl | wc -l  # Expected: 0
+
+      # Create 5th crumb - triggers batch flush
+      crumbsTable.Set("", &types.Crumb{Name: "Crumb 5"})
+      cat data/crumbs.jsonl | wc -l  # Expected: 5
+
+      Per prd-sqlite-backend R16.4, batch strategy flushes when BatchSize
+      writes have accumulated.
+  - F15: "Test immediate sync strategy (default): verify every write persists"
+    detail: |
+      # Default config (no SQLiteConfig or SyncStrategy: "immediate")
+      config := types.Config{
+          Backend: "sqlite",
+          DataDir: "/tmp/immediate-test",
+      }
+      cupboard.Attach(config)
+
+      # Create crumb - immediately persisted
+      crumbsTable.Set("", &types.Crumb{Name: "Immediate crumb"})
+      cat data/crumbs.jsonl | wc -l  # Expected: 1
+
+      # Create another - also immediately persisted
+      crumbsTable.Set("", &types.Crumb{Name: "Another crumb"})
+      cat data/crumbs.jsonl | wc -l  # Expected: 2
+
+      Per prd-sqlite-backend R16.2, immediate strategy (default) persists
+      every write to JSONL immediately after SQLite commit.
 touchpoints:
   - T1: "SQLite backend startup sequence: delete db, create schema, load JSONL (prd-sqlite-backend R4)"
   - T2: "SQLite backend JSONL as source of truth: cupboard.db is ephemeral (prd-sqlite-backend R1.2)"
@@ -121,6 +191,9 @@ touchpoints:
   - T6: "Cupboard interface: Attach initializes backend (prd-cupboard-core R4)"
   - T7: "Git integration: JSONL files committed, cupboard.db gitignored (eng01-git-integration)"
   - T8: "Git integration: Commit JSONL alongside code changes (eng01-git-integration)"
+  - T9: "SQLite backend on_close sync strategy: defer writes until Detach (prd-sqlite-backend R16.3)"
+  - T10: "SQLite backend batch sync strategy: flush at BatchSize or BatchInterval (prd-sqlite-backend R16.4-R16.6)"
+  - T11: "SQLite backend sync strategy dispatch: backend reads SyncStrategy from config (prd-sqlite-backend R16.1)"
 success_criteria:
   - S1: git init and .gitignore setup completes with cupboard.db gitignored
   - S2: cupboard create produces crumbs with JSON output including crumb_id
@@ -133,12 +206,15 @@ success_criteria:
   - S9: ls data/cupboard.db confirms database regenerated on attach
   - S10: cupboard update persists state changes to JSONL
   - S11: State changes survive additional database deletion and rebuild cycles
+  - S12: on_close strategy defers all JSONL writes until Detach
+  - S13: batch strategy flushes at BatchSize threshold
+  - S14: immediate strategy (default) persists every write immediately
 out_of_scope:
   - Merge conflict resolution when JSONL files diverge between branches (eng01-git-integration describes this but not validated here)
   - Trail-scoped worktrees (eng01-git-integration Trails as Worktrees)
   - Corrupt JSONL recovery (prd-sqlite-backend R7 describes error handling but this use case assumes valid files)
   - Cross-process access (prd-sqlite-backend R8.5 explicitly does not support this)
-  - Non-immediate sync strategies (prd-sqlite-backend R16.3, R16.4)
+  - Batch interval timer edge cases (rapid attach/detach cycles, timer races)
 test_suite: test-rel01.1-uc002-jsonl-git-roundtrip
 dependencies:
   - D1: "SQLite backend with JSONL persistence (prd-sqlite-backend R1-R5)"

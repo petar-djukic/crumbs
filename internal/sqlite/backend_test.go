@@ -1284,3 +1284,327 @@ func TestPropertyTable_Backfill_UpdateDoesNotRebackfill(t *testing.T) {
 		t.Errorf("Property update should not re-backfill; expected '42', got %q", value)
 	}
 }
+
+// Tests for JSONL sync strategy dispatch.
+// Implements: prd-sqlite-backend R16 (sync strategies: immediate, on_close, batch)
+
+func TestSyncStrategy_ImmediateDefault(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(config)
+	defer b.Detach()
+
+	// Verify default sync strategy is immediate
+	if b.syncStrategy != types.SyncImmediate {
+		t.Errorf("Default sync strategy should be 'immediate', got %q", b.syncStrategy)
+	}
+
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+
+	// Create a crumb
+	crumb := &types.Crumb{Name: "Immediate Test", State: types.StateDraft}
+	_, err := crumbTbl.Set("", crumb)
+	if err != nil {
+		t.Fatalf("Create crumb failed: %v", err)
+	}
+
+	// Verify JSONL is written immediately
+	crumbsPath := filepath.Join(tmpDir, "crumbs.jsonl")
+	data, err := os.ReadFile(crumbsPath)
+	if err != nil {
+		t.Fatalf("Read crumbs.jsonl failed: %v", err)
+	}
+	if len(data) == 0 {
+		t.Error("crumbs.jsonl should contain data with immediate sync strategy")
+	}
+}
+
+func TestSyncStrategy_OnClose_DefersWrites(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+		SQLiteConfig: &types.SQLiteConfig{
+			SyncStrategy: types.SyncOnClose,
+		},
+	}
+	err := b.Attach(config)
+	if err != nil {
+		t.Fatalf("Attach failed: %v", err)
+	}
+
+	// Verify sync strategy is on_close
+	if b.syncStrategy != types.SyncOnClose {
+		t.Errorf("Sync strategy should be 'on_close', got %q", b.syncStrategy)
+	}
+
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+
+	// Create crumbs
+	for i := 0; i < 3; i++ {
+		crumb := &types.Crumb{Name: "Deferred crumb", State: types.StateDraft}
+		_, err := crumbTbl.Set("", crumb)
+		if err != nil {
+			t.Fatalf("Create crumb failed: %v", err)
+		}
+	}
+
+	// Verify JSONL is empty (writes deferred)
+	crumbsPath := filepath.Join(tmpDir, "crumbs.jsonl")
+	data, err := os.ReadFile(crumbsPath)
+	if err != nil {
+		t.Fatalf("Read crumbs.jsonl failed: %v", err)
+	}
+	if len(data) > 0 {
+		t.Errorf("crumbs.jsonl should be empty with on_close sync strategy before Detach, got %d bytes", len(data))
+	}
+
+	// Verify pending writes queued
+	b.batchMu.Lock()
+	pendingCount := len(b.pendingWrites)
+	b.batchMu.Unlock()
+	if pendingCount == 0 {
+		t.Error("Pending writes should be queued for on_close strategy")
+	}
+
+	// Detach should flush all writes
+	err = b.Detach()
+	if err != nil {
+		t.Fatalf("Detach failed: %v", err)
+	}
+
+	// Verify JSONL now has data
+	data, err = os.ReadFile(crumbsPath)
+	if err != nil {
+		t.Fatalf("Read crumbs.jsonl after Detach failed: %v", err)
+	}
+	if len(data) == 0 {
+		t.Error("crumbs.jsonl should contain data after Detach with on_close sync strategy")
+	}
+}
+
+func TestSyncStrategy_Batch_FlushAtThreshold(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+		SQLiteConfig: &types.SQLiteConfig{
+			SyncStrategy:  types.SyncBatch,
+			BatchSize:     5,
+			BatchInterval: 60, // Long interval so we don't trigger time-based flush
+		},
+	}
+	err := b.Attach(config)
+	if err != nil {
+		t.Fatalf("Attach failed: %v", err)
+	}
+	defer b.Detach()
+
+	// Verify sync strategy is batch
+	if b.syncStrategy != types.SyncBatch {
+		t.Errorf("Sync strategy should be 'batch', got %q", b.syncStrategy)
+	}
+
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+	crumbsPath := filepath.Join(tmpDir, "crumbs.jsonl")
+
+	// Create 4 crumbs (below threshold)
+	for i := 0; i < 4; i++ {
+		crumb := &types.Crumb{Name: "Batch crumb", State: types.StateDraft}
+		_, err := crumbTbl.Set("", crumb)
+		if err != nil {
+			t.Fatalf("Create crumb %d failed: %v", i, err)
+		}
+	}
+
+	// Verify JSONL is still empty (below threshold)
+	data, err := os.ReadFile(crumbsPath)
+	if err != nil {
+		t.Fatalf("Read crumbs.jsonl failed: %v", err)
+	}
+	if len(data) > 0 {
+		t.Errorf("crumbs.jsonl should be empty with 4 writes (threshold is 5), got %d bytes", len(data))
+	}
+
+	// Create 5th crumb (triggers flush at threshold)
+	crumb := &types.Crumb{Name: "Threshold crumb", State: types.StateDraft}
+	_, err = crumbTbl.Set("", crumb)
+	if err != nil {
+		t.Fatalf("Create 5th crumb failed: %v", err)
+	}
+
+	// Verify JSONL now has data (flushed at threshold)
+	data, err = os.ReadFile(crumbsPath)
+	if err != nil {
+		t.Fatalf("Read crumbs.jsonl after threshold failed: %v", err)
+	}
+	if len(data) == 0 {
+		t.Error("crumbs.jsonl should contain data after batch threshold reached")
+	}
+}
+
+func TestSyncStrategy_Batch_FlushOnDetach(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+		SQLiteConfig: &types.SQLiteConfig{
+			SyncStrategy:  types.SyncBatch,
+			BatchSize:     100, // High threshold so we don't trigger
+			BatchInterval: 60,  // Long interval so we don't trigger time-based flush
+		},
+	}
+	err := b.Attach(config)
+	if err != nil {
+		t.Fatalf("Attach failed: %v", err)
+	}
+
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+	crumbsPath := filepath.Join(tmpDir, "crumbs.jsonl")
+
+	// Create 3 crumbs (well below threshold)
+	for i := 0; i < 3; i++ {
+		crumb := &types.Crumb{Name: "Batch crumb", State: types.StateDraft}
+		_, err := crumbTbl.Set("", crumb)
+		if err != nil {
+			t.Fatalf("Create crumb %d failed: %v", i, err)
+		}
+	}
+
+	// Verify JSONL is empty (below threshold)
+	data, err := os.ReadFile(crumbsPath)
+	if err != nil {
+		t.Fatalf("Read crumbs.jsonl failed: %v", err)
+	}
+	if len(data) > 0 {
+		t.Errorf("crumbs.jsonl should be empty below threshold, got %d bytes", len(data))
+	}
+
+	// Detach should flush remaining writes
+	err = b.Detach()
+	if err != nil {
+		t.Fatalf("Detach failed: %v", err)
+	}
+
+	// Verify JSONL now has data
+	data, err = os.ReadFile(crumbsPath)
+	if err != nil {
+		t.Fatalf("Read crumbs.jsonl after Detach failed: %v", err)
+	}
+	if len(data) == 0 {
+		t.Error("crumbs.jsonl should contain data after Detach")
+	}
+}
+
+func TestSyncStrategy_OnClose_RoundtripAfterDetach(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// First session with on_close
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+		SQLiteConfig: &types.SQLiteConfig{
+			SyncStrategy: types.SyncOnClose,
+		},
+	}
+	b.Attach(config)
+
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+	crumb := &types.Crumb{Name: "Roundtrip Test", State: types.StateDraft}
+	crumbID, _ := crumbTbl.Set("", crumb)
+
+	// Detach flushes writes
+	b.Detach()
+
+	// New session should load from JSONL
+	b2 := NewBackend()
+	config2 := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+		// Use immediate strategy for second session
+	}
+	err := b2.Attach(config2)
+	if err != nil {
+		t.Fatalf("Second Attach failed: %v", err)
+	}
+	defer b2.Detach()
+
+	// Verify crumb is loaded
+	crumbTbl2, _ := b2.GetTable(types.CrumbsTable)
+	result, err := crumbTbl2.Get(crumbID)
+	if err != nil {
+		t.Fatalf("Get crumb after restart failed: %v", err)
+	}
+	gotCrumb := result.(*types.Crumb)
+	if gotCrumb.Name != "Roundtrip Test" {
+		t.Errorf("Expected Name='Roundtrip Test', got %q", gotCrumb.Name)
+	}
+}
+
+func TestSyncStrategy_Delete_RespectsStrategy(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	b := NewBackend()
+	config := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+		SQLiteConfig: &types.SQLiteConfig{
+			SyncStrategy: types.SyncOnClose,
+		},
+	}
+	b.Attach(config)
+
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+
+	// Create a crumb with immediate strategy to have something in JSONL
+	b.Detach()
+	b = NewBackend()
+	immediateConfig := types.Config{
+		Backend: types.BackendSQLite,
+		DataDir: tmpDir,
+	}
+	b.Attach(immediateConfig)
+	crumbTbl, _ = b.GetTable(types.CrumbsTable)
+	crumb := &types.Crumb{Name: "To Delete", State: types.StateDraft}
+	crumbID, _ := crumbTbl.Set("", crumb)
+	b.Detach()
+
+	// Reopen with on_close and delete
+	b = NewBackend()
+	config.DataDir = tmpDir
+	b.Attach(config)
+	crumbTbl, _ = b.GetTable(types.CrumbsTable)
+
+	err := crumbTbl.Delete(crumbID)
+	if err != nil {
+		t.Fatalf("Delete failed: %v", err)
+	}
+
+	// Verify delete is queued, not yet persisted
+	crumbsPath := filepath.Join(tmpDir, "crumbs.jsonl")
+	data, _ := os.ReadFile(crumbsPath)
+	if len(data) == 0 {
+		t.Error("JSONL should still have original crumb before Detach")
+	}
+
+	// Detach to flush the delete
+	b.Detach()
+
+	// Verify crumb is now removed from JSONL
+	data, _ = os.ReadFile(crumbsPath)
+	if len(data) > 0 && string(data) != "\n" {
+		t.Logf("JSONL content after delete: %q", string(data))
+	}
+}

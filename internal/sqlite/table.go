@@ -171,9 +171,18 @@ func (t *Table) Delete(id string) error {
 		return types.ErrNotFound
 	}
 
-	// Persist deletion to JSONL (per prd-configuration-directories R6)
-	if err := deleteFromJSON(id); err != nil {
-		return fmt.Errorf("persist deletion to JSONL: %w", err)
+	// Persist deletion to JSONL based on sync strategy (prd-sqlite-backend R16)
+	if t.backend.shouldPersistImmediately() {
+		if err := deleteFromJSON(id); err != nil {
+			return fmt.Errorf("persist deletion to JSONL: %w", err)
+		}
+	} else {
+		// Capture id for deferred delete
+		idCopy := id
+		deleteFunc := deleteFromJSON
+		t.backend.queueWrite(t.tableName, "delete", func() error {
+			return deleteFunc(idCopy)
+		})
 	}
 
 	return nil
@@ -254,9 +263,17 @@ func (t *Table) setCrumb(id string, crumb *types.Crumb) (string, error) {
 		return "", err
 	}
 
-	// Persist to JSONL (per prd-configuration-directories R6)
-	if err := t.backend.saveCrumbToJSONL(crumb); err != nil {
-		return "", fmt.Errorf("persist crumb to JSONL: %w", err)
+	// Persist to JSONL based on sync strategy (prd-sqlite-backend R16)
+	if t.backend.shouldPersistImmediately() {
+		if err := t.backend.saveCrumbToJSONL(crumb); err != nil {
+			return "", fmt.Errorf("persist crumb to JSONL: %w", err)
+		}
+	} else {
+		// Capture crumb state for deferred write
+		crumbCopy := *crumb
+		t.backend.queueWrite(types.CrumbsTable, "save", func() error {
+			return t.backend.saveCrumbToJSONL(&crumbCopy)
+		})
 	}
 
 	// Initialize all defined properties with type-based defaults on crumb creation
@@ -419,9 +436,17 @@ func (t *Table) setTrail(id string, trail *types.Trail) (string, error) {
 		return "", err
 	}
 
-	// Persist to JSONL (per prd-configuration-directories R6)
-	if err := t.backend.saveTrailToJSONL(trail); err != nil {
-		return "", fmt.Errorf("persist trail to JSONL: %w", err)
+	// Persist to JSONL based on sync strategy (prd-sqlite-backend R16)
+	if t.backend.shouldPersistImmediately() {
+		if err := t.backend.saveTrailToJSONL(trail); err != nil {
+			return "", fmt.Errorf("persist trail to JSONL: %w", err)
+		}
+	} else {
+		// Capture trail state for deferred write
+		trailCopy := *trail
+		t.backend.queueWrite(types.TrailsTable, "save", func() error {
+			return t.backend.saveTrailToJSONL(&trailCopy)
+		})
 	}
 
 	return id, nil
@@ -574,15 +599,32 @@ func (t *Table) setProperty(id string, prop *types.Property) (string, error) {
 		return "", fmt.Errorf("commit transaction: %w", err)
 	}
 
-	// Persist property to JSONL (per prd-configuration-directories R6)
-	if err := t.backend.savePropertyToJSONL(prop); err != nil {
-		return "", fmt.Errorf("persist property to JSONL: %w", err)
-	}
-
-	// Persist backfilled crumb properties to JSONL (after transaction commits)
-	for _, data := range backfillData {
-		if err := t.backend.saveCrumbPropertyToJSONL(data.crumbID, prop.PropertyID, prop.ValueType, data.value); err != nil {
-			return "", fmt.Errorf("persist backfilled property %s to JSONL: %w", data.crumbID, err)
+	// Persist property to JSONL based on sync strategy (prd-sqlite-backend R16)
+	if t.backend.shouldPersistImmediately() {
+		if err := t.backend.savePropertyToJSONL(prop); err != nil {
+			return "", fmt.Errorf("persist property to JSONL: %w", err)
+		}
+		// Persist backfilled crumb properties to JSONL (after transaction commits)
+		for _, data := range backfillData {
+			if err := t.backend.saveCrumbPropertyToJSONL(data.crumbID, prop.PropertyID, prop.ValueType, data.value); err != nil {
+				return "", fmt.Errorf("persist backfilled property %s to JSONL: %w", data.crumbID, err)
+			}
+		}
+	} else {
+		// Capture property state for deferred write
+		propCopy := *prop
+		t.backend.queueWrite(types.PropertiesTable, "save", func() error {
+			return t.backend.savePropertyToJSONL(&propCopy)
+		})
+		// Queue backfilled crumb properties
+		for _, data := range backfillData {
+			crumbID := data.crumbID
+			propertyID := prop.PropertyID
+			valueType := prop.ValueType
+			value := data.value
+			t.backend.queueWrite("crumb_properties", "save", func() error {
+				return t.backend.saveCrumbPropertyToJSONL(crumbID, propertyID, valueType, value)
+			})
 		}
 	}
 
@@ -783,9 +825,17 @@ func (t *Table) setMetadata(id string, meta *types.Metadata) (string, error) {
 		return "", err
 	}
 
-	// Persist to JSONL (per prd-configuration-directories R6)
-	if err := t.backend.saveMetadataToJSONL(meta); err != nil {
-		return "", fmt.Errorf("persist metadata to JSONL: %w", err)
+	// Persist to JSONL based on sync strategy (prd-sqlite-backend R16)
+	if t.backend.shouldPersistImmediately() {
+		if err := t.backend.saveMetadataToJSONL(meta); err != nil {
+			return "", fmt.Errorf("persist metadata to JSONL: %w", err)
+		}
+	} else {
+		// Capture metadata state for deferred write
+		metaCopy := *meta
+		t.backend.queueWrite(types.MetadataTable, "save", func() error {
+			return t.backend.saveMetadataToJSONL(&metaCopy)
+		})
 	}
 
 	return id, nil
@@ -911,9 +961,17 @@ func (t *Table) setLink(id string, link *types.Link) (string, error) {
 		return "", err
 	}
 
-	// Persist to JSONL (per prd-configuration-directories R6)
-	if err := t.backend.saveLinkToJSONL(link); err != nil {
-		return "", fmt.Errorf("persist link to JSONL: %w", err)
+	// Persist to JSONL based on sync strategy (prd-sqlite-backend R16)
+	if t.backend.shouldPersistImmediately() {
+		if err := t.backend.saveLinkToJSONL(link); err != nil {
+			return "", fmt.Errorf("persist link to JSONL: %w", err)
+		}
+	} else {
+		// Capture link state for deferred write
+		linkCopy := *link
+		t.backend.queueWrite(types.LinksTable, "save", func() error {
+			return t.backend.saveLinkToJSONL(&linkCopy)
+		})
 	}
 
 	return id, nil
@@ -1041,9 +1099,18 @@ func (t *Table) setStash(id string, stash *types.Stash) (string, error) {
 		return "", err
 	}
 
-	// Persist to JSONL (per prd-configuration-directories R6)
-	if err := t.backend.saveStashToJSONL(stash, now); err != nil {
-		return "", fmt.Errorf("persist stash to JSONL: %w", err)
+	// Persist to JSONL based on sync strategy (prd-sqlite-backend R16)
+	if t.backend.shouldPersistImmediately() {
+		if err := t.backend.saveStashToJSONL(stash, now); err != nil {
+			return "", fmt.Errorf("persist stash to JSONL: %w", err)
+		}
+	} else {
+		// Capture stash state for deferred write
+		stashCopy := *stash
+		updatedAt := now
+		t.backend.queueWrite(types.StashesTable, "save", func() error {
+			return t.backend.saveStashToJSONL(&stashCopy, updatedAt)
+		})
 	}
 
 	return id, nil
@@ -1202,10 +1269,22 @@ func (t *Table) initializeCrumbProperties(crumb *types.Crumb) error {
 		}
 	}
 
-	// Persist all properties to JSONL (after all SQLite operations complete)
-	for _, prop := range props {
-		if err := t.backend.saveCrumbPropertyToJSONL(crumb.CrumbID, prop.propertyID, prop.valueType, prop.value); err != nil {
-			return fmt.Errorf("persist crumb property %s to JSONL: %w", prop.propertyID, err)
+	// Persist all properties to JSONL based on sync strategy (prd-sqlite-backend R16)
+	if t.backend.shouldPersistImmediately() {
+		for _, prop := range props {
+			if err := t.backend.saveCrumbPropertyToJSONL(crumb.CrumbID, prop.propertyID, prop.valueType, prop.value); err != nil {
+				return fmt.Errorf("persist crumb property %s to JSONL: %w", prop.propertyID, err)
+			}
+		}
+	} else {
+		for _, prop := range props {
+			crumbID := crumb.CrumbID
+			propertyID := prop.propertyID
+			valueType := prop.valueType
+			value := prop.value
+			t.backend.queueWrite("crumb_properties", "save", func() error {
+				return t.backend.saveCrumbPropertyToJSONL(crumbID, propertyID, valueType, value)
+			})
 		}
 	}
 

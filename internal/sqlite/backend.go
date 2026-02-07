@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
@@ -31,6 +32,22 @@ type Backend struct {
 	config   types.Config
 	db       *sql.DB
 	tables   map[string]*Table
+
+	// Sync strategy state (prd-sqlite-backend R16)
+	syncStrategy  string          // effective sync strategy: immediate, on_close, batch
+	batchSize     int             // number of writes before batch flush
+	batchInterval time.Duration   // time between batch flushes
+	pendingWrites []pendingWrite  // queue of writes pending JSONL persist
+	batchTimer    *time.Timer     // timer for interval-based batch flush
+	batchMu       sync.Mutex      // protects pendingWrites and batchTimer
+}
+
+// pendingWrite represents a deferred JSONL write operation.
+// Used by on_close and batch sync strategies.
+type pendingWrite struct {
+	tableName string          // entity table name (crumbs, trails, etc.)
+	operation string          // "save" or "delete"
+	persist   func() error    // function to execute the JSONL write
 }
 
 // NewBackend creates a new SQLite backend instance.
@@ -103,6 +120,17 @@ func (b *Backend) Attach(config types.Config) error {
 	b.db = db
 	b.config = config
 
+	// Initialize sync strategy from config (prd-sqlite-backend R16)
+	b.syncStrategy = config.SQLiteConfig.GetSyncStrategy()
+	b.batchSize = config.SQLiteConfig.GetBatchSize()
+	b.batchInterval = time.Duration(config.SQLiteConfig.GetBatchInterval()) * time.Second
+	b.pendingWrites = nil
+
+	// Start batch timer if using batch strategy (prd-sqlite-backend R16.4)
+	if b.syncStrategy == types.SyncBatch && b.batchInterval > 0 {
+		b.startBatchTimer()
+	}
+
 	// Initialize JSONL files if they don't exist (per prd-configuration-directories R4.3)
 	if err := b.initJSONLFiles(); err != nil {
 		db.Close()
@@ -131,12 +159,22 @@ func (b *Backend) Attach(config types.Config) error {
 // Detach releases all resources held by the backend.
 // Closes the SQLite connection. After Detach, all operations return ErrCupboardDetached.
 // Detach is idempotent.
+// For on_close and batch sync strategies, flushes all pending writes before closing
+// (prd-sqlite-backend R6.1, R16.3).
 func (b *Backend) Detach() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	if !b.attached {
 		return nil // idempotent
+	}
+
+	// Stop batch timer if running
+	b.stopBatchTimer()
+
+	// Flush all pending writes before closing (prd-sqlite-backend R6.1, R16.3)
+	if err := b.flushPendingWritesLocked(); err != nil {
+		return fmt.Errorf("flush pending writes: %w", err)
 	}
 
 	if b.db != nil {
@@ -160,4 +198,105 @@ func generateUUID() string {
 		return uuid.New().String()
 	}
 	return id.String()
+}
+
+// Sync strategy methods (prd-sqlite-backend R16)
+
+// shouldPersistImmediately returns true if JSONL writes should happen immediately.
+// Returns true for "immediate" strategy (default), false for "on_close" and "batch".
+func (b *Backend) shouldPersistImmediately() bool {
+	return b.syncStrategy == types.SyncImmediate || b.syncStrategy == ""
+}
+
+// queueWrite adds a write operation to the pending queue.
+// For "on_close" strategy, writes are queued until Detach.
+// For "batch" strategy, writes are queued until batch size or interval is reached.
+// The caller must hold b.mu (read or write lock).
+func (b *Backend) queueWrite(tableName, operation string, persist func() error) {
+	b.batchMu.Lock()
+	defer b.batchMu.Unlock()
+
+	b.pendingWrites = append(b.pendingWrites, pendingWrite{
+		tableName: tableName,
+		operation: operation,
+		persist:   persist,
+	})
+
+	// For batch strategy, check if we should flush based on batch size (R16.4)
+	if b.syncStrategy == types.SyncBatch && b.batchSize > 0 && len(b.pendingWrites) >= b.batchSize {
+		// Flush synchronously when batch size reached
+		_ = b.flushPendingWritesBatchLocked()
+	}
+}
+
+// flushPendingWritesLocked flushes all pending writes to JSONL files.
+// The caller must hold b.mu write lock.
+func (b *Backend) flushPendingWritesLocked() error {
+	b.batchMu.Lock()
+	defer b.batchMu.Unlock()
+
+	return b.flushPendingWritesBatchLocked()
+}
+
+// flushPendingWritesBatchLocked executes all pending writes.
+// The caller must hold b.batchMu lock.
+func (b *Backend) flushPendingWritesBatchLocked() error {
+	if len(b.pendingWrites) == 0 {
+		return nil
+	}
+
+	// Execute all pending writes
+	for _, pw := range b.pendingWrites {
+		if err := pw.persist(); err != nil {
+			// Continue flushing other writes even if one fails
+			// per prd-sqlite-backend R5.4 (return error to caller, next Attach reconciles)
+			return fmt.Errorf("flush %s %s: %w", pw.tableName, pw.operation, err)
+		}
+	}
+
+	// Clear the queue
+	b.pendingWrites = nil
+
+	return nil
+}
+
+// startBatchTimer starts the batch interval timer for periodic flushes.
+// The caller should ensure this is only called for batch strategy with positive interval.
+func (b *Backend) startBatchTimer() {
+	b.batchMu.Lock()
+	defer b.batchMu.Unlock()
+
+	if b.batchTimer != nil {
+		return // already running
+	}
+
+	b.batchTimer = time.AfterFunc(b.batchInterval, func() {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+
+		if !b.attached {
+			return
+		}
+
+		// Flush pending writes
+		_ = b.flushPendingWritesLocked()
+
+		// Restart the timer
+		b.batchMu.Lock()
+		if b.batchTimer != nil && b.attached {
+			b.batchTimer.Reset(b.batchInterval)
+		}
+		b.batchMu.Unlock()
+	})
+}
+
+// stopBatchTimer stops the batch interval timer if running.
+func (b *Backend) stopBatchTimer() {
+	b.batchMu.Lock()
+	defer b.batchMu.Unlock()
+
+	if b.batchTimer != nil {
+		b.batchTimer.Stop()
+		b.batchTimer = nil
+	}
 }

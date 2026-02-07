@@ -346,5 +346,214 @@ test_cases:
     expected:
       exit_code: 0
 
+  # --- Sync strategy tests ---
+
+  - name: On_close strategy defers JSONL writes until Detach
+    description: >
+      With SyncStrategy="on_close", JSONL files should remain empty until
+      Detach is called (prd-sqlite-backend R16.3).
+    inputs:
+      config:
+        backend: sqlite
+        data_dir: ./data
+        sqlite_config:
+          sync_strategy: on_close
+      steps:
+        - command: cupboard create --type task --title "Deferred crumb" --json
+          capture: crumb_id
+        - command: cat data/crumbs.jsonl | wc -l
+          expected:
+            stdout_equals: "0"
+        - command: cupboard detach
+        - command: cat data/crumbs.jsonl | wc -l
+          expected:
+            stdout_equals: "1"
+    expected:
+      exit_code: 0
+
+  - name: On_close strategy survives multiple writes before Detach
+    description: >
+      Multiple writes should all be queued and flushed together on Detach.
+    inputs:
+      config:
+        backend: sqlite
+        data_dir: ./data
+        sqlite_config:
+          sync_strategy: on_close
+      steps:
+        - command: cupboard create --type task --title "First" --json
+        - command: cupboard create --type task --title "Second" --json
+        - command: cupboard create --type task --title "Third" --json
+        - command: cat data/crumbs.jsonl | wc -l
+          expected:
+            stdout_equals: "0"
+        - command: cupboard detach
+        - command: cat data/crumbs.jsonl | wc -l
+          expected:
+            stdout_equals: "3"
+    expected:
+      exit_code: 0
+
+  - name: Batch strategy flushes at BatchSize threshold
+    description: >
+      With SyncStrategy="batch" and BatchSize=5, JSONL should remain empty
+      until the 5th write triggers a flush (prd-sqlite-backend R16.4).
+    inputs:
+      config:
+        backend: sqlite
+        data_dir: ./data
+        sqlite_config:
+          sync_strategy: batch
+          batch_size: 5
+      steps:
+        - command: cupboard create --type task --title "Crumb 1" --json
+        - command: cupboard create --type task --title "Crumb 2" --json
+        - command: cupboard create --type task --title "Crumb 3" --json
+        - command: cupboard create --type task --title "Crumb 4" --json
+        - command: cat data/crumbs.jsonl | wc -l
+          expected:
+            stdout_equals: "0"
+        - command: cupboard create --type task --title "Crumb 5" --json
+        - command: cat data/crumbs.jsonl | wc -l
+          expected:
+            stdout_equals: "5"
+    expected:
+      exit_code: 0
+
+  - name: Batch strategy flushes remaining writes on Detach
+    description: >
+      Writes below the batch threshold should still be flushed on Detach.
+    inputs:
+      config:
+        backend: sqlite
+        data_dir: ./data
+        sqlite_config:
+          sync_strategy: batch
+          batch_size: 10
+      steps:
+        - command: cupboard create --type task --title "Crumb 1" --json
+        - command: cupboard create --type task --title "Crumb 2" --json
+        - command: cupboard create --type task --title "Crumb 3" --json
+        - command: cat data/crumbs.jsonl | wc -l
+          expected:
+            stdout_equals: "0"
+        - command: cupboard detach
+        - command: cat data/crumbs.jsonl | wc -l
+          expected:
+            stdout_equals: "3"
+    expected:
+      exit_code: 0
+
+  - name: Immediate strategy persists every write (default behavior)
+    description: >
+      With default config (no SQLiteConfig or SyncStrategy="immediate"),
+      every write should persist immediately (prd-sqlite-backend R16.2).
+    inputs:
+      config:
+        backend: sqlite
+        data_dir: ./data
+      steps:
+        - command: cupboard create --type task --title "Immediate 1" --json
+        - command: cat data/crumbs.jsonl | wc -l
+          expected:
+            stdout_equals: "1"
+        - command: cupboard create --type task --title "Immediate 2" --json
+        - command: cat data/crumbs.jsonl | wc -l
+          expected:
+            stdout_equals: "2"
+        - command: cupboard create --type task --title "Immediate 3" --json
+        - command: cat data/crumbs.jsonl | wc -l
+          expected:
+            stdout_equals: "3"
+    expected:
+      exit_code: 0
+
+  - name: Immediate strategy with explicit config
+    description: >
+      Explicitly setting SyncStrategy="immediate" should behave the same
+      as the default.
+    inputs:
+      config:
+        backend: sqlite
+        data_dir: ./data
+        sqlite_config:
+          sync_strategy: immediate
+      steps:
+        - command: cupboard create --type task --title "Explicit immediate" --json
+        - command: cat data/crumbs.jsonl | wc -l
+          expected:
+            stdout_equals: "1"
+    expected:
+      exit_code: 0
+
+  - name: On_close strategy data survives roundtrip after Detach
+    description: >
+      After Detach flushes the deferred writes, deleting cupboard.db and
+      re-attaching should rebuild the data from JSONL.
+    inputs:
+      config:
+        backend: sqlite
+        data_dir: ./data
+        sqlite_config:
+          sync_strategy: on_close
+      steps:
+        - command: cupboard create --type task --title "Roundtrip test" --json
+          capture: crumb_id
+        - command: cupboard detach
+        - command: rm data/cupboard.db
+        - command: cupboard list --json | jq length
+          expected:
+            stdout_equals: "1"
+        - command: cupboard show ${crumb_id}
+          expected:
+            stdout_contains: "Roundtrip test"
+    expected:
+      exit_code: 0
+
+  - name: Batch strategy data survives roundtrip after flush
+    description: >
+      After a batch flush, deleting cupboard.db and re-attaching should
+      rebuild the data from JSONL.
+    inputs:
+      config:
+        backend: sqlite
+        data_dir: ./data
+        sqlite_config:
+          sync_strategy: batch
+          batch_size: 3
+      steps:
+        - command: cupboard create --type task --title "Batch 1" --json
+        - command: cupboard create --type task --title "Batch 2" --json
+        - command: cupboard create --type task --title "Batch 3" --json
+        - command: rm data/cupboard.db
+        - command: cupboard list --json | jq length
+          expected:
+            stdout_equals: "3"
+    expected:
+      exit_code: 0
+
+  - name: Atomic write semantics preserved for all strategies
+    description: >
+      Regardless of sync strategy, JSONL writes should use atomic pattern
+      (temp file, fsync, rename) per prd-sqlite-backend R16.7.
+    inputs:
+      config:
+        backend: sqlite
+        data_dir: ./data
+        sqlite_config:
+          sync_strategy: on_close
+      steps:
+        - command: cupboard create --type task --title "Atomic test" --json
+        - command: cupboard detach
+        - command: cat data/crumbs.jsonl
+          expected:
+            stdout_contains: "Atomic test"
+        - command: ls data/*.jsonl.tmp 2>&1
+          expected:
+            exit_code: 1
+            stderr_contains: "No such file"
+    expected:
+      exit_code: 0
+
 cleanup:
   - Remove temp directory and git repository
