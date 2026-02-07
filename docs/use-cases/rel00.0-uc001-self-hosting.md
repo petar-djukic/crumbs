@@ -1,223 +1,102 @@
-# Use Case: Self-Hosting (Crumbs Builds Crumbs)
+# Use Case: Self-Hosting
 
 ## Summary
 
-A coding agent uses the crumbs system to track the development of crumbs itself. This validates that the system works for real agent workflows and serves as a milestone marker for when crumbs is "ready enough" for production use.
+The cupboard CLI tracks development work on the crumbs repository. The do-work.sh and make-work.sh scripts run end-to-end using cupboard commands. This validates that cupboard works as an issue tracker for real agent workflows.
 
 ## Actor and Trigger
 
-The actor is a coding agent (e.g., Claude Code) working on the crumbs codebase. The trigger is reaching the minimum viable product: Table interface implemented with Get, Set, Delete, and Fetch operations for crumbs.
+The actor is a coding agent (e.g., Claude Code) working on the crumbs codebase via the do-work.sh and make-work.sh scripts. The trigger is the cupboard CLI providing the issue-tracking commands those scripts need.
 
 ## Flow
 
-### Phase 1: Transition from Beads
+### Phase 1: Issue-Tracking CLI
 
-1. **Verify MVP readiness**: Confirm the Cupboard and Table interfaces work. The cupboard can Attach to an SQLite backend; GetTable("crumbs") returns a Table; the Table supports Get, Set, Delete, and Fetch operations.
+The cupboard CLI provides issue-tracking commands that operate on crumbs. Under the hood, each command uses the Cupboard library (Table.Get, Table.Set, Table.Fetch) for storage. The CLI layers issue-tracking semantics on top of the storage layer.
 
-2. **Initialize crumbs cupboard**: Attach the cupboard to a local SQLite backend:
+1. Implement the following commands.
 
-```go
-cfg := Config{Backend: "sqlite", DataDir: ".crumbs"}
-err := cupboard.Attach(cfg)
+Table 1: Cupboard issue-tracking commands
+
+| Command | Purpose |
+|---------|---------|
+| `cupboard ready -n N --json --type <type>` | Return up to N open crumbs of the given type, ordered by priority |
+| `cupboard create --type <type> --title T --description D` | Create a crumb with type, title, description, and optional --parent and --labels |
+| `cupboard update <id> --status <status>` | Transition a crumb's state (open, in_progress, closed) |
+| `cupboard close <id>` | Shortcut for setting state to closed with a timestamp |
+| `cupboard show <id>` | Display a crumb's details in human-readable format |
+| `cupboard list --json` | Return all crumbs as JSON |
+| `cupboard comments add <id> "text"` | Append a comment to a crumb |
+
+2. The `--json` flag outputs JSON for script consumption. Without it, output is human-readable.
+
+3. The `cupboard create` command accepts `--type` (task, epic, chore, bug), `--title`, `--description`, `--parent`, and `--labels`. It creates a crumb with the appropriate properties set.
+
+4. Status transitions follow crumb state semantics: open, in_progress, closed.
+
+### Phase 2: Script Integration
+
+5. The do-work.sh script uses cupboard commands to pick a task, claim it, and close it after completion. The script's structure: pick task, create worktree, run Claude, merge, clean up, close task.
+
+6. The make-work.sh script uses cupboard commands to list existing issues and create new ones. The import function creates crumbs via `cupboard create`.
+
+7. No explicit sync command is needed. The SQLite backend syncs JSONL on every write (see eng01-git-integration). Scripts commit JSONL files to git as part of their workflow.
+
+### Phase 3: Interactive Workflow
+
+8. The agent workflow rule (.claude/rules/) references cupboard commands for interactive use.
+
+```bash
+cupboard ready              # Find available work
+cupboard show <id>          # View issue details
+cupboard update <id> --status in_progress  # Claim work
+cupboard comments add <id> "tokens: <count>"  # Log token usage
+cupboard close <id>         # Close work
 ```
 
-The backend creates the directory, SQLite schema, and seeds built-in properties.
-
-3. **Import existing work**: For any open beads issues, create corresponding crumbs via the Table interface:
-
-```go
-crumbsTable, _ := cupboard.GetTable("crumbs")
-crumb := &Crumb{Name: "Issue title"}
-crumbsTable.Set("", crumb)  // empty ID triggers UUID generation
-crumb.SetProperty("priority", int64(2))
-crumbsTable.Set(crumb.CrumbID, crumb)
-```
-
-4. **Retire beads for this repo**: Once crumbs are tracking all work, stop using `bd` commands for new work in the crumbs repo. Beads remains available for other projects.
-
-### Phase 2: Basic Self-Hosting
-
-5. **Create work items**: When starting new implementation tasks, create crumbs via the ORM pattern:
-
-```go
-crumbsTable, _ := cupboard.GetTable("crumbs")
-crumb := &Crumb{Name: "Implement PropertyTable.Define"}
-crumbsTable.Set("", crumb)  // crumb created in draft state
-```
-
-6. **Track progress**: As work progresses, update state via entity methods:
-
-```go
-entity, _ := crumbsTable.Get(id)
-crumb := entity.(*Crumb)
-crumb.SetState("ready")      // ready to implement
-crumbsTable.Set(crumb.CrumbID, crumb)
-
-// later...
-crumb.SetState("taken")      // actively working
-crumbsTable.Set(crumb.CrumbID, crumb)
-```
-
-7. **Pebble or dust**: When implementation is done, use entity methods:
-
-```go
-crumb.Pebble()               // transitions to pebble (success)
-crumbsTable.Set(crumb.CrumbID, crumb)
-
-// or for abandoned/failed work
-crumb.Dust()                 // transitions to dust (failed/abandoned)
-crumbsTable.Set(crumb.CrumbID, crumb)
-```
-
-8. **Query work**: Use Table.Fetch with filters to query available work:
-
-```go
-readyFilter := map[string]any{"states": []string{"ready"}}
-entities, _ := crumbsTable.Fetch(readyFilter)
-for _, e := range entities {
-    crumb := e.(*Crumb)
-    // process ready crumbs
-}
-```
-
-### Phase 3: Trail-Based Development (after Trail entity)
-
-9. **Explore implementation approaches**: When implementing a complex feature, create an exploration trail:
-
-```go
-trailsTable, _ := cupboard.GetTable("trails")
-trail := &Trail{}
-trailsTable.Set("", trail)  // trail created in active state
-```
-
-10. **Add exploration crumbs**: Create crumbs and associate them with the trail via belongs_to links:
-
-```go
-crumb := &Crumb{Name: "Try approach A"}
-crumbsTable.Set("", crumb)
-
-// Associate crumb with trail via links table
-linksTable, _ := cupboard.GetTable("links")
-link := &Link{LinkType: "belongs_to", FromID: crumb.CrumbID, ToID: trail.TrailID}
-linksTable.Set("", link)
-```
-
-11. **Abandon failed approaches**: If the approach fails, abandon the trail. When persisted, the backend deletes all crumbs on the trail atomically:
-
-```go
-trail.Abandon()                          // updates state in memory
-trailsTable.Set(trail.TrailID, trail)    // backend cascades: deletes crumbs
-```
-
-12. **Complete successful approaches**: If the approach succeeds, complete the trail. When persisted, crumbs become permanent (belongs_to links removed):
-
-```go
-trail.Complete()                         // updates state in memory
-trailsTable.Set(trail.TrailID, trail)    // backend cascades: removes links
-```
-
-### Phase 4: Shared State (after Stash entity)
-
-13. **Share context between tasks**: Create a stash for shared configuration via the stashes table.
-
-14. **Track artifacts**: When one task produces output another needs, use artifact stashes to track the handoff.
-
-15. **Coordinate with locks**: For operations that should not run concurrently (e.g., database migrations), use lock stashes.
+9. JSONL files (crumbs.jsonl, trails.jsonl) are committed to git per eng01-git-integration. The `git add` in session completion commits JSONL files from the data directory.
 
 ## Architecture Touchpoints
 
-| Interface | Operations Used |
-|-----------|-----------------|
-| Cupboard | Attach, Detach, GetTable |
-| Table (crumbs) | Get, Set, Delete, Fetch |
-| Table (trails) | Get, Set, Delete, Fetch |
-| Table (stashes) | Get, Set, Delete, Fetch |
-| Crumb entity | SetState, Pebble, Dust, SetProperty, GetProperty |
-| Trail entity | Complete, Abandon |
-| Table (links) | Get, Set, Delete, Fetch |
+Table 2: Components exercised by self-hosting
 
-## Success Criteria
+| Component | Role |
+|-----------|------|
+| cupboard CLI (`cmd/cupboard`) | Issue-tracking commands (ready, create, close, update, show, list, comments) |
+| Cupboard library (`pkg/types`) | Table interface, Crumb/Trail/Property entities |
+| SQLite backend (`internal/sqlite`) | Storage, JSONL persistence, query engine |
+| do-work.sh | Task picking, worktree management, agent invocation |
+| make-work.sh | Work creation, issue import |
+| .claude/rules/ | Agent workflow instructions |
 
-The use case succeeds when:
+## Success / Demo Criteria
 
-- [ ] Cupboard attaches to SQLite backend (`.crumbs/` directory)
-- [ ] All development work tracked via crumbs (not beads)
-- [ ] Agent can create, update, and query crumbs via Table interface
-- [ ] Agent uses Trail entity methods (Complete, Abandon) to manage exploration sessions
-- [ ] Crumb-trail membership managed via links table (belongs_to)
-- [ ] Abandoned trails delete crumbs atomically (no orphan crumbs)
-- [ ] Completed trails make crumbs permanent (remove belongs_to links)
-- [ ] System remains stable under self-hosting load
-
-Observable demo:
-
-```go
-// Phase 1: Initialize and create work
-cfg := Config{Backend: "sqlite", DataDir: ".crumbs"}
-cupboard.Attach(cfg)
-crumbsTable, _ := cupboard.GetTable("crumbs")
-crumb := &Crumb{Name: "Implement Stash operations"}
-crumbsTable.Set("", crumb)
-
-// Phase 2: Track progress
-entity, _ := crumbsTable.Get(crumb.CrumbID)
-crumb = entity.(*Crumb)
-crumb.SetState("ready")
-crumbsTable.Set(crumb.CrumbID, crumb)
-crumb.SetState("taken")
-crumbsTable.Set(crumb.CrumbID, crumb)
-crumb.Pebble()
-crumbsTable.Set(crumb.CrumbID, crumb)
-
-// Phase 3: Explore with trails
-trailsTable, _ := cupboard.GetTable("trails")
-linksTable, _ := cupboard.GetTable("links")
-trail := &Trail{}
-trailsTable.Set("", trail)
-exploreCrumb := &Crumb{Name: "Try optimistic locking"}
-crumbsTable.Set("", exploreCrumb)
-// Associate crumb with trail via belongs_to link
-link := &Link{LinkType: "belongs_to", FromID: exploreCrumb.CrumbID, ToID: trail.TrailID}
-linksTable.Set("", link)
-// ... approach fails ...
-trail.Abandon()                        // updates state in memory
-trailsTable.Set(trail.TrailID, trail)  // backend cascades: deletes exploreCrumb
-
-// Phase 4: Share state (via stashes table)
-stashesTable, _ := cupboard.GetTable("stashes")
-// ... stash operations ...
-```
+- `cupboard ready` returns available tasks as JSON
+- `cupboard create --type task --title "Test" --description "..."` creates a crumb
+- `cupboard update <id> --status in_progress` transitions crumb state
+- `cupboard close <id>` marks crumb as closed
+- `cupboard list --json` returns all crumbs as JSON
+- do-work.sh runs a full cycle (pick, worktree, Claude, merge, close) using cupboard
+- make-work.sh creates issues via cupboard and commits JSONL changes
 
 ## Out of Scope
 
-This use case does not cover:
-
 - Multi-agent coordination (single agent self-hosting)
-- Remote backends (SQLite only for self-hosting)
-- Migration tooling from beads to crumbs (manual import)
-- CI/CD integration (local development only)
-- Performance benchmarking (correctness first)
+- Remote backends (SQLite only)
+- Trail-based worktree integration in the CLI (trails are worktrees per eng01-git-integration, but the CLI does not manage git worktrees; do-work.sh handles that)
 
 ## Dependencies
 
-- prd-cupboard-core must be implemented (Cupboard interface: Attach, Detach, GetTable; Table interface: Get, Set, Delete, Fetch)
-- prd-crumbs-interface must be implemented (Crumb entity and entity methods)
-- For Phase 3: prd-trails-interface must be implemented (Trail entity and entity methods)
-- For Phase 4: prd-stash-interface must be implemented (Stash entity)
+- Release 01.0 (core storage): Cupboard interface, Table interface, SQLite backend
+- Release 02.0 (properties): properties enable type, priority, labels on crumbs
+- Issue-tracking CLI commands (the new work in this use case)
 
 ## Risks and Mitigations
 
+Table 3: Risks
+
 | Risk | Mitigation |
 |------|------------|
-| Bug in crumbs loses work tracking | Keep beads as backup until confidence builds; commit frequently |
-| CLI ergonomics block adoption | Iterate on CLI UX based on real usage; add shortcuts for common operations |
-| Self-hosting reveals missing features | Treat as validation success; file issues for gaps discovered |
-| Circular dependency in debugging | Maintain ability to use beads or manual tracking if crumbs is broken |
-
-## Milestone Marker
-
-This use case serves as a milestone marker. When the crumbs system can successfully track its own development:
-
-1. **MVP Validated**: Core concepts work for real agent workflows
-2. **Dogfooding Complete**: We eat our own dog food
-3. **Ready for Others**: If it works for us, it can work for other projects
+| Bug in cupboard loses work tracking | Commit JSONL frequently; git history provides recovery |
+| Missing CLI features block scripts | Implement minimum commands first, iterate on ergonomics after |
+| Self-hosting reveals missing features | Treat as validation; file issues for gaps |
