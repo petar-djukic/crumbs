@@ -1,0 +1,128 @@
+id: rel02.1-uc004-metadata-lifecycle
+title: Metadata Lifecycle Operations
+summary: |
+  A developer attaches metadata to crumbs using the comments and attachments
+  schemas, retrieves metadata by ID, queries metadata using filters, and
+  verifies that metadata entries are removed when the parent crumb is deleted.
+  This tracer bullet validates the append-only metadata pattern where multiple
+  entries accumulate on a single crumb, and the cascade delete behavior that
+  maintains referential integrity.
+actor: Developer or agent working through the Cupboard API
+trigger: Need to attach supplementary information to crumbs (comments, attachments) and verify metadata lifecycle behavior
+flow:
+  - F1: "Attach backend: construct a Cupboard, call Attach(config) with a SQLite backend configuration; the backend creates DataDir and initializes the metadata table with built-in schemas"
+  - F2: "Create a crumb: call table.Set on the crumbs table with an empty ID to create a crumb that will hold metadata"
+  - F3: "Add a comment: construct a Metadata struct with TableName=comments and Content=text, call table.Set on the metadata table with empty ID; the backend generates a UUID v7 and persists the entry"
+  - F4: "Add a second comment: call table.Set again with different content; verify that multiple metadata entries accumulate for the same crumb"
+  - F5: "Add an attachment: construct a Metadata struct with TableName=attachments and Content=JSON object, call table.Set; the backend stores the JSON content as-is"
+  - F6: "Retrieve metadata by ID: call table.Get with the metadata ID; the backend returns the Metadata struct with all fields populated"
+  - F7: "Filter by schema: call table.Fetch with filter schema=comments; the result includes only comment entries"
+  - F8: "Filter by crumb_id: call table.Fetch with filter crumb_id=crumb-uuid; the result includes only entries for that crumb"
+  - F9: "Combine filters: call table.Fetch with both schema and crumb_id filters; verify that filters are ANDed"
+  - F10: "Verify ErrNotFound: call table.Get with a nonexistent metadata ID; the operation returns ErrNotFound"
+  - F11: "Verify ErrInvalidID: call table.Get with an empty ID; the operation returns ErrInvalidID"
+  - F12: "Delete the parent crumb: call table.Delete on the crumbs table for the crumb with metadata"
+  - F13: "Verify cascade delete: call table.Fetch with crumb_id filter for the deleted crumb; the result is empty, confirming all metadata was removed"
+  - F14: "Detach: call cupboard.Detach() to release resources"
+touchpoints:
+  - T1: "Cupboard interface: Attach, GetTable, Detach (prd-cupboard-core R2)"
+  - T2: "Table interface: Get, Set, Delete, Fetch (prd-cupboard-core R3)"
+  - T3: "Metadata struct: MetadataID, CrumbID, TableName, Content, PropertyID, CreatedAt (prd-metadata-interface R1)"
+  - T4: "Built-in schemas: comments (text), attachments (json) (prd-metadata-interface R3)"
+  - T5: "Metadata creation via Table.Set: UUID v7 generation, timestamp (prd-metadata-interface R4)"
+  - T6: "Metadata retrieval via Table.Get: type assertion to *Metadata (prd-metadata-interface R5)"
+  - T7: "Filter map: schema, crumb_id filters (prd-metadata-interface R7)"
+  - T8: "Cascade delete: metadata removed when crumb deleted (prd-metadata-interface R6.5)"
+  - T9: "Error types: ErrNotFound, ErrInvalidID (prd-metadata-interface R10)"
+success_criteria:
+  - S1: Table.Set with empty ID generates a UUID v7 for metadata and persists to storage
+  - S2: Multiple metadata entries can be added to the same crumb (additive, not replacement)
+  - S3: Comments schema stores plain text content
+  - S4: Attachments schema stores JSON content as-is
+  - S5: Table.Get retrieves metadata with all fields matching what was created
+  - S6: Table.Fetch with schema filter returns only matching entries
+  - S7: Table.Fetch with crumb_id filter returns only entries for that crumb
+  - S8: Table.Fetch with multiple filters ANDs them together
+  - S9: Table.Get with nonexistent ID returns ErrNotFound
+  - S10: Table.Get with empty ID returns ErrInvalidID
+  - S11: When a crumb is deleted, all its metadata entries are also deleted
+  - S12: Table.Fetch for deleted crumb returns empty result
+out_of_scope:
+  - Schema registration for custom metadata types (see prd-metadata-interface R9)
+  - PropertyID linking for property-specific metadata
+  - Content validation (content_contains filter, JSON validation)
+  - Limit and offset pagination
+  - Metadata deletion via Table.Delete (append-only convention)
+  - JSONL persistence verification (covered by rel01.0-uc002)
+test_suite: test-rel02.1-uc004-metadata-lifecycle
+dependencies:
+  - D1: prd-cupboard-core (Cupboard and Table interface definitions)
+  - D2: prd-metadata-interface (Metadata struct, Schema struct, built-in schemas)
+  - D3: prd-sqlite-backend (SQLite backend, metadata table schema)
+  - D4: rel01.0-uc002-sqlite-crud (Table CRUD must work)
+risks:
+  - K1: "Cascade delete not implemented | Test will fail until R6.5 is implemented; track as gap"
+  - K2: "Built-in schemas not seeded | Backend must pre-register comments and attachments"
+demo: |
+  // Attach
+  cupboard := sqlite.NewBackend()
+  cfg := Config{Backend: "sqlite", DataDir: tmpDir}
+  cupboard.Attach(cfg)
+
+  // Create a crumb to hold metadata
+  crumbTable, _ := cupboard.GetTable("crumbs")
+  crumb := &Crumb{Name: "Task with comments"}
+  crumbID, _ := crumbTable.Set("", crumb)
+
+  // Get metadata table
+  metadataTable, _ := cupboard.GetTable("metadata")
+
+  // Add comment
+  comment := &Metadata{
+      CrumbID:   crumbID,
+      TableName: "comments",
+      Content:   "This is my first comment",
+  }
+  commentID, _ := metadataTable.Set("", comment)
+
+  // Add second comment
+  comment2 := &Metadata{
+      CrumbID:   crumbID,
+      TableName: "comments",
+      Content:   "This is my second comment",
+  }
+  metadataTable.Set("", comment2)
+
+  // Add attachment
+  attachment := &Metadata{
+      CrumbID:   crumbID,
+      TableName: "attachments",
+      Content:   `{"name":"log.txt","path":"/attachments/log.txt","mime_type":"text/plain"}`,
+  }
+  metadataTable.Set("", attachment)
+
+  // Retrieve by ID
+  entity, _ := metadataTable.Get(commentID)
+  retrieved := entity.(*Metadata)
+  // retrieved.Content == "This is my first comment"
+
+  // Filter by schema
+  comments, _ := metadataTable.Fetch(map[string]any{"schema": "comments"})
+  // len(comments) == 2
+
+  // Filter by crumb_id
+  allForCrumb, _ := metadataTable.Fetch(map[string]any{"crumb_id": crumbID})
+  // len(allForCrumb) == 3 (2 comments + 1 attachment)
+
+  // Delete parent crumb - cascade deletes metadata
+  crumbTable.Delete(crumbID)
+
+  // Verify cascade
+  afterDelete, _ := metadataTable.Fetch(map[string]any{"crumb_id": crumbID})
+  // len(afterDelete) == 0
+
+  cupboard.Detach()
+references:
+  - prd-metadata-interface
+  - prd-cupboard-core
+  - prd-sqlite-backend

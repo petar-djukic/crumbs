@@ -1,0 +1,284 @@
+id: test-rel02.1-uc004-metadata-lifecycle
+title: Metadata lifecycle operations
+description: >
+  Validates metadata CRUD operations through the Table interface. Tests cover
+  creating metadata entries with comments and attachments schemas, retrieving
+  metadata by ID, filtering by schema and crumb_id, verifying additive behavior
+  (multiple entries per crumb), error handling for invalid IDs, and cascade
+  delete when the parent crumb is removed.
+traces:
+  - rel02.1-uc004-metadata-lifecycle
+tags:
+  - integration
+  - metadata
+  - crud
+  - sqlite
+
+preconditions:
+  - Cupboard attached with SQLite backend
+  - Fresh temp directory for data
+  - No existing crumbs or metadata
+  - Built-in schemas (comments, attachments) pre-registered
+
+test_cases:
+
+  # --- S1: Set with empty ID generates UUID v7 and persists ---
+
+  - name: Create metadata with empty ID generates UUID v7
+    description: Calling Table.Set on metadata table with empty ID generates a UUID v7 identifier.
+    inputs:
+      setup:
+        - Create a crumb to attach metadata to
+      action: |
+        metadata := &Metadata{
+            CrumbID:   crumbID,
+            TableName: "comments",
+            Content:   "Test comment",
+        }
+        id, err := metadataTable.Set("", metadata)
+    expected:
+      error: nil
+      state:
+        metadata_id_format: uuid_v7
+        metadata_count: 1
+        metadata_created_at_set: true
+
+  # --- S2: Multiple metadata entries accumulate (additive, not replacement) ---
+
+  - name: Multiple comments accumulate on same crumb
+    description: Adding multiple comment metadata entries does not replace previous entries.
+    inputs:
+      setup:
+        - Create a crumb
+        - Add first comment
+      action: Add second comment with different content
+    expected:
+      error: nil
+      state:
+        total_metadata_count: 2
+        first_comment_exists: true
+        second_comment_exists: true
+
+  - name: Comments and attachments coexist on same crumb
+    description: A crumb can have both comment and attachment metadata entries.
+    inputs:
+      setup:
+        - Create a crumb
+        - Add a comment
+      action: Add an attachment
+    expected:
+      error: nil
+      state:
+        total_metadata_count: 2
+        comment_exists: true
+        attachment_exists: true
+
+  # --- S3: Comments schema stores plain text content ---
+
+  - name: Comment stores plain text content
+    description: Metadata with comments schema stores Content as plain text.
+    inputs:
+      setup:
+        - Create a crumb
+      action: |
+        metadata := &Metadata{
+            CrumbID:   crumbID,
+            TableName: "comments",
+            Content:   "This is a plain text comment with special chars: <>&",
+        }
+        id, err := metadataTable.Set("", metadata)
+    expected:
+      error: nil
+      state:
+        retrieved_content: "This is a plain text comment with special chars: <>&"
+
+  # --- S4: Attachments schema stores JSON content as-is ---
+
+  - name: Attachment stores JSON content
+    description: Metadata with attachments schema stores Content as JSON string.
+    inputs:
+      setup:
+        - Create a crumb
+      action: |
+        jsonContent := `{"name":"screenshot.png","path":"/attachments/img.png","mime_type":"image/png","size_bytes":102400}`
+        metadata := &Metadata{
+            CrumbID:   crumbID,
+            TableName: "attachments",
+            Content:   jsonContent,
+        }
+        id, err := metadataTable.Set("", metadata)
+    expected:
+      error: nil
+      state:
+        retrieved_content_is_valid_json: true
+        retrieved_content_contains: "screenshot.png"
+
+  # --- S5: Get retrieves metadata with all fields matching ---
+
+  - name: Get retrieves metadata with matching fields
+    description: Table.Get returns metadata with all fields matching what was created.
+    inputs:
+      setup:
+        - Create a crumb
+        - Create a comment metadata entry
+      action: Retrieve metadata by ID
+    expected:
+      error: nil
+      state:
+        metadata_id_matches: true
+        crumb_id_matches: true
+        table_name_matches: "comments"
+        content_matches: true
+        created_at_set: true
+
+  - name: Get retrieves attachment with JSON content intact
+    description: Table.Get returns attachment metadata with JSON content unchanged.
+    inputs:
+      setup:
+        - Create a crumb
+        - Create an attachment metadata entry with JSON content
+      action: Retrieve metadata by ID
+    expected:
+      error: nil
+      state:
+        content_is_valid_json: true
+        json_fields_present:
+          - name
+          - path
+          - mime_type
+
+  # --- S6: Fetch with schema filter returns only matching entries ---
+
+  - name: Fetch with schema filter returns comments only
+    description: Table.Fetch with schema=comments filter returns only comment entries.
+    inputs:
+      setup:
+        - Create a crumb
+        - Add two comments
+        - Add one attachment
+      action: Fetch with filter {"schema": "comments"}
+    expected:
+      error: nil
+      state:
+        result_count: 2
+        all_results_have_table_name: "comments"
+
+  - name: Fetch with schema filter returns attachments only
+    description: Table.Fetch with schema=attachments filter returns only attachment entries.
+    inputs:
+      setup:
+        - Create a crumb
+        - Add two comments
+        - Add two attachments
+      action: Fetch with filter {"schema": "attachments"}
+    expected:
+      error: nil
+      state:
+        result_count: 2
+        all_results_have_table_name: "attachments"
+
+  # --- S7: Fetch with crumb_id filter returns only entries for that crumb ---
+
+  - name: Fetch with crumb_id filter returns entries for specific crumb
+    description: Table.Fetch with crumb_id filter returns only metadata for that crumb.
+    inputs:
+      setup:
+        - Create crumb A with two comments
+        - Create crumb B with one comment
+      action: Fetch with filter {"crumb_id": crumbA_id}
+    expected:
+      error: nil
+      state:
+        result_count: 2
+        all_results_for_crumb: crumbA_id
+
+  - name: Fetch with crumb_id for crumb with no metadata returns empty
+    description: Table.Fetch with crumb_id filter for crumb without metadata returns empty.
+    inputs:
+      setup:
+        - Create crumb A with comments
+        - Create crumb B without metadata
+      action: Fetch with filter {"crumb_id": crumbB_id}
+    expected:
+      error: nil
+      state:
+        result_count: 0
+
+  # --- S8: Fetch with multiple filters ANDs them together ---
+
+  - name: Fetch with schema and crumb_id filters returns intersection
+    description: Table.Fetch with both schema and crumb_id filters returns entries matching both.
+    inputs:
+      setup:
+        - Create crumb A with one comment and one attachment
+        - Create crumb B with two comments
+      action: Fetch with filter {"schema": "comments", "crumb_id": crumbA_id}
+    expected:
+      error: nil
+      state:
+        result_count: 1
+        result_table_name: "comments"
+        result_crumb_id: crumbA_id
+
+  # --- S9: Get with nonexistent ID returns ErrNotFound ---
+
+  - name: Get nonexistent metadata returns ErrNotFound
+    description: Table.Get with a nonexistent metadata ID returns ErrNotFound.
+    inputs:
+      action: Get with ID "nonexistent-uuid-12345"
+    expected:
+      error: ErrNotFound
+
+  # --- S10: Get with empty ID returns ErrInvalidID ---
+
+  - name: Get with empty ID returns ErrInvalidID
+    description: Table.Get with an empty ID returns ErrInvalidID.
+    inputs:
+      action: Get with ID ""
+    expected:
+      error: ErrInvalidID
+
+  # --- S11 & S12: Cascade delete when crumb is deleted ---
+
+  - name: Delete crumb cascades to metadata
+    description: When a crumb is deleted, all its metadata entries are also deleted.
+    inputs:
+      setup:
+        - Create a crumb
+        - Add two comments to the crumb
+        - Add one attachment to the crumb
+      action: Delete the crumb
+    expected:
+      error: nil
+      state:
+        crumb_deleted: true
+
+  - name: Fetch metadata after crumb delete returns empty
+    description: After deleting a crumb, Table.Fetch with its crumb_id returns empty result.
+    inputs:
+      setup:
+        - Create a crumb
+        - Add comments and attachment
+        - Delete the crumb
+      action: Fetch with filter {"crumb_id": deleted_crumb_id}
+    expected:
+      error: nil
+      state:
+        result_count: 0
+
+  - name: Cascade delete only affects target crumb metadata
+    description: Deleting one crumb does not affect metadata on other crumbs.
+    inputs:
+      setup:
+        - Create crumb A with two comments
+        - Create crumb B with one comment
+        - Delete crumb A
+      action: Fetch with filter {"crumb_id": crumbB_id}
+    expected:
+      error: nil
+      state:
+        result_count: 1
+        metadata_for_crumb_b_intact: true
+
+cleanup:
+  - Remove temp data directory
