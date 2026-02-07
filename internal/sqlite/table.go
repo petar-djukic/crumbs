@@ -215,7 +215,14 @@ func (t *Table) getCrumb(id string) (*types.Crumb, error) {
 		"SELECT crumb_id, name, state, created_at, updated_at FROM crumbs WHERE crumb_id = ?",
 		id,
 	)
-	return hydrateCrumb(row)
+	crumb, err := hydrateCrumb(row)
+	if err != nil {
+		return nil, err
+	}
+	if err := t.loadCrumbProperties(crumb); err != nil {
+		return nil, fmt.Errorf("load crumb properties: %w", err)
+	}
+	return crumb, nil
 }
 
 func (t *Table) setCrumb(id string, crumb *types.Crumb) (string, error) {
@@ -277,6 +284,9 @@ func (t *Table) fetchCrumbs(filter map[string]any) ([]any, error) {
 		if err != nil {
 			return nil, err
 		}
+		if err := t.loadCrumbProperties(crumb); err != nil {
+			return nil, fmt.Errorf("load crumb properties: %w", err)
+		}
 		results = append(results, crumb)
 	}
 	return results, rows.Err()
@@ -337,6 +347,36 @@ func hydrateCrumbRow(rows *sql.Rows) (*types.Crumb, error) {
 	crumb.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 	crumb.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 	return &crumb, nil
+}
+
+// loadCrumbProperties populates the Properties map on a crumb by querying the crumb_properties table.
+// Per prd-crumbs-interface R6, Table.Get must return crumbs with their Properties map populated.
+func (t *Table) loadCrumbProperties(crumb *types.Crumb) error {
+	rows, err := t.backend.db.Query(
+		"SELECT property_id, value_type, value FROM crumb_properties WHERE crumb_id = ?",
+		crumb.CrumbID,
+	)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	if crumb.Properties == nil {
+		crumb.Properties = make(map[string]any)
+	}
+
+	for rows.Next() {
+		var propertyID, valueType, valueJSON string
+		if err := rows.Scan(&propertyID, &valueType, &valueJSON); err != nil {
+			return err
+		}
+		var value any
+		if err := json.Unmarshal([]byte(valueJSON), &value); err != nil {
+			return fmt.Errorf("unmarshal property %s: %w", propertyID, err)
+		}
+		crumb.Properties[propertyID] = value
+	}
+	return rows.Err()
 }
 
 // Trail operations

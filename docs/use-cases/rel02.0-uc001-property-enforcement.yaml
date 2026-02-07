@@ -20,7 +20,9 @@ flow:
   - F10: "Update custom property: Call crumb.SetProperty(propertyID, value) then persist to set the estimate to 5."
   - F11: "Clear property to default: Call crumb.ClearProperty(propertyID) then persist. Verify the estimate resets to 0 (the default), not null or unset."
   - F12: "Verify invariant holds: Retrieve both crumbs and call GetProperties(). Confirm each has exactly six properties with no gaps."
-  - F13: "Detach the cupboard: Call cupboard.Detach()."
+  - F13: "Retrieve crumb by ID with properties: Call Table.Get(crumbID) and verify the returned Crumb has its Properties map populated with all defined properties and their current values."
+  - F14: "Modify property on fetched crumb: Retrieve a crumb via Table.Get, call SetProperty to update a value, persist with Table.Set, then re-fetch the crumb via Table.Get and verify the updated value persists."
+  - F15: "Detach the cupboard: Call cupboard.Detach()."
 touchpoints:
   - T1: "Cupboard interface: Attach, Detach, GetTable (prd-cupboard-core R2)"
   - T2: "Table (crumbs): Get, Set, Fetch"
@@ -40,6 +42,8 @@ success_criteria:
   - S7: ClearProperty resets value to default, not null or unset
   - S8: Crumbs added after property definition have the new property auto-initialized
   - S9: No crumb ever has fewer properties than are defined
+  - S10: Table.Get returns crumb with Properties map containing all defined properties
+  - S11: Properties survive round-trip (create, get, verify, modify via SetProperty, get, verify updated value)
 out_of_scope:
   - Core CRUD operations (Get, Set, Delete, Fetch) - see rel01.0-uc003
   - Category management (DefineCategory, GetCategories entity methods)

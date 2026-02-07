@@ -390,5 +390,81 @@ test_cases:
       exit_code: 1
       stderr_contains: "duplicate name"
 
+  # --- S10: Table.Get returns crumb with Properties map populated ---
+
+  - name: Get crumb returns populated Properties map
+    description: Verify that Table.Get returns a crumb with Properties map containing all defined properties.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Properties hydration crumb"}'
+      command: cupboard get crumbs ${crumb_id} --json
+    expected:
+      exit_code: 0
+      state:
+        properties_count: 5
+        has_priority: true
+        has_type: true
+        has_description: true
+        has_owner: true
+        has_labels: true
+
+  - name: Fetched crumb properties match values set at creation
+    description: Verify that properties retrieved via Get match the values that were set during crumb creation.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Match values crumb"}'
+      command: cupboard get crumbs ${crumb_id} --json
+    expected:
+      exit_code: 0
+      state:
+        property_description: ""
+        property_owner: ""
+        property_labels: []
+
+  # --- S11: Properties survive round-trip ---
+
+  - name: SetProperty on fetched crumb persists through round-trip
+    description: Get a crumb, set a property, save, re-get, and verify the property value persists.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Round-trip crumb"}'
+        - cupboard set-property crumbs ${crumb_id} owner "round-trip-user"
+      command: cupboard get crumbs ${crumb_id} --json
+    expected:
+      exit_code: 0
+      state:
+        property_owner: "round-trip-user"
+
+  - name: Multiple property updates persist through round-trip
+    description: Update multiple properties and verify all values persist after re-fetching.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Multi-update crumb"}'
+        - cupboard set-property crumbs ${crumb_id} owner "alice"
+        - cupboard set-property crumbs ${crumb_id} description "A test description"
+        - cupboard set-property crumbs ${crumb_id} labels '["tag1","tag2"]'
+      command: cupboard get crumbs ${crumb_id} --json
+    expected:
+      exit_code: 0
+      state:
+        property_owner: "alice"
+        property_description: "A test description"
+        property_labels:
+          - tag1
+          - tag2
+
+  - name: Property round-trip with custom property
+    description: Create custom property, create crumb, update property, re-fetch and verify.
+    inputs:
+      setup:
+        - cupboard set properties "" '{"Name":"score","ValueType":"integer","Description":"Score value"}'
+        - cupboard set crumbs "" '{"Name":"Custom round-trip crumb"}'
+        - cupboard set-property crumbs ${crumb_id} score 42
+      command: cupboard get crumbs ${crumb_id} --json
+    expected:
+      exit_code: 0
+      state:
+        property_score: 42
+
 cleanup:
   - Remove temp config and data directories
