@@ -25,6 +25,9 @@ releases:
       - id: rel00.0-uc001-self-hosting
         summary: Crumbs tracks its own development
         status: not_started
+      - id: rel00.0-uc002-go-install
+        summary: Install cupboard CLI via go install
+        status: not_started
 
   - version: "01.0"
     name: Core Storage with SQLite Backend
