@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/petar-djukic/crumbs/pkg/types"
+	"github.com/mesh-intelligence/crumbs/pkg/types"
 )
 
 // TestUC001_CRUDOperations validates the tracer bullet for uc001-crud-operations.

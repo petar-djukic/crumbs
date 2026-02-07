@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/petar-djukic/crumbs/pkg/types"
+	"github.com/mesh-intelligence/crumbs/pkg/types"
 )
 
 // JSONL file names per prd-configuration-directories R4.

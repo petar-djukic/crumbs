@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 
-	"github.com/petar-djukic/crumbs/pkg/types"
+	"github.com/mesh-intelligence/crumbs/pkg/types"
 )
 
 //go:embed schema.sql

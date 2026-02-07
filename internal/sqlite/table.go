@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/petar-djukic/crumbs/pkg/types"
+	"github.com/mesh-intelligence/crumbs/pkg/types"
 )
 
 // Table provides CRUD operations for a specific entity type.

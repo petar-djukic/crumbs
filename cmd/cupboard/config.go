@@ -12,8 +12,8 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/petar-djukic/crumbs/internal/paths"
-	"github.com/petar-djukic/crumbs/pkg/types"
+	"github.com/mesh-intelligence/crumbs/internal/paths"
+	"github.com/mesh-intelligence/crumbs/pkg/types"
 )
 
 // Environment variables for directory overrides (per R1.3, R2.3).

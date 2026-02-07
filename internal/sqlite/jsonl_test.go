@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/petar-djukic/crumbs/pkg/types"
+	"github.com/mesh-intelligence/crumbs/pkg/types"
 )
 
 func TestJSONLFilesCreatedOnAttach(t *testing.T) {

@@ -11,8 +11,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/petar-djukic/crumbs/internal/sqlite"
-	"github.com/petar-djukic/crumbs/pkg/types"
+	"github.com/mesh-intelligence/crumbs/internal/sqlite"
+	"github.com/mesh-intelligence/crumbs/pkg/types"
 )
 
 var (

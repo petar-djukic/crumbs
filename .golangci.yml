@@ -52,7 +52,7 @@ linters-settings:
 
   goimports:
     # Local prefix for import grouping
-    local-prefixes: github.com/petar-djukic/crumbs
+    local-prefixes: github.com/mesh-intelligence/crumbs
 
 issues:
   # Maximum issues per linter (0 = unlimited)
