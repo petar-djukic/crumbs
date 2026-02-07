@@ -28,6 +28,15 @@ releases:
       - id: rel00.0-uc002-go-install
         summary: Install cupboard CLI via go install
         status: not_started
+      - id: rel00.0-uc003-issue-tracking-cli
+        summary: Issue-tracking CLI commands for scripts
+        status: not_started
+      - id: rel00.0-uc004-jsonl-git-roundtrip
+        summary: JSONL persistence survives database deletion
+        status: not_started
+      - id: rel00.0-uc005-table-benchmarks
+        summary: Benchmark Table operations at scale
+        status: not_started
 
   - version: "01.0"
     name: Core Storage with SQLite Backend
