@@ -1,0 +1,384 @@
+id: test010-issue-tracking-cli
+title: Issue-tracking CLI commands
+description: >
+  Validates the seven issue-tracking commands (create, ready, update, close,
+  show, list, comments) against a fresh cupboard instance. Each test case
+  exercises command behavior in both human-readable and JSON output modes,
+  covering the success criteria from rel02.1-uc001-issue-tracking-cli.
+traces:
+  - rel02.1-uc001-issue-tracking-cli
+tags:
+  - cli
+  - integration
+  - issue-tracking
+
+preconditions:
+  - Cupboard binary built from cmd/cupboard
+  - Fresh temp directory for config and data
+  - Config file points SQLite backend at the temp data directory
+  - CUPBOARD_CONFIG environment variable set to config file path
+  - No existing crumbs in the table
+
+test_cases:
+
+  # --- S1: create with JSON output ---
+
+  - name: Create task with JSON output returns crumb_id, state, and type
+    description: >
+      Validates S1: cupboard create --type task --title 'Demo' --description 'Test'
+      --json outputs JSON with crumb_id, state open, type task.
+    inputs:
+      command: cupboard create --type task --title "Demo" --description "Test" --json
+    expected:
+      exit_code: 0
+      stdout_json:
+        crumb_id: present
+        state: open
+        type: task
+        title: "Demo"
+
+  - name: Create task with required fields in human-readable mode
+    inputs:
+      command: cupboard create --type task --title "Implement feature" --description "Details here"
+    expected:
+      exit_code: 0
+      stdout_contains: "Created"
+
+  # --- S2: list returns created task ---
+
+  - name: List returns JSON array containing created task
+    description: >
+      Validates S2: cupboard list --json returns JSON array containing the created task.
+    inputs:
+      setup:
+        - cupboard create --type task --title "Listed task" --description "Should appear in list" --json
+      command: cupboard list --json
+    expected:
+      exit_code: 0
+      stdout_json:
+        type: array
+        min_length: 1
+        items_contain:
+          title: "Listed task"
+          type: task
+
+  - name: List empty cupboard returns empty JSON array
+    inputs:
+      command: cupboard list --json
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 0
+
+  # --- S3: show displays details in human-readable format ---
+
+  - name: Show displays title, state, type, and description
+    description: >
+      Validates S3: cupboard show <id> displays title, state, type, and description
+      in human-readable format.
+    inputs:
+      setup:
+        - cupboard create --type task --title "Visible task" --description "Full details here" --json
+      command: cupboard show ${crumb_id}
+    expected:
+      exit_code: 0
+      stdout_contains: "Visible task"
+      stdout_contains: "task"
+      stdout_contains: "open"
+      stdout_contains: "Full details here"
+
+  - name: Show with JSON output returns full crumb object
+    inputs:
+      setup:
+        - cupboard create --type task --title "JSON show" --description "Machine readable" --json
+      command: cupboard show ${crumb_id} --json
+    expected:
+      exit_code: 0
+      stdout_json:
+        title: "JSON show"
+        type: task
+        state: open
+        description: "Machine readable"
+
+  - name: Show nonexistent ID returns error
+    inputs:
+      command: cupboard show nonexistent-uuid-12345
+    expected:
+      exit_code: 1
+      stderr_contains: "not found"
+
+  # --- S4: ready returns open tasks ---
+
+  - name: Ready returns JSON array including open tasks
+    description: >
+      Validates S4: cupboard ready --json --type task returns JSON array including
+      open tasks.
+    inputs:
+      setup:
+        - cupboard create --type task --title "Ready task" --description "Available for work" --json
+      command: cupboard ready --json --type task
+    expected:
+      exit_code: 0
+      stdout_json:
+        type: array
+        min_length: 1
+        items_contain:
+          title: "Ready task"
+          state: open
+          type: task
+
+  - name: Ready filters by type
+    inputs:
+      setup:
+        - cupboard create --type epic --title "An epic" --description "Not a task"
+        - cupboard create --type task --title "A task" --description "This one"
+      command: cupboard ready --json --type task
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 1
+        items:
+          - type: task
+
+  - name: Ready with limit returns at most n results
+    inputs:
+      setup:
+        - cupboard create --type task --title "Task 1" --description "First"
+        - cupboard create --type task --title "Task 2" --description "Second"
+        - cupboard create --type task --title "Task 3" --description "Third"
+      command: cupboard ready -n 2 --json --type task
+    expected:
+      exit_code: 0
+      stdout_json:
+        max_length: 2
+
+  # --- S5: update status to in_progress ---
+
+  - name: Update status to in_progress succeeds with confirmation
+    description: >
+      Validates S5: cupboard update <id> --status in_progress exits with code 0
+      and confirmation message.
+    inputs:
+      setup:
+        - cupboard create --type task --title "Claimable task" --description "Ready to claim" --json
+      command: cupboard update ${crumb_id} --status in_progress
+    expected:
+      exit_code: 0
+      stdout_contains: "Updated"
+
+  - name: Update status to in_progress changes state
+    inputs:
+      setup:
+        - cupboard create --type task --title "State change" --description "Will transition" --json
+      command: cupboard update ${crumb_id} --status in_progress
+    expected:
+      exit_code: 0
+    verify:
+      command: cupboard show ${crumb_id} --json
+      stdout_json:
+        state: in_progress
+
+  - name: Update nonexistent ID fails
+    inputs:
+      command: cupboard update nonexistent-uuid-12345 --status in_progress
+    expected:
+      exit_code: 1
+      stderr_contains: "not found"
+
+  # --- S6: ready excludes tasks no longer in open state ---
+
+  - name: Ready excludes tasks not in open state
+    description: >
+      Validates S6: cupboard ready --json --type task excludes tasks no longer
+      in open state.
+    inputs:
+      setup:
+        - cupboard create --type task --title "Open task" --description "Still available"
+        - cupboard create --type task --title "Claimed task" --description "Already taken" --json
+        - cupboard update ${crumb_id} --status in_progress
+      command: cupboard ready --json --type task
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 1
+        items:
+          - title: "Open task"
+
+  - name: Ready returns empty when all tasks claimed
+    inputs:
+      setup:
+        - cupboard create --type task --title "Only task" --description "Will be claimed" --json
+        - cupboard update ${crumb_id} --status in_progress
+      command: cupboard ready --json --type task
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 0
+
+  # --- S7: comments add succeeds ---
+
+  - name: Comments add exits with confirmation
+    description: >
+      Validates S7: cupboard comments add <id> 'text' exits with code 0 and
+      confirmation message.
+    inputs:
+      setup:
+        - cupboard create --type task --title "Commentable" --description "Has comments" --json
+      command: cupboard comments add ${crumb_id} "tokens: 34256"
+    expected:
+      exit_code: 0
+      stdout_contains: "Added"
+
+  - name: Comments add to nonexistent ID fails
+    inputs:
+      command: cupboard comments add nonexistent-uuid-12345 "orphan comment"
+    expected:
+      exit_code: 1
+      stderr_contains: "not found"
+
+  # --- S8: show includes comment text ---
+
+  - name: Show includes comment text in output
+    description: >
+      Validates S8: cupboard show <id> includes comment text in output.
+    inputs:
+      setup:
+        - cupboard create --type task --title "Task with comment" --description "Will have note" --json
+        - cupboard comments add ${crumb_id} "Work session note: completed review"
+      command: cupboard show ${crumb_id}
+    expected:
+      exit_code: 0
+      stdout_contains: "Work session note: completed review"
+
+  - name: Show includes multiple comments
+    inputs:
+      setup:
+        - cupboard create --type task --title "Multi-comment task" --description "Several notes" --json
+        - cupboard comments add ${crumb_id} "First comment"
+        - cupboard comments add ${crumb_id} "Second comment"
+      command: cupboard show ${crumb_id}
+    expected:
+      exit_code: 0
+      stdout_contains: "First comment"
+      stdout_contains: "Second comment"
+
+  # --- S9: close succeeds ---
+
+  - name: Close exits with confirmation
+    description: >
+      Validates S9: cupboard close <id> exits with code 0 and confirmation message.
+    inputs:
+      setup:
+        - cupboard create --type task --title "To be closed" --description "Will close" --json
+      command: cupboard close ${crumb_id}
+    expected:
+      exit_code: 0
+      stdout_contains: "Closed"
+
+  - name: Close nonexistent ID fails
+    inputs:
+      command: cupboard close nonexistent-uuid-12345
+    expected:
+      exit_code: 1
+      stderr_contains: "not found"
+
+  # --- S10: show confirms closed state ---
+
+  - name: Show confirms state is closed after close command
+    description: >
+      Validates S10: cupboard show <id> shows state as closed after close command.
+    inputs:
+      setup:
+        - cupboard create --type task --title "Closed task" --description "State verified" --json
+        - cupboard close ${crumb_id}
+      command: cupboard show ${crumb_id}
+    expected:
+      exit_code: 0
+      stdout_contains: "closed"
+
+  - name: Show with JSON confirms closed state
+    inputs:
+      setup:
+        - cupboard create --type task --title "JSON closed" --description "Verify JSON" --json
+        - cupboard close ${crumb_id}
+      command: cupboard show ${crumb_id} --json
+    expected:
+      exit_code: 0
+      stdout_json:
+        state: closed
+
+  # --- Additional: ready excludes closed tasks (reinforces S6) ---
+
+  - name: Ready excludes closed tasks
+    inputs:
+      setup:
+        - cupboard create --type task --title "Open for work" --description "Available"
+        - cupboard create --type task --title "Already done" --description "Completed" --json
+        - cupboard close ${crumb_id}
+      command: cupboard ready --json --type task
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 1
+        items:
+          - title: "Open for work"
+
+  # --- End-to-end workflow ---
+
+  - name: Full issue-tracking workflow
+    description: >
+      Exercises the complete flow from F1-F14 in the use case: create task,
+      verify with list and show, claim with update, add comment, close, and
+      confirm final state.
+    inputs:
+      steps:
+        - command: cupboard create --type task --title "Workflow task" --description "End-to-end test" --json
+          capture: task_id
+        - command: cupboard list --json
+          verify:
+            stdout_json:
+              min_length: 1
+        - command: cupboard show ${task_id}
+          verify:
+            stdout_contains: "Workflow task"
+        - command: cupboard ready --json --type task
+          verify:
+            stdout_json:
+              min_length: 1
+        - command: cupboard update ${task_id} --status in_progress
+        - command: cupboard show ${task_id}
+          verify:
+            stdout_contains: "in_progress"
+        - command: cupboard comments add ${task_id} "Session complete"
+        - command: cupboard show ${task_id}
+          verify:
+            stdout_contains: "Session complete"
+        - command: cupboard close ${task_id}
+        - command: cupboard show ${task_id}
+          verify:
+            stdout_contains: "closed"
+        - command: cupboard ready --json --type task
+          verify:
+            stdout_json:
+              not_contains:
+                title: "Workflow task"
+    expected:
+      exit_code: 0
+
+  - name: Create epic with labels
+    description: >
+      Validates F4 from use case: create epic with --labels flag to set
+      categorical and list properties.
+    inputs:
+      command: cupboard create --type epic --title "Storage layer" --labels "code,infra" --json
+    expected:
+      exit_code: 0
+      stdout_json:
+        type: epic
+        title: "Storage layer"
+        labels:
+          - code
+          - infra
+
+cleanup:
+  - Remove temp config and data directories

@@ -74,7 +74,7 @@ out_of_scope:
   - Trail operations (create, complete, abandon)
   - Multi-user or concurrent access patterns
   - Remote backends
-test_suite: TBD
+test_suite: test010-issue-tracking-cli
 dependencies:
   - D1: "Cupboard interface with Attach/Detach/GetTable (prd-cupboard-core R2, R4, R5)"
   - D2: "Table interface with Get/Set/Delete/Fetch (prd-cupboard-core R3)"
