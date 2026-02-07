@@ -4,13 +4,13 @@ Engineering guidelines document conventions, practices, and patterns that sit ab
 
 ## File and Naming
 
-- **Location**: `docs/engineering/eng[NNN]-[short-name].md`
-- **Prefix**: `eng` followed by a three-digit sequence number (e.g., `eng001`, `eng002`)
+- **Location**: `docs/engineering/eng[NN]-[short-name].md`
+- **Prefix**: `eng` followed by a two-digit sequence number (e.g., `eng01`, `eng02`)
 - **Short name**: Lowercase, hyphenated, describing the topic (e.g., `git-integration`, `testing-strategy`)
 
 Examples:
-- `docs/engineering/eng001-git-integration.md`
-- `docs/engineering/eng002-testing-strategy.md`
+- `docs/engineering/eng01-git-integration.md`
+- `docs/engineering/eng02-testing-strategy.md`
 
 ## Required Sections
 
