@@ -27,6 +27,7 @@ Documentation issues produce markdown (and optionally diagrams) under `docs/`. T
 | **Use case** | `docs/use-cases/rel[NN].[N]-uc[NNN]-[short-name].yaml` | use-case-format | Tracer-bullet flows, actor/trigger, demo criteria; must include test suite |
 | **Test suite** | `docs/test-suites/test[NNN]-[short-name].yaml` | test-case-format | Test cases with inputs and expected outputs |
 | **Engineering guideline** | `docs/engineering/eng[NN]-[short-name].md` | engineering-guideline-format | Conventions and practices |
+| **Specification** | `docs/SPECIFICATIONS.md` | specification-format | Summary of PRDs, use cases, test suites, roadmap with traceability diagram |
 
 ### What to Put in the Issue
 
@@ -114,6 +115,7 @@ When proposing or implementing code issues, keep implementation in **internal/**
 | Documentation (use case) | `docs/use-cases/rel*-uc*-*.yaml` | Required Reading, Files to Create/Modify, Summary, Actor/trigger, Flow, Success criteria; follow use-case-format |
 | Documentation (test suite) | `docs/test-suites/test*.yaml` | Required Reading, Files to Create/Modify, traces, preconditions, test_cases with inputs/expected; follow test-case-format |
 | Documentation (engineering guideline) | `docs/engineering/eng*.md` | Required Reading, Files to Create/Modify, Introduction, Body; follow engineering-guideline-format |
+| Documentation (specification) | `docs/SPECIFICATIONS.md` | Required Reading, Files to Create/Modify, Overview, Roadmap Summary, PRD/Use Case/Test Suite indexes, Traceability Diagram, Coverage Gaps; follow specification-format |
 | Code | `pkg/`, `internal/`, `cmd/` | Required Reading, Files to Create/Modify, Requirements, Design Decisions, Acceptance Criteria (tests/behavior); see Go layout above |
 
 ## When Creating or Editing Issues
