@@ -20,8 +20,11 @@ Crumbs solves this by providing storage with first-class support for trails. We 
 
 **Stashes** enable crumbs on a trail to share state. A stash can hold resources (files, URLs), artifacts (outputs from one crumb as inputs to another), context (shared configuration), counters (atomic numeric state), or locks (mutual exclusion). Stashes are scoped to a trail or global, versioned, and maintain a full history of changes for auditability.
 
-<!-- TODO: Extend trails and stashes with properties -->
-**Properties** extend crumbs with custom attributes. Every crumb has a value for every defined property—there is no "not set" state. Built-in properties (priority, type, description, owner, labels) are available out of the box. Applications can define additional properties at runtime without schema migrations.
+**Properties** extend entities with custom attributes. We design properties as a general mechanism that applies to crumbs, trails, and stashes uniformly. Every entity has a value for every defined property in its scope—there is no "not set" state. Built-in crumb properties (priority, type, description, owner, labels) are available out of the box. Applications can define additional properties at runtime without schema migrations.
+
+Trail properties describe exploration sessions. A research project might define properties such as hypothesis, approach, or risk-level for trails. When agents create trails for different implementation approaches, they annotate each trail with properties that help them compare alternatives and decide which path to pursue.
+
+Stash properties describe shared state containers. A build system might define properties such as build-stage, artifact-type, or retention-policy for stashes. When crumbs on a trail produce artifacts, the stash properties help categorize and manage those outputs across the exploration session.
 
 **Cupboard** is the storage system that holds all crumbs, trails, and stashes.
 
