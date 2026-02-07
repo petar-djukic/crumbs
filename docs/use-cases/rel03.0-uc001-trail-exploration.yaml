@@ -1,0 +1,70 @@
+id: rel03.0-uc001-trail-exploration
+title: Trail-Based Exploration
+summary: |
+  A developer creates a trail to explore an implementation approach, adds crumbs
+  to the trail via belongs_to links, and either completes or abandons the trail.
+  This tracer bullet validates the trail lifecycle and the atomic cleanup behavior
+  when abandoning exploratory work.
+actor: Coding agent or developer exploring alternative implementation approaches
+trigger: Uncertainty about the best approach to a task, requiring exploratory work that may be discarded
+flow:
+  - F1: "Create cupboard and get tables: construct a Cupboard via sqlite.NewBackend(), call Attach(config), and get trails, crumbs, and links tables"
+  - F2: "Create a parent crumb (optional): create a task that the trail will explore approaches for"
+  - F3: "Create a trail and link branch point: call trailsTable.Set with a new Trail (starts in active state), then create a branches_from link to indicate the branch point"
+  - F4: "Verify trail state and branch point: retrieve the trail and confirm active state, query links table to verify the branches_from link"
+  - F5: "Add exploration crumbs: create crumbs and associate them with the trail via belongs_to links"
+  - F6: "Add more crumbs to trail: repeat step 5 for additional exploration"
+  - F7: "List crumbs on trail: query links table for belongs_to links where to_id equals the trail ID"
+  - F8: "Remove a crumb from trail: delete the belongs_to link to disassociate without deleting the crumb"
+  - F9: "Abandon the trail: call trail.Abandon() then Table.Set; backend deletes crumbs that belong to this trail but leaves removed crumbs intact"
+  - F10: "Verify cleanup: confirm deleted crumb returns ErrNotFound, removed crumb still exists"
+  - F11: "Create another trail and complete it: create trail, add crumbs, call trail.Complete() then Table.Set; backend removes belongs_to links and crumbs become permanent"
+  - F12: "Verify completion: confirm completed trail crumbs still exist and are queryable"
+  - F13: "Filter crumbs by trail: query links for completed trail returns empty (links removed on complete)"
+  - F14: "Detach the cupboard: call cupboard.Detach()"
+touchpoints:
+  - T1: "Cupboard interface: Attach, Detach, GetTable"
+  - T2: "Table (crumbs): Get, Set, Delete, Fetch"
+  - T3: "Table (trails): Get, Set"
+  - T4: "Table (links): Get, Set, Delete, Fetch with belongs_to/branches_from filters"
+  - T5: "Trail entity: Complete, Abandon methods"
+  - T6: "Trail creation via Table.Set (prd-trails-interface R3)"
+  - T7: "Crumb-trail membership via belongs_to links (prd-trails-interface R7)"
+  - T8: "Trail completion makes crumbs permanent by removing links (prd-trails-interface R5)"
+  - T9: "Trail abandonment deletes associated crumbs atomically (prd-trails-interface R6)"
+  - T10: "Link-based querying for trail membership (prd-sqlite-backend)"
+success_criteria:
+  - S1: Trail created via Table.Set starts in active state
+  - S2: belongs_to links associate crumbs with trails
+  - S3: Querying links table with belongs_to filter returns crumbs on that trail
+  - S4: Deleting belongs_to link disassociates without deleting the crumb
+  - S5: trail.Abandon() then Table.Set deletes trail crumbs atomically
+  - S6: Crumbs removed from trail before abandon survive
+  - S7: trail.Complete() then Table.Set removes belongs_to links
+  - S8: Completed trail crumbs remain queryable
+  - S9: Trail state is completed or abandoned after respective operations
+  - S10: No orphan crumbs or links after abandonment
+out_of_scope:
+  - Nested trails (trails containing trails)
+  - Trail merging or splitting
+  - Trail history or versioning
+  - Stash operations (see rel03.0-uc002 if created)
+  - Concurrent trail operations
+  - Trail templates or predefined workflows
+test_suite: TBD
+dependencies:
+  - D1: rel01.0-uc001 (Cupboard lifecycle) must pass
+  - D2: rel01.0-uc003 (Core CRUD) must pass
+  - D3: prd-trails-interface must be implemented
+  - D4: prd-sqlite-backend (links table) must be implemented
+risks:
+  - K1: "Orphan crumbs after failed abandonment | Use transaction; rollback on failure"
+  - K2: "belongs_to links not cleaned up | Verify link cleanup in tests"
+  - K3: "Performance with large trails | Test with 100+ crumbs on a single trail"
+  - K4: "Race condition on concurrent trail ops | Document single-writer expectation for trails"
+demo: |
+  # Run the demo binary or test
+  go test -v ./internal/sqlite -run TestTrailExploration
+
+  # Or run a CLI demo
+  crumbs demo trails --datadir /tmp/crumbs-demo

@@ -1,0 +1,90 @@
+id: rel99.0-uc002-docker-bootstrap
+title: Docker Bootstrap (Docs to Working System)
+summary: |
+  An agent builds crumbs from documentation alone inside a fresh Docker container,
+  then uses crumbs to track its own work. This validates that the documentation is
+  sufficient to produce a working system and that crumbs can serve as the issue tracker.
+actor: Coding agent (Claude) running inside a Docker container with Go toolchain and access to Claude API
+trigger: Starting the container with only the docs/ directory mounted (no source code, just documentation)
+flow:
+  - F1: "Build Docker image: create an image with Go toolchain and Claude Code installed, no crumbs source code"
+  - F2: "Start container: mount only the docs/ directory from the host"
+  - F3: "Verify environment: confirm Go and Claude are available, confirm no existing source code"
+  - F4: "Read documentation: read VISION.md, ARCHITECTURE.md, road-map.yaml, PRDs, and use cases from the mounted docs directory"
+  - F5: "Plan work items: create a work plan for release 01.0 based on road-map.yaml covering core interfaces from prd-cupboard-core and SQLite backend from prd-sqlite-backend"
+  - F6: "Implement release 01.0: implement pkg/types (Cupboard, Table, Crumb, Config), internal/sqlite (backend, JSONL, directory layout), cmd/crumbs (CLI with config loading)"
+  - F7: "Validate use cases: verify success criteria for rel01.0-uc001 (Cupboard lifecycle), rel01.0-uc002 (SQLite CRUD), rel01.0-uc003 (Core CRUD)"
+  - F8: "Build and test: compile crumbs and run tests with go build and go test"
+  - F9: "Initialize crumbs: create a crumbs cupboard for tracking work using platform-appropriate directories"
+  - F10: "Import remaining work: create crumbs for release 02.0+ work items using the CLI"
+  - F11: "Verify crumbs operations: test that crumbs CLI commands work correctly (list, ready, update, close)"
+  - F12: "Continue development: use crumbs to track work on releases 02.0, 03.0, 04.0"
+  - F13: "Verify crumbs tracks crumbs: confirm work items are managed by crumbs itself with JSONL persistence and SQLite cache"
+  - F14: "Complete remaining releases: work through releases 02.0-04.0 tracking all work in crumbs with proper state lifecycle"
+  - F15: "Export container: package the completed crumbs implementation for use outside the container"
+touchpoints:
+  - T1: "Docker: isolated build environment"
+  - T2: "docs/ directory: source of truth for implementation"
+  - T3: "crumbs CLI: work tracking and self-hosting (prd-configuration-directories R7)"
+  - T4: "Cupboard interface: core storage abstraction with Attach/Detach lifecycle (prd-cupboard-core R2, R4, R5)"
+  - T5: "Table interface: uniform CRUD operations Get, Set, Delete, Fetch (prd-cupboard-core R3)"
+  - T6: "Config struct: backend selection and data directory (prd-cupboard-core R1, prd-configuration-directories R8)"
+  - T7: "SQLite backend: storage implementation with JSONL source of truth (prd-sqlite-backend R1-R16)"
+  - T8: "Crumb entity: work item with state lifecycle and properties (prd-crumbs-interface R1-R11)"
+  - T9: "JSONL files: line-delimited JSON for data persistence (prd-configuration-directories R3-R4)"
+success_criteria:
+  - S1: Docker container starts with only docs/ mounted (no source code)
+  - S2: Agent reads and understands all documentation (VISION, ARCHITECTURE, PRDs)
+  - S3: Agent implements release 01.0 from documentation (prd-cupboard-core, prd-crumbs-interface, prd-sqlite-backend, prd-configuration-directories)
+  - S4: Cupboard interface works with Attach initializing storage (prd-cupboard-core R4) and Detach cleaning up (prd-cupboard-core R5)
+  - S5: Table interface works with Get, Set, Delete, Fetch operations (prd-cupboard-core R3)
+  - S6: Crumb entity works with state transitions and property methods (prd-crumbs-interface R4, R5)
+  - S7: SQLite backend works with JSONL persistence and startup loading (prd-sqlite-backend R4, R5)
+  - S8: All release 01.0 tests pass
+  - S9: All release 01.0 use case success criteria are met
+  - S10: Crumbs CLI initializes and accepts work items (prd-configuration-directories R1, R2)
+  - S11: Remaining releases (02.0+) are tracked in crumbs
+  - S12: Final crumbs implementation matches documentation
+out_of_scope:
+  - Multi-agent coordination (single agent bootstrap)
+  - Continuous integration setup
+  - Production deployment
+  - Performance optimization
+  - Documentation generation (docs are input, not output)
+test_suite: TBD
+dependencies:
+  - D1: Docker installed on host
+  - D2: Claude API access
+  - D3: Go toolchain in image
+  - D4: prd-cupboard-core (R1 Config, R2 Cupboard interface, R3 Table interface, R4 Attach, R5 Detach, R7 error types, R8 UUID v7)
+  - D5: prd-crumbs-interface (R1 Crumb struct, R2 states, R3 creation, R4 state transitions, R5 property methods, R6-R10 operations)
+  - D6: prd-sqlite-backend (R1 directory layout, R2 JSONL format, R3 schema, R4 startup, R5 write operations, R11-R15 implementation)
+  - D7: prd-configuration-directories (R1 CLI config directory, R2 data directory, R3 JSONL format, R4 file layout, R7 CLI loading)
+  - D8: VISION.md (goals and boundaries)
+  - D9: ARCHITECTURE.md (components and interfaces)
+  - D10: road-map.yaml (release schedule)
+risks:
+  - K1: "Documentation gaps block implementation | Agent files issues for missing specs; human reviews and updates PRDs"
+  - K2: "PRD ambiguity in interface contracts | Cross-reference prd-cupboard-core, prd-crumbs-interface, and prd-sqlite-backend"
+  - K3: "API rate limits slow progress | Use appropriate rate limiting; run overnight if needed"
+  - K4: "Build failures | Agent debugs and fixes; documents any doc corrections needed"
+  - K5: "Container state loss | Mount output volume; commit work frequently"
+demo: |
+  # Build bootstrap image
+  docker build -t crumbs-bootstrap -f Dockerfile.bootstrap .
+
+  # Run bootstrap (mounts only docs/)
+  docker run -it \
+    -v $(pwd)/docs:/workspace/docs:ro \
+    -v crumbs-output:/workspace/output \
+    -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+    crumbs-bootstrap
+
+  # Inside container, agent runs:
+  # 1. Read docs (VISION, ARCHITECTURE, PRDs)
+  # 2. Implement release 01.0 per prd-cupboard-core, prd-crumbs-interface, prd-sqlite-backend
+  # 3. Initialize crumbs, import remaining work
+  # 4. Complete remaining releases using crumbs
+
+  # Extract output
+  docker cp crumbs-bootstrap:/workspace/output ./generated-crumbs
