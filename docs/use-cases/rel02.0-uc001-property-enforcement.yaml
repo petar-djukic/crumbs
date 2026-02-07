@@ -47,7 +47,7 @@ out_of_scope:
   - Trail operations - see rel03.0-uc001
   - Concurrent property definition and crumb creation
   - Property value validation beyond type checking
-test_suite: test008-property-enforcement
+test_suite: test-rel02.0-uc001-property-enforcement
 dependencies:
   - D1: rel01.0-uc001 (Cupboard lifecycle) must pass
   - D2: rel01.0-uc003 (Core CRUD) must pass

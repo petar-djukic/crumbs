@@ -1,4 +1,4 @@
-id: test006-sqlite-crud
+id: test-rel01.0-uc002-sqlite-crud
 title: Table interface CRUD operations
 description: >
   Validates the Table interface CRUD operations (Get, Set, Delete, Fetch) through the

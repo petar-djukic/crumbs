@@ -51,7 +51,7 @@ out_of_scope:
   - Production deployment
   - Performance optimization
   - Documentation generation (docs are input, not output)
-test_suite: test013-docker-bootstrap
+test_suite: test-rel99.0-uc002-docker-bootstrap
 dependencies:
   - D1: Docker installed on host
   - D2: Claude API access

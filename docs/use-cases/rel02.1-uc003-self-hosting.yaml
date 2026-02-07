@@ -79,7 +79,7 @@ out_of_scope:
   - Multi-agent coordination (single agent self-hosting)
   - Remote backends (SQLite only)
   - Trail-based worktree integration in the CLI (trails are worktrees per eng01-git-integration, but the CLI does not manage git worktrees; do-work.sh handles that)
-test_suite: test001-self-hosting
+test_suite: test-rel02.1-uc003-self-hosting
 dependencies:
   - D1: "Cupboard interface with Attach/Detach/GetTable (prd-cupboard-core R2, R4, R5)"
   - D2: "Table interface with Get/Set/Delete/Fetch (prd-cupboard-core R3)"

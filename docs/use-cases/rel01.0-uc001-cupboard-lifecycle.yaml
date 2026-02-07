@@ -39,7 +39,7 @@ success_criteria:
 out_of_scope:
   - Connection pooling or retry policies
   - File-based configuration loading (JSON/YAML parsing)
-test_suite: test004-cupboard-lifecycle
+test_suite: test-rel01.0-uc001-cupboard-lifecycle
 dependencies:
   - D1: prd-cupboard-core must be defined (Config, Cupboard, Table interfaces)
   - D2: SQLite backend must implement the Cupboard interface

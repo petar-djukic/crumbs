@@ -1,4 +1,4 @@
-id: test004-cupboard-lifecycle
+id: test-rel01.0-uc001-cupboard-lifecycle
 title: Cupboard lifecycle and CRUD operations
 description: >
   Validates crumb state transitions, trail creation and lifecycle,

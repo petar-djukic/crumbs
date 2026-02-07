@@ -54,7 +54,7 @@ out_of_scope:
   - Trail lifecycle (Complete, Abandon, cascade behavior) — see rel03.0-uc001
   - Concurrent access patterns
   - Error recovery (corrupt JSONL, I/O failures)
-test_suite: test006-sqlite-crud
+test_suite: test-rel01.0-uc002-sqlite-crud
 dependencies:
   - D1: prd-cupboard-core (Cupboard and Table interface definitions)
   - D2: prd-sqlite-backend (SQLite backend, JSONL persistence, hydration/dehydration)

@@ -40,7 +40,7 @@ out_of_scope:
   - Cross-platform compatibility (both generations run on the same OS/architecture)
   - Performance comparison between generations
   - Validating that agents produce correct code during regeneration (that is the make-work/do-work loop's responsibility)
-test_suite: test009-regeneration-compatibility
+test_suite: test-rel02.0-uc002-regeneration-compatibility
 dependencies:
   - D1: rel01.1-uc001-go-install (Generation N must be installable via go install)
   - D2: rel01.1-uc002-jsonl-git-roundtrip (JSONL must be the source of truth, surviving database deletion)

@@ -1,4 +1,4 @@
-id: test010-issue-tracking-cli
+id: test-rel02.1-uc001-issue-tracking-cli
 title: Issue-tracking CLI commands
 description: >
   Validates the seven issue-tracking commands (create, ready, update, close,

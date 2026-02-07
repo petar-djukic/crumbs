@@ -1,4 +1,4 @@
-id: test003-table-benchmarks
+id: test-rel02.1-uc002-table-benchmarks
 title: Table interface performance benchmarks
 description: >
   Validates Go benchmark functions for Table interface operations at various

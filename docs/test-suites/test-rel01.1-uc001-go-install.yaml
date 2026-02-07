@@ -1,4 +1,4 @@
-id: test007-go-install
+id: test-rel01.1-uc001-go-install
 title: Go install and basic operations
 description: >
   Validates that the cupboard CLI can be installed via go install and that basic

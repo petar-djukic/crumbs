@@ -1,4 +1,4 @@
-id: test013-docker-bootstrap
+id: test-rel99.0-uc002-docker-bootstrap
 title: Docker bootstrap (docs to working system)
 description: >
   Validates that an agent can build crumbs from documentation alone inside a

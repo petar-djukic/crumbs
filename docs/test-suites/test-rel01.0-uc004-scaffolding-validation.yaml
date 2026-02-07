@@ -1,4 +1,4 @@
-id: test005-scaffolding-validation
+id: test-rel01.0-uc004-scaffolding-validation
 title: Scaffolding validation (types, interfaces, CLI compile)
 description: >
   Validates that all entity types, interfaces, and the cupboard CLI compile

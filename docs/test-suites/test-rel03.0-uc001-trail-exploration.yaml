@@ -1,4 +1,4 @@
-id: test011-trail-exploration
+id: test-rel03.0-uc001-trail-exploration
 title: Trail-based exploration and lifecycle
 description: >
   Validates trail creation, crumb-trail membership via belongs_to links, trail

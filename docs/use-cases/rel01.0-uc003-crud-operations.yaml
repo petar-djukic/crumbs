@@ -50,7 +50,7 @@ out_of_scope:
   - Crumb deletion (Table.Delete) — see rel01.0-uc002
   - Invalid state transition rejection (not enforced by the Table; agents define rules)
   - Concurrent state transitions
-test_suite: test004-cupboard-lifecycle
+test_suite: test-rel01.0-uc001-cupboard-lifecycle
 dependencies:
   - D1: rel01.0-uc002 (Table CRUD must work; Set, Get, Fetch used throughout)
   - D2: prd-crumbs-interface (Crumb entity, state machine, entity methods)

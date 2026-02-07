@@ -42,7 +42,7 @@ out_of_scope:
   - Template versioning or inheritance
   - Remote template repositories
   - Template creation or editing workflows
-test_suite: test012-blazes-templates
+test_suite: test-rel99.0-uc001-blazes-templates
 dependencies:
   - D1: File system access to template directory
   - D2: YAML parsing capability (standard library or dependency)

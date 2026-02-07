@@ -1,4 +1,4 @@
-id: test008-property-enforcement
+id: test-rel02.0-uc001-property-enforcement
 title: Property enforcement operations
 description: >
   Validates the property enforcement mechanism: built-in property seeding,

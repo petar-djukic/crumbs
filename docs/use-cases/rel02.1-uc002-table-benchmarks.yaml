@@ -75,7 +75,7 @@ out_of_scope:
   - CLI command overhead (benchmarks measure Table interface, not CLI parsing)
   - Non-immediate sync strategies (prd-sqlite-backend R16.3, R16.4 are deferred performance options)
   - Trail and stash operations (those entity types are in later releases)
-test_suite: test003-table-benchmarks
+test_suite: test-rel02.1-uc002-table-benchmarks
 dependencies:
   - D1: "SQLite backend with JSONL persistence (prd-sqlite-backend R1-R5)"
   - D2: "Table interface with Get/Set/Delete/Fetch (prd-cupboard-core R3)"

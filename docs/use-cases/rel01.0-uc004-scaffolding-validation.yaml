@@ -44,7 +44,7 @@ out_of_scope:
   - JSONL persistence or file creation details (see rel01.0-uc002)
   - Property enforcement or backfill (see rel02.0-uc001)
   - Trail lifecycle operations (see rel03.0-uc001)
-test_suite: test005-scaffolding-validation
+test_suite: test-rel01.0-uc004-scaffolding-validation
 dependencies:
   - D1: prd-cupboard-core (Cupboard and Table interface definitions)
   - D2: prd-sqlite-backend (Backend implementation of Cupboard interface)

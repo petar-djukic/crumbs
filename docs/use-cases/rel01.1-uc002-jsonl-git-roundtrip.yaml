@@ -139,7 +139,7 @@ out_of_scope:
   - Corrupt JSONL recovery (prd-sqlite-backend R7 describes error handling but this use case assumes valid files)
   - Cross-process access (prd-sqlite-backend R8.5 explicitly does not support this)
   - Non-immediate sync strategies (prd-sqlite-backend R16.3, R16.4)
-test_suite: test002-jsonl-git-roundtrip
+test_suite: test-rel01.1-uc002-jsonl-git-roundtrip
 dependencies:
   - D1: "SQLite backend with JSONL persistence (prd-sqlite-backend R1-R5)"
   - D2: "Startup sequence loads JSONL into SQLite (prd-sqlite-backend R4)"
