@@ -4,7 +4,6 @@
 package integration
 
 import (
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -63,10 +62,10 @@ func Test1_InitializeCupboard(t *testing.T) {
 		t.Error("data directory not created")
 	}
 
-	// Verify crumbs.json was created
-	crumbsFile := filepath.Join(env.DataDir, "crumbs.json")
+	// Verify crumbs.jsonl was created
+	crumbsFile := filepath.Join(env.DataDir, "crumbs.jsonl")
 	if _, err := os.Stat(crumbsFile); os.IsNotExist(err) {
-		t.Error("crumbs.json not created")
+		t.Error("crumbs.jsonl not created")
 	}
 }
 
@@ -347,33 +346,16 @@ func Test10_JSONPersistence(t *testing.T) {
 	env.MustRunCupboard("set", "trails", trail2.TrailID,
 		`{"TrailID":"`+trail2.TrailID+`","State":"abandoned"}`)
 
-	// Verify crumbs.json
-	crumbsFile := filepath.Join(env.DataDir, "crumbs.json")
-	crumbsData, err := os.ReadFile(crumbsFile)
-	if err != nil {
-		t.Fatalf("failed to read crumbs.json: %v", err)
-	}
-	var crumbs []map[string]any
-	if err := json.Unmarshal(crumbsData, &crumbs); err != nil {
-		t.Fatalf("failed to parse crumbs.json: %v", err)
-	}
+	// Verify crumbs.jsonl
+	crumbsFile := filepath.Join(env.DataDir, "crumbs.jsonl")
+	crumbs := ReadJSONLFile[map[string]any](t, crumbsFile)
 	if len(crumbs) != 3 {
-		t.Errorf("expected 3 crumbs in JSON, got %d", len(crumbs))
+		t.Errorf("expected 3 crumbs in JSONL, got %d", len(crumbs))
 	}
 
-	// Verify trails.json
-	trailsFile := filepath.Join(env.DataDir, "trails.json")
-	trailsData, err := os.ReadFile(trailsFile)
-	if err != nil {
-		t.Fatalf("failed to read trails.json: %v", err)
-	}
-	var trails []map[string]any
-	if err := json.Unmarshal(trailsData, &trails); err != nil {
-		t.Fatalf("failed to parse trails.json: %v", err)
-	}
-	if len(trails) != 2 {
-		t.Errorf("expected 2 trails in JSON, got %d", len(trails))
-	}
+	// Verify trails.jsonl
+	trailsFile := filepath.Join(env.DataDir, "trails.jsonl")
+	trails := ReadJSONLFile[map[string]any](t, trailsFile)
 
 	// Verify trail states in JSON
 	for _, tr := range trails {

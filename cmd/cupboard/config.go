@@ -79,23 +79,6 @@ func loadConfig(configDirFlag, dataDirFlag string) (types.Config, error) {
 	}
 	cfg.DataDir = dataDir
 
-	// Parse Dolt config if present
-	if v.IsSet("dolt") {
-		cfg.DoltConfig = &types.DoltConfig{
-			DSN:    v.GetString("dolt.dsn"),
-			Branch: v.GetString("dolt.branch"),
-		}
-	}
-
-	// Parse DynamoDB config if present
-	if v.IsSet("dynamodb") {
-		cfg.DynamoDBConfig = &types.DynamoDBConfig{
-			TableName: v.GetString("dynamodb.tablename"),
-			Region:    v.GetString("dynamodb.region"),
-			Endpoint:  v.GetString("dynamodb.endpoint"),
-		}
-	}
-
 	// Ensure config directory exists for future writes (per R1.6)
 	if !configFromFile {
 		if err := paths.EnsureDir(configDir); err != nil {
@@ -154,14 +137,6 @@ data_dir: %s
 # Optional backend-specific settings
 # sqlite:
 #   # SQLite-specific options (reserved for future use)
-#
-# dolt:
-#   dsn: "dolt://localhost:3306/crumbs"
-#   branch: main
-#
-# dynamodb:
-#   table_name: crumbs
-#   region: us-east-1
 `, dataDir)
 
 	if err := paths.EnsureDir(configDir); err != nil {

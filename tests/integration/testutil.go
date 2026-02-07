@@ -3,6 +3,7 @@
 package integration
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"os"
@@ -80,19 +81,22 @@ func NewTestEnv(t *testing.T) *TestEnv {
 	}
 
 	tempDir := t.TempDir()
-	dataDir := filepath.Join(tempDir, ".crumbs-data")
-	configFile := filepath.Join(tempDir, ".crumbs.yaml")
+	dataDir := filepath.Join(tempDir, "data")
+	configDir := filepath.Join(tempDir, "config")
 
-	// Write config file
-	configContent := "backend: sqlite\ndatadir: " + dataDir + "\n"
-	if err := os.WriteFile(configFile, []byte(configContent), 0644); err != nil {
+	// Create config directory and write config.yaml
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	configContent := "backend: sqlite\ndata_dir: " + dataDir + "\n"
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(configContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
 	return &TestEnv{
 		t:       t,
 		TempDir: tempDir,
-		Config:  configFile,
+		Config:  configDir,
 		DataDir: dataDir,
 	}
 }
@@ -109,7 +113,7 @@ type CmdResult struct {
 func (e *TestEnv) RunCupboard(args ...string) CmdResult {
 	e.t.Helper()
 
-	allArgs := append([]string{"--config", e.Config}, args...)
+	allArgs := append([]string{"--config-dir", e.Config, "--data-dir", e.DataDir}, args...)
 	cmd := exec.Command(cupboardBin, allArgs...)
 
 	var stdout, stderr bytes.Buffer
@@ -166,11 +170,10 @@ type Crumb struct {
 
 // Trail represents a trail entity for JSON parsing.
 type Trail struct {
-	TrailID       string  `json:"TrailID"`
-	ParentCrumbID *string `json:"ParentCrumbID"`
-	State         string  `json:"State"`
-	CreatedAt     string  `json:"CreatedAt"`
-	CompletedAt   *string `json:"CompletedAt"`
+	TrailID     string  `json:"TrailID"`
+	State       string  `json:"State"`
+	CreatedAt   string  `json:"CreatedAt"`
+	CompletedAt *string `json:"CompletedAt"`
 }
 
 // Link represents a link entity for JSON parsing.
@@ -199,4 +202,32 @@ func ReadJSONFile[T any](t *testing.T, path string) T {
 		t.Fatalf("failed to read file %s: %v", path, err)
 	}
 	return ParseJSON[T](t, string(data))
+}
+
+// ReadJSONLFile reads a JSONL file (one JSON object per line) and returns a slice.
+func ReadJSONLFile[T any](t *testing.T, path string) []T {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("failed to open JSONL file %s: %v", path, err)
+	}
+	defer f.Close()
+
+	var results []T
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var record T
+		if err := json.Unmarshal(line, &record); err != nil {
+			t.Fatalf("failed to parse JSONL line in %s: %v", path, err)
+		}
+		results = append(results, record)
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("failed to scan JSONL file %s: %v", path, err)
+	}
+	return results
 }

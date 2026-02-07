@@ -11,51 +11,19 @@ import (
 
 // Backend constants identify supported storage backends.
 const (
-	BackendSQLite   = "sqlite"
-	BackendDolt     = "dolt"
-	BackendDynamoDB = "dynamodb"
+	BackendSQLite = "sqlite"
 )
 
 // Config holds configuration for initializing a Cupboard instance.
-// The Backend field selects the storage backend; backend-specific
-// configs provide additional parameters.
 type Config struct {
-	// Backend type: "sqlite", "dolt", "dynamodb"
+	// Backend type: "sqlite"
 	Backend string
 
-	// DataDir is the directory for local backends (sqlite, dolt);
-	// ignored for cloud backends.
+	// DataDir is the directory for the SQLite backend.
 	DataDir string
 
 	// SQLiteConfig holds SQLite-specific settings; nil uses defaults.
 	SQLiteConfig *SQLiteConfig
-
-	// DoltConfig holds Dolt-specific settings; nil if not using Dolt.
-	DoltConfig *DoltConfig
-
-	// DynamoDBConfig holds DynamoDB-specific settings; nil if not using DynamoDB.
-	DynamoDBConfig *DynamoDBConfig
-}
-
-// DoltConfig holds configuration for the Dolt backend.
-type DoltConfig struct {
-	// DSN is the data source name (connection string).
-	DSN string
-
-	// Branch is the Git branch for versioning; defaults to "main".
-	Branch string
-}
-
-// DynamoDBConfig holds configuration for the DynamoDB backend.
-type DynamoDBConfig struct {
-	// TableName is the DynamoDB table name.
-	TableName string
-
-	// Region is the AWS region.
-	Region string
-
-	// Endpoint is an optional endpoint override for local testing.
-	Endpoint string
 }
 
 // Sync strategy constants for SQLite backend.
@@ -96,8 +64,6 @@ type SQLiteConfig struct {
 var (
 	ErrBackendEmpty         = errors.New("backend cannot be empty")
 	ErrBackendUnknown       = errors.New("unknown backend")
-	ErrDoltConfigRequired   = errors.New("dolt backend requires DoltConfig")
-	ErrDynamoDBRequired     = errors.New("dynamodb backend requires DynamoDBConfig")
 	ErrSyncStrategyUnknown  = errors.New("unknown sync strategy")
 	ErrBatchSizeInvalid     = errors.New("batch size must be positive when using batch sync strategy")
 	ErrBatchIntervalInvalid = errors.New("batch interval must be positive when using batch sync strategy")
@@ -113,22 +79,10 @@ func (c Config) Validate() error {
 
 	switch c.Backend {
 	case BackendSQLite:
-		// SQLite only requires DataDir, which can be empty (defaults to cwd)
-		// Validate SQLiteConfig if present
 		if c.SQLiteConfig != nil {
 			if err := c.SQLiteConfig.Validate(); err != nil {
 				return err
 			}
-		}
-		return nil
-	case BackendDolt:
-		if c.DoltConfig == nil {
-			return ErrDoltConfigRequired
-		}
-		return nil
-	case BackendDynamoDB:
-		if c.DynamoDBConfig == nil {
-			return ErrDynamoDBRequired
 		}
 		return nil
 	default:
