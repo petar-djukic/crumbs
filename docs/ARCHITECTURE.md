@@ -234,6 +234,7 @@ Success criteria (from VISION): operations complete with low latency, agents int
 | prd-properties-interface.md | Property and Category entities, value types |
 | prd-metadata-interface.md | Metadata entity, schema registration |
 | prd-stash-interface.md | Stash entity, shared state, versioning |
+| engineering/git-integration.md | Git conventions: JSONL in git, trails as worktrees, merge behavior |
 
 ## References
 

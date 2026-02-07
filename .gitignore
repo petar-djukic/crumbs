@@ -40,5 +40,8 @@ BACKGROUND/
 
 .DS_Store
 
+# SQLite database (ephemeral, rebuilt from JSONL on attach)
+cupboard.db
+
 # Proposed issues from make-work.sh (temporary, review before import)
 docs/proposed-issues-*.json
