@@ -136,6 +136,7 @@ requirements:
           | Field | Type | Description |
           |-------|------|-------------|
           | HistoryID | string | UUID v7 of the history entry |
+          | StashID | string | ID of the stash this history entry belongs to |
           | Version | int64 | Version number after this change |
           | Value | any | Value after this change |
           | Operation | string | Operation that caused this change |
@@ -152,6 +153,16 @@ requirements:
           | StashOpRelease | "release" | Lock was released |
       - "R7.4: History access is a backend concern. Backends may expose history through: a dedicated history query method on the stash table, filter parameters on Table.Fetch, or a separate history service"
       - R7.5: The StashHistoryEntry struct is defined in pkg/types for backends to use when returning history data
+      - R7.6: Backend must provide a method to query stash history entries by stash ID, returning entries ordered by version ascending
+        detail: |
+          The SQLite backend exposes FetchStashHistory(stashID string) on the stashes Table:
+          ```go
+          stashesTable := cupboard.GetTable("stashes")
+          table := stashesTable.(*sqlite.Table)
+          history, err := table.FetchStashHistory(stashID)
+          ```
+          Returns []types.StashHistoryEntry or error. Returns ErrInvalidID if stashID is empty.
+          Returns ErrCupboardDetached if the backend is not attached.
   R8:
     title: Retrieving Stashes
     items:

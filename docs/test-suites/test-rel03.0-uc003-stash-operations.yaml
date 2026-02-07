@@ -390,6 +390,121 @@ test_cases:
     expected:
       error: ErrInvalidID
 
+  # --- S14, S15: Stash history tracking ---
+
+  - name: History entry created on stash creation
+    inputs:
+      command: |
+        stash := &Stash{Name: "history-test", StashType: "context", Value: map[string]any{"key": "value"}, Version: 1}
+        stashesTable.Set("", stash)
+        table.FetchStashHistory(stash.StashID)
+    expected:
+      exit_code: 0
+      state:
+        history_count: 1
+        first_entry_operation: create
+        first_entry_version: 1
+
+  - name: History entry created on SetValue
+    inputs:
+      setup:
+        - Create context stash with Version 1
+      command: |
+        stash.SetValue(map[string]any{"updated": true})
+        stashesTable.Set(stash.StashID, stash)
+        table.FetchStashHistory(stash.StashID)
+    expected:
+      exit_code: 0
+      state:
+        history_count: 2
+        last_entry_operation: set
+        last_entry_version: 2
+
+  - name: History entry created on Increment
+    inputs:
+      setup:
+        - Create counter stash with Version 1
+      command: |
+        stash.Increment(5)
+        stashesTable.Set(stash.StashID, stash)
+        table.FetchStashHistory(stash.StashID)
+    expected:
+      exit_code: 0
+      state:
+        history_count: 2
+        last_entry_operation: increment
+        last_entry_version: 2
+
+  - name: History entry created on Acquire
+    inputs:
+      setup:
+        - Create lock stash with Version 1
+      command: |
+        stash.Acquire("worker-1")
+        stashesTable.Set(stash.StashID, stash)
+        table.FetchStashHistory(stash.StashID)
+    expected:
+      exit_code: 0
+      state:
+        history_count: 2
+        last_entry_operation: acquire
+        last_entry_version: 2
+
+  - name: History entry created on Release
+    inputs:
+      setup:
+        - Create lock stash with Version 1
+        - Acquire lock
+      command: |
+        stash.Release("worker-1")
+        stashesTable.Set(stash.StashID, stash)
+        table.FetchStashHistory(stash.StashID)
+    expected:
+      exit_code: 0
+      state:
+        history_count: 3
+        last_entry_operation: release
+        last_entry_version: 3
+
+  - name: FetchStashHistory returns entries ordered by version
+    inputs:
+      setup:
+        - Create counter stash
+        - Increment three times
+      command: table.FetchStashHistory(stash.StashID)
+    expected:
+      exit_code: 0
+      state:
+        history_count: 4
+        versions_ascending: true
+        operations: [create, increment, increment, increment]
+
+  - name: FetchStashHistory with empty ID returns ErrInvalidID
+    inputs:
+      command: table.FetchStashHistory("")
+    expected:
+      error: ErrInvalidID
+
+  - name: FetchStashHistory for nonexistent stash returns empty list
+    inputs:
+      command: table.FetchStashHistory("nonexistent-uuid")
+    expected:
+      exit_code: 0
+      state:
+        history_count: 0
+
+  - name: History entries include value snapshots
+    inputs:
+      setup:
+        - Create counter stash with value 0
+      steps:
+        - "stash.Increment(10) and Set"
+        - "stash.Increment(5) and Set"
+      command: table.FetchStashHistory(stash.StashID)
+    expected:
+      state:
+        history_values: [0, 10, 15]
+
   # --- Full workflow test ---
 
   - name: Full stash operations workflow

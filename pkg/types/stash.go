@@ -45,6 +45,15 @@ type Stash struct {
 
 	// CreatedAt is the timestamp of creation.
 	CreatedAt time.Time
+
+	// LastOperation tracks the operation that caused the last mutation.
+	// Used by backend for history tracking. One of StashOp* constants.
+	// Set automatically by entity methods (SetValue, Increment, Acquire, Release).
+	LastOperation string
+
+	// ChangedBy records the crumb ID that made the last change (optional).
+	// Used by backend for history tracking.
+	ChangedBy *string
 }
 
 // SetValue updates the stash value.
@@ -56,6 +65,7 @@ func (s *Stash) SetValue(value any) error {
 	}
 	s.Value = value
 	s.Version++
+	s.LastOperation = StashOpSet
 	return nil
 }
 
@@ -100,6 +110,7 @@ func (s *Stash) Increment(delta int64) (int64, error) {
 	newVal := current + delta
 	s.Value = map[string]any{"value": newVal}
 	s.Version++
+	s.LastOperation = StashOpIncrement
 	return newVal, nil
 }
 
@@ -132,6 +143,7 @@ func (s *Stash) Acquire(holder string) error {
 		"acquired_at": time.Now().Format(time.RFC3339),
 	}
 	s.Version++
+	s.LastOperation = StashOpAcquire
 	return nil
 }
 
@@ -160,6 +172,7 @@ func (s *Stash) Release(holder string) error {
 
 	s.Value = nil
 	s.Version++
+	s.LastOperation = StashOpRelease
 	return nil
 }
 
@@ -167,6 +180,9 @@ func (s *Stash) Release(holder string) error {
 type StashHistoryEntry struct {
 	// HistoryID is a UUID v7 of the history entry.
 	HistoryID string
+
+	// StashID is the ID of the stash this history entry belongs to.
+	StashID string
 
 	// Version is the version number after this change.
 	Version int64

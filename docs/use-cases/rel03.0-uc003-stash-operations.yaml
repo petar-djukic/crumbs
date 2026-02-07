@@ -29,6 +29,8 @@ flow:
   - F18: "Fetch stashes by stash_type filter: query stashes table with stash_type filter"
   - F19: "Fetch stashes by name filter: query stashes table with name filter"
   - F20: "Delete stash: remove a stash and verify ErrNotFound on subsequent Get"
+  - F22: "Query stash history after multiple mutations: call FetchStashHistory and verify all operations recorded"
+  - F23: "Verify history entries: confirm entries have correct version, operation, and value snapshots"
   - F21: "Detach the cupboard: call cupboard.Detach()"
 touchpoints:
   - T1: "Cupboard interface: Attach, Detach, GetTable (prd-cupboard-core R2)"
@@ -40,6 +42,7 @@ touchpoints:
   - T7: "Acquire/Release methods for lock operations (prd-stash-interface R6)"
   - T8: "Version tracking across mutations (prd-stash-interface R1.6)"
   - T9: "Filter map for stash queries: stash_type, name (prd-stash-interface R9)"
+  - T10: "Stash history tracking: FetchStashHistory method (prd-stash-interface R7)"
 success_criteria:
   - S1: Stash created via Table.Set generates UUID v7 for StashID
   - S2: All five stash types can be created (resource, artifact, context, counter, lock)
@@ -54,8 +57,9 @@ success_criteria:
   - S11: Fetch with stash_type filter returns only stashes of that type
   - S12: Fetch with name filter returns stash matching that name
   - S13: Delete removes stash; subsequent Get returns ErrNotFound
+  - S14: History entry created for each stash mutation (create, set, increment, acquire, release)
+  - S15: History entries queryable by stash ID via FetchStashHistory, ordered by version ascending
 out_of_scope:
-  - Stash history tracking (backend concern per prd-stash-interface R7)
   - Stash scoping via scoped_to links (see rel03.0-uc002)
   - Blocking lock acquisition with timeout
   - Stash name uniqueness validation (backend may enforce)

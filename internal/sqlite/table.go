@@ -1062,7 +1062,8 @@ func (t *Table) getStash(id string) (*types.Stash, error) {
 }
 
 func (t *Table) setStash(id string, stash *types.Stash) (string, error) {
-	if id == "" {
+	isCreate := id == ""
+	if isCreate {
 		id = generateUUID()
 	}
 	stash.StashID = id
@@ -1111,6 +1112,18 @@ func (t *Table) setStash(id string, stash *types.Stash) (string, error) {
 		t.backend.queueWrite(types.StashesTable, "save", func() error {
 			return t.backend.saveStashToJSONL(&stashCopy, updatedAt)
 		})
+	}
+
+	// Record history entry for stash mutations (prd-stash-interface R7)
+	operation := stash.LastOperation
+	if isCreate {
+		operation = types.StashOpCreate
+	}
+	// Only record history if there's an operation (create or entity method was called)
+	if operation != "" {
+		if err := t.recordStashHistory(stash, operation, now); err != nil {
+			return "", fmt.Errorf("record stash history: %w", err)
+		}
 	}
 
 	return id, nil
@@ -1198,6 +1211,116 @@ func hydrateStashRow(rows *sql.Rows) (*types.Stash, error) {
 		_ = json.Unmarshal([]byte(valueJSON), &stash.Value)
 	}
 	return &stash, nil
+}
+
+// Stash history operations
+// Implements: prd-stash-interface R7 (history tracking)
+
+// recordStashHistory writes a history entry for a stash mutation.
+func (t *Table) recordStashHistory(stash *types.Stash, operation string, timestamp time.Time) error {
+	historyID := generateUUID()
+
+	// JSON encode the value for storage
+	valueJSON, err := json.Marshal(stash.Value)
+	if err != nil {
+		return fmt.Errorf("marshal history value: %w", err)
+	}
+
+	// Insert into SQLite
+	_, err = t.backend.db.Exec(
+		`INSERT INTO stash_history (history_id, stash_id, version, value, operation, changed_by, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		historyID,
+		stash.StashID,
+		stash.Version,
+		string(valueJSON),
+		operation,
+		stash.ChangedBy,
+		timestamp.Format(time.RFC3339),
+	)
+	if err != nil {
+		return fmt.Errorf("insert history: %w", err)
+	}
+
+	// Persist to JSONL based on sync strategy (prd-sqlite-backend R16)
+	historyEntry := &stashHistoryJSON{
+		HistoryID: historyID,
+		StashID:   stash.StashID,
+		Version:   stash.Version,
+		Value:     stash.Value,
+		Operation: operation,
+		ChangedBy: stash.ChangedBy,
+		CreatedAt: timestamp.Format(time.RFC3339),
+	}
+
+	if t.backend.shouldPersistImmediately() {
+		if err := t.backend.appendStashHistoryJSONL(historyEntry); err != nil {
+			return fmt.Errorf("persist history to JSONL: %w", err)
+		}
+	} else {
+		// Capture for deferred write
+		entryCopy := *historyEntry
+		t.backend.queueWrite("stash_history", "append", func() error {
+			return t.backend.appendStashHistoryJSONL(&entryCopy)
+		})
+	}
+
+	return nil
+}
+
+// FetchStashHistory retrieves history entries for a stash, ordered by version ascending.
+// Per prd-stash-interface R7.6.
+func (t *Table) FetchStashHistory(stashID string) ([]types.StashHistoryEntry, error) {
+	t.backend.mu.RLock()
+	defer t.backend.mu.RUnlock()
+
+	if !t.backend.attached {
+		return nil, types.ErrCupboardDetached
+	}
+
+	if stashID == "" {
+		return nil, types.ErrInvalidID
+	}
+
+	rows, err := t.backend.db.Query(
+		`SELECT history_id, stash_id, version, value, operation, changed_by, created_at
+		 FROM stash_history
+		 WHERE stash_id = ?
+		 ORDER BY version ASC`,
+		stashID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []types.StashHistoryEntry
+	for rows.Next() {
+		var entry types.StashHistoryEntry
+		var valueJSON, createdAt string
+		var changedBy sql.NullString
+
+		err := rows.Scan(&entry.HistoryID, &entry.StashID, &entry.Version, &valueJSON, &entry.Operation, &changedBy, &createdAt)
+		if err != nil {
+			return nil, err
+		}
+
+		entry.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		if valueJSON != "" {
+			_ = json.Unmarshal([]byte(valueJSON), &entry.Value)
+		}
+		if changedBy.Valid {
+			entry.ChangedBy = &changedBy.String
+		}
+
+		results = append(results, entry)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
 
 // Property initialization helpers
