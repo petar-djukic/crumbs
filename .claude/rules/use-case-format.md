@@ -244,6 +244,10 @@ Every use case must have a corresponding test suite. The test suite:
 
 When creating a new use case, create the test suite in the same work unit. When modifying a use case (adding flow steps or success criteria), update the test suite to cover the changes.
 
+## Roadmap Requirement
+
+Every new use case must have an entry in `docs/road-map.yaml`. When creating a new use case, add it to the appropriate release in road-map.yaml with its id, summary, and status. If the use case does not belong to an existing release, add it to release 99.0 (unscheduled).
+
 ## Writing Guidelines
 
 - **One path**: One primary flow per use case. Variants or error paths can be short subsections within flow steps.
@@ -276,4 +280,5 @@ When creating a new use case, create the test suite in the same work unit. When 
 - [ ] out_of_scope keeps the use case focused
 - [ ] test_suite references a corresponding test suite ID
 - [ ] Test suite YAML exists in `docs/test-suites/` and traces back to this use case
+- [ ] Use case added to the appropriate release in `docs/road-map.yaml`
 - [ ] File saved as `rel[NN].[N]-uc[NNN]-[short-name].yaml` in `docs/use-cases/`
