@@ -19,9 +19,30 @@ preconditions:
 
 test_cases:
 
+  # --- module path ---
+
+  - name: Module path uses mesh-intelligence redirect
+    description: >
+      go.mod declares module github.com/mesh-intelligence/crumbs with a
+      replace directive pointing to ./ for local development.
+    inputs:
+      go_code: |
+        // Verified by reading go.mod:
+        // module github.com/mesh-intelligence/crumbs
+        // replace github.com/mesh-intelligence/crumbs => ./
+    expected:
+      files:
+        go.mod:
+          contains:
+            - "module github.com/mesh-intelligence/crumbs"
+            - "replace github.com/mesh-intelligence/crumbs => ./"
+
   # --- build ---
 
   - name: Cupboard CLI compiles without errors
+    description: >
+      Build must succeed through the mesh-intelligence module path
+      with the local replace directive.
     inputs:
       command: go build -o cupboard ./cmd/cupboard
     expected:
@@ -35,6 +56,18 @@ test_cases:
     expected:
       exit_code: 0
       stdout_contains: "cupboard"
+
+  - name: Version command lists implemented use cases
+    description: >
+      The version output must include a list of implemented use cases.
+      As each release is completed and new use cases pass, the list grows.
+      For this first use case, the output includes at minimum
+      rel01.0-uc004-scaffolding-validation.
+    inputs:
+      command: cupboard version
+    expected:
+      exit_code: 0
+      stdout_contains: "rel01.0-uc004"
 
   - name: Version command works without backend connection
     description: >
