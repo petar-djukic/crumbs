@@ -46,13 +46,19 @@ releases:
   - version: "01.1"
     name: Post-Core Validation
     description: Validate the core storage layer with installation, persistence, and round-trip scenarios. Requires only rel01.0 features.
-    done_when: cupboard installs via go install and JSONL files survive database deletion.
+    done_when: cupboard installs via go install, JSONL files survive database deletion, config loading and generic table CLI validated.
     use_cases:
       - id: rel01.1-uc001-go-install
         summary: Install cupboard CLI via go install
         status: not_started
       - id: rel01.1-uc002-jsonl-git-roundtrip
         summary: JSONL persistence survives database deletion
+        status: not_started
+      - id: rel01.1-uc003-configuration-loading
+        summary: "Config loading pipeline: platform defaults, env overrides, flag overrides, config.yaml lifecycle"
+        status: not_started
+      - id: rel01.1-uc004-generic-table-cli
+        summary: "Generic table CLI commands: get, set, list, delete across table types"
         status: not_started
 
   - version: "02.0"
@@ -87,6 +93,9 @@ releases:
       - id: rel02.1-uc003-self-hosting
         summary: Crumbs tracks its own development
         status: not_started
+      - id: rel02.1-uc004-metadata-lifecycle
+        summary: "Metadata CRUD: comments, attachments, filtering, cascade delete"
+        status: not_started
 
   - version: "03.0"
     name: Trails and Stashes
@@ -100,6 +109,12 @@ releases:
     use_cases:
       - id: rel03.0-uc001-trail-exploration
         summary: Create trails, add crumbs, complete/abandon
+        status: not_started
+      - id: rel03.0-uc002-link-management
+        summary: "Link CRUD: belongs_to, child_of, branches_from, scoped_to with graph queries"
+        status: not_started
+      - id: rel03.0-uc003-stash-operations
+        summary: "Stash system: value ops, counters, locks, versioning, history"
         status: not_started
 
   - version: "99.0"
