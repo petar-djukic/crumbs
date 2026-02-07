@@ -228,12 +228,12 @@ Success criteria (from VISION): operations complete with low latency, agents int
 | VISION.md | What we are building and why; success criteria and boundaries |
 | road-map.yaml | Release schedule, use cases, prioritization rules |
 | prd-cupboard-core.yaml | Cupboard interface, configuration, lifecycle |
-| prd-sqlite-backend.md | SQLite backend internals, JSON↔SQLite sync, graph model |
-| prd-crumbs-interface.md | Crumb entity, state transitions, property methods |
+| prd-sqlite-backend.yaml | SQLite backend internals, JSON↔SQLite sync, graph model |
+| prd-crumbs-interface.yaml | Crumb entity, state transitions, property methods |
 | prd-trails-interface.yaml | Trail entity, lifecycle methods, crumb membership |
-| prd-properties-interface.md | Property and Category entities, value types |
+| prd-properties-interface.yaml | Property and Category entities, value types |
 | prd-metadata-interface.yaml | Metadata entity, schema registration |
-| prd-stash-interface.md | Stash entity, shared state, versioning |
+| prd-stash-interface.yaml | Stash entity, shared state, versioning |
 | engineering/eng01-git-integration.md | Git conventions: JSONL in git, trails as worktrees, merge behavior |
 
 ## References
