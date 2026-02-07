@@ -1,0 +1,75 @@
+id: rel01.0-uc005-crumbs-table-benchmarks
+title: Crumbs Table Performance Benchmarks
+summary: |
+  A developer measures the performance of core Table interface operations on the
+  crumbs table to establish baseline metrics. The benchmarks cover Get, Set
+  (create and update), Delete, and Fetch operations at various data scales,
+  providing ns/op, B/op, and allocs/op for each operation. These baselines guide
+  optimization decisions and detect performance regressions.
+actor: Developer measuring Table performance
+trigger: Need to establish baseline performance for core crumbs Table operations
+flow:
+  - F1: "Build benchmark tests: create Go benchmark functions in internal/sqlite that exercise crumbs Table operations"
+  - F2: "Seed test data: for each scale (10, 100, 1000, 10000 crumbs), populate the crumbs table with sample entities"
+  - F3: "Benchmark Get at 10 crumbs: measure Table.Get latency with random ID selection from 10 seeded crumbs"
+  - F4: "Benchmark Get at 100 crumbs: measure Table.Get latency from 100 seeded crumbs"
+  - F5: "Benchmark Get at 1000 crumbs: measure Table.Get latency from 1000 seeded crumbs"
+  - F6: "Benchmark Get at 10000 crumbs: measure Table.Get latency from 10000 seeded crumbs"
+  - F7: "Benchmark Set create at 10 crumbs: measure Table.Set latency for creating new crumbs (empty ID) with 10 existing crumbs"
+  - F8: "Benchmark Set create at 1000 crumbs: measure Table.Set latency for creating new crumbs with 1000 existing crumbs"
+  - F9: "Benchmark Set update at 10 crumbs: measure Table.Set latency for updating existing crumbs with 10 seeded crumbs"
+  - F10: "Benchmark Set update at 1000 crumbs: measure Table.Set latency for updating existing crumbs with 1000 seeded crumbs"
+  - F11: "Benchmark Delete at 10 crumbs: measure Table.Delete latency including create-then-delete cycle with 10 seeded crumbs"
+  - F12: "Benchmark Delete at 1000 crumbs: measure Table.Delete latency with 1000 seeded crumbs"
+  - F13: "Benchmark Fetch all at 100 crumbs: measure Table.Fetch with empty filter returning all 100 crumbs"
+  - F14: "Benchmark Fetch all at 1000 crumbs: measure Table.Fetch with empty filter returning all 1000 crumbs"
+  - F15: "Benchmark Fetch state at 100 crumbs: measure Table.Fetch with state filter on 100 crumbs"
+  - F16: "Benchmark Fetch state at 1000 crumbs: measure Table.Fetch with state filter on 1000 crumbs"
+  - F17: "Run full benchmark suite: execute go test -bench=. -benchmem and capture output"
+  - F18: "Record baseline: save benchmark output for future comparison with benchstat"
+touchpoints:
+  - T1: "Table interface: Get, Set, Delete, Fetch (prd-cupboard-core R3)"
+  - T2: "SQLite backend: entity hydration, dehydration, JSONL persistence (prd-sqlite-backend R14, R15)"
+  - T3: "SQLite indexes: idx_crumbs_state for state filter benchmarks (prd-sqlite-backend R3.3)"
+  - T4: "Cupboard interface: Attach, Detach for benchmark setup/teardown (prd-cupboard-core R2)"
+success_criteria:
+  - S1: Each benchmark function completes without error
+  - S2: Benchmark output includes ns/op for each operation
+  - S3: Benchmark output includes B/op (bytes per operation) for each operation
+  - S4: Benchmark output includes allocs/op (allocations per operation) for each operation
+  - S5: Get benchmarks run at 4 scales (10, 100, 1000, 10000)
+  - S6: Set create benchmarks run at 2 scales (10, 1000)
+  - S7: Set update benchmarks run at 2 scales (10, 1000)
+  - S8: Delete benchmarks run at 2 scales (10, 1000)
+  - S9: Fetch all benchmarks run at 2 scales (100, 1000)
+  - S10: Fetch state benchmarks run at 2 scales (100, 1000)
+out_of_scope:
+  - Property operations (SetProperty, GetProperty, ClearProperty) — see rel02.0
+  - Fetch with properties filter — requires rel02.0 property system
+  - Fetch with limit/pagination — not yet specified
+  - Concurrent benchmark scenarios
+  - Cross-table benchmarks (trails, metadata, links)
+  - Benchmark regression detection automation
+test_suite: test-rel01.0-uc005-crumbs-table-benchmarks
+dependencies:
+  - D1: prd-cupboard-core (Table interface definition)
+  - D2: prd-sqlite-backend (SQLite backend, indexes, hydration)
+  - D3: rel01.0-uc002-sqlite-crud (Table CRUD must work before benchmarking)
+risks:
+  - K1: "Benchmark variability | Run multiple iterations; use benchstat for statistical comparison"
+  - K2: "Temp directory I/O noise | Use consistent temp directory across runs"
+  - K3: "SQLite cache effects | Reset database between benchmark functions or document warm cache assumptions"
+demo: |
+  go test -bench=BenchmarkCrumbs -benchmem ./internal/sqlite/...
+
+  # Example output:
+  # BenchmarkCrumbsGet10-8          50000     32451 ns/op    1024 B/op    15 allocs/op
+  # BenchmarkCrumbsGet100-8         45000     35120 ns/op    1024 B/op    15 allocs/op
+  # BenchmarkCrumbsGet1000-8        40000     38500 ns/op    1024 B/op    15 allocs/op
+  # BenchmarkCrumbsGet10000-8       35000     45200 ns/op    1024 B/op    15 allocs/op
+  # ...
+references:
+  - prd-cupboard-core
+  - prd-sqlite-backend
+  - rel01.0-uc002-sqlite-crud
+  - docs/ARCHITECTURE.md

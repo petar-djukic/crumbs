@@ -1,0 +1,224 @@
+id: test-rel01.0-uc005-crumbs-table-benchmarks
+title: Crumbs Table performance benchmarks
+description: >
+  Validates Go benchmark functions for crumbs Table interface operations at
+  various data scales. Each test case runs a Go benchmark command and verifies
+  that it completes without error and reports timing and memory metrics. The
+  benchmarks establish baseline performance for Get, Set, Delete, and Fetch
+  operations as specified in rel01.0-uc005-crumbs-table-benchmarks. Property
+  operations are out of scope for rel01.0; see rel02.1-uc002 for those.
+traces:
+  - rel01.0-uc005-crumbs-table-benchmarks
+tags:
+  - performance
+  - benchmark
+  - table-interface
+  - crumbs
+
+preconditions:
+  - Go test infrastructure available (go test command)
+  - internal/sqlite package contains benchmark test files
+  - Cupboard initialized with SQLite backend in a temp directory
+
+test_cases:
+
+  # --- Get benchmarks ---
+
+  - name: Get benchmark with 10 crumbs
+    description: >
+      Measure Table.Get latency with 10 seeded crumbs. Benchmark uses random
+      ID selection to measure average lookup time.
+    inputs:
+      command: go test -bench=BenchmarkCrumbsGet10 -benchmem ./internal/sqlite/...
+      data_size: 10
+    expected:
+      exit_code: 0
+      stdout_contains: BenchmarkCrumbsGet10
+      benchmark_output:
+        ns_op_reported: true
+        b_op_reported: true
+        allocs_op_reported: true
+
+  - name: Get benchmark with 100 crumbs
+    inputs:
+      command: go test -bench=BenchmarkCrumbsGet100 -benchmem ./internal/sqlite/...
+      data_size: 100
+    expected:
+      exit_code: 0
+      stdout_contains: BenchmarkCrumbsGet100
+      benchmark_output:
+        ns_op_reported: true
+        b_op_reported: true
+        allocs_op_reported: true
+
+  - name: Get benchmark with 1000 crumbs
+    inputs:
+      command: go test -bench=BenchmarkCrumbsGet1000 -benchmem ./internal/sqlite/...
+      data_size: 1000
+    expected:
+      exit_code: 0
+      stdout_contains: BenchmarkCrumbsGet1000
+      benchmark_output:
+        ns_op_reported: true
+        b_op_reported: true
+        allocs_op_reported: true
+
+  - name: Get benchmark with 10000 crumbs
+    inputs:
+      command: go test -bench=BenchmarkCrumbsGet10000 -benchmem ./internal/sqlite/...
+      data_size: 10000
+    expected:
+      exit_code: 0
+      stdout_contains: BenchmarkCrumbsGet10000
+      benchmark_output:
+        ns_op_reported: true
+        b_op_reported: true
+        allocs_op_reported: true
+
+  # --- Set (create) benchmarks ---
+
+  - name: Set create benchmark with 10 existing crumbs
+    description: >
+      Measure Table.Set latency for creating new crumbs (empty ID triggers
+      UUID v7 generation). Includes JSONL sync cost per prd-sqlite-backend R5.3.
+    inputs:
+      command: go test -bench=BenchmarkCrumbsSetCreate10 -benchmem ./internal/sqlite/...
+      data_size: 10
+    expected:
+      exit_code: 0
+      stdout_contains: BenchmarkCrumbsSetCreate10
+      benchmark_output:
+        ns_op_reported: true
+        b_op_reported: true
+        allocs_op_reported: true
+
+  - name: Set create benchmark with 1000 existing crumbs
+    inputs:
+      command: go test -bench=BenchmarkCrumbsSetCreate1000 -benchmem ./internal/sqlite/...
+      data_size: 1000
+    expected:
+      exit_code: 0
+      stdout_contains: BenchmarkCrumbsSetCreate1000
+      benchmark_output:
+        ns_op_reported: true
+        b_op_reported: true
+        allocs_op_reported: true
+
+  # --- Set (update) benchmarks ---
+
+  - name: Set update benchmark with 10 crumbs
+    description: >
+      Measure Table.Set latency for updating existing crumbs. Includes
+      JSONL sync cost per prd-sqlite-backend R5.3.
+    inputs:
+      command: go test -bench=BenchmarkCrumbsSetUpdate10 -benchmem ./internal/sqlite/...
+      data_size: 10
+    expected:
+      exit_code: 0
+      stdout_contains: BenchmarkCrumbsSetUpdate10
+      benchmark_output:
+        ns_op_reported: true
+        b_op_reported: true
+        allocs_op_reported: true
+
+  - name: Set update benchmark with 1000 crumbs
+    inputs:
+      command: go test -bench=BenchmarkCrumbsSetUpdate1000 -benchmem ./internal/sqlite/...
+      data_size: 1000
+    expected:
+      exit_code: 0
+      stdout_contains: BenchmarkCrumbsSetUpdate1000
+      benchmark_output:
+        ns_op_reported: true
+        b_op_reported: true
+        allocs_op_reported: true
+
+  # --- Delete benchmarks ---
+
+  - name: Delete benchmark with 10 crumbs
+    description: >
+      Measure Table.Delete latency. Each iteration creates then deletes a
+      crumb to measure the full delete path.
+    inputs:
+      command: go test -bench=BenchmarkCrumbsDelete10 -benchmem ./internal/sqlite/...
+      data_size: 10
+    expected:
+      exit_code: 0
+      stdout_contains: BenchmarkCrumbsDelete10
+      benchmark_output:
+        ns_op_reported: true
+        b_op_reported: true
+        allocs_op_reported: true
+
+  - name: Delete benchmark with 1000 crumbs
+    inputs:
+      command: go test -bench=BenchmarkCrumbsDelete1000 -benchmem ./internal/sqlite/...
+      data_size: 1000
+    expected:
+      exit_code: 0
+      stdout_contains: BenchmarkCrumbsDelete1000
+      benchmark_output:
+        ns_op_reported: true
+        b_op_reported: true
+        allocs_op_reported: true
+
+  # --- Fetch all benchmarks ---
+
+  - name: Fetch all benchmark with 100 crumbs
+    description: >
+      Measure Table.Fetch latency with empty filter (returns all crumbs).
+      Exercises full table scan with entity hydration.
+    inputs:
+      command: go test -bench=BenchmarkCrumbsFetchAll100 -benchmem ./internal/sqlite/...
+      data_size: 100
+    expected:
+      exit_code: 0
+      stdout_contains: BenchmarkCrumbsFetchAll100
+      benchmark_output:
+        ns_op_reported: true
+        b_op_reported: true
+        allocs_op_reported: true
+
+  - name: Fetch all benchmark with 1000 crumbs
+    inputs:
+      command: go test -bench=BenchmarkCrumbsFetchAll1000 -benchmem ./internal/sqlite/...
+      data_size: 1000
+    expected:
+      exit_code: 0
+      stdout_contains: BenchmarkCrumbsFetchAll1000
+      benchmark_output:
+        ns_op_reported: true
+        b_op_reported: true
+        allocs_op_reported: true
+
+  # --- Fetch with state filter benchmarks ---
+
+  - name: Fetch with state filter benchmark 100 crumbs
+    description: >
+      Measure Table.Fetch with state filter. Exercises idx_crumbs_state
+      index per prd-sqlite-backend R3.3.
+    inputs:
+      command: go test -bench=BenchmarkCrumbsFetchState100 -benchmem ./internal/sqlite/...
+      data_size: 100
+    expected:
+      exit_code: 0
+      stdout_contains: BenchmarkCrumbsFetchState100
+      benchmark_output:
+        ns_op_reported: true
+        b_op_reported: true
+        allocs_op_reported: true
+
+  - name: Fetch with state filter benchmark 1000 crumbs
+    inputs:
+      command: go test -bench=BenchmarkCrumbsFetchState1000 -benchmem ./internal/sqlite/...
+      data_size: 1000
+    expected:
+      exit_code: 0
+      stdout_contains: BenchmarkCrumbsFetchState1000
+      benchmark_output:
+        ns_op_reported: true
+        b_op_reported: true
+        allocs_op_reported: true
+
+cleanup:
+  - Remove temp data directories created by benchmarks
