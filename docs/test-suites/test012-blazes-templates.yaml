@@ -1,0 +1,475 @@
+id: test012-blazes-templates
+title: Agent uses blazes (workflow templates)
+description: >
+  Validates template discovery, metadata parsing, semantic matching of tasks
+  to templates, template selection, and parameter extraction. Each test case
+  exercises the blaze discovery and selection flow that enables agents to
+  reuse common workflow patterns.
+traces:
+  - rel99.0-uc001-blazes-templates
+tags:
+  - agent
+  - templates
+  - blazes
+
+preconditions:
+  - Template directory exists at .crumbs/blazes/ or configured path
+  - At least one valid template YAML file in the directory
+  - YAML parsing capability available
+  - Agent has access to task context for semantic matching
+
+test_cases:
+
+  # --- S1: Agent discovers template directory at configured or well-known path ---
+
+  - name: Discover template directory at well-known path
+    inputs:
+      env:
+        template_dir: .crumbs/blazes/
+      command: |
+        Locate template directory at well-known path .crumbs/blazes/
+    expected:
+      exit_code: 0
+      state:
+        directory_found: true
+        directory_path: .crumbs/blazes/
+
+  - name: Discover template directory at configured path
+    inputs:
+      env:
+        template_dir: /custom/templates/blazes/
+      command: |
+        Read template directory from configuration
+        Locate directory at configured path
+    expected:
+      exit_code: 0
+      state:
+        directory_found: true
+        directory_path: /custom/templates/blazes/
+
+  - name: Handle missing template directory gracefully
+    inputs:
+      env:
+        template_dir: /nonexistent/blazes/
+      command: |
+        Attempt to locate template directory
+    expected:
+      state:
+        directory_found: false
+        templates_list: []
+
+  # --- S2: Agent lists all .yaml/.yml files in the directory ---
+
+  - name: List all YAML files in template directory
+    inputs:
+      files:
+        .crumbs/blazes/bug-fix.yaml: |
+          name: Bug Fix
+          description: Fix a bug
+          tags: [bug-fix]
+          parameters: []
+        .crumbs/blazes/feature.yml: |
+          name: Feature
+          description: Add a feature
+          tags: [feature]
+          parameters: []
+        .crumbs/blazes/readme.md: |
+          # Readme (not a template)
+      command: |
+        List all .yaml and .yml files in .crumbs/blazes/
+    expected:
+      exit_code: 0
+      state:
+        file_count: 2
+        files_found:
+          - bug-fix.yaml
+          - feature.yml
+        files_excluded:
+          - readme.md
+
+  - name: Handle empty template directory
+    inputs:
+      files: {}
+      command: |
+        List all .yaml and .yml files in empty directory
+    expected:
+      exit_code: 0
+      state:
+        file_count: 0
+        files_found: []
+
+  # --- S3: Agent parses template metadata (name, description, tags, parameters) without error ---
+
+  - name: Parse template metadata successfully
+    inputs:
+      files:
+        .crumbs/blazes/bug-fix.yaml: |
+          name: Bug Fix
+          description: Investigate and fix a reported bug with proper testing
+          tags:
+            - bug-fix
+            - debugging
+            - testing
+          parameters:
+            - name: bug_description
+              type: text
+              description: Short description of the bug
+            - name: affected_files
+              type: list
+              description: Files likely affected by the bug
+      command: |
+        Parse .crumbs/blazes/bug-fix.yaml and extract metadata
+    expected:
+      exit_code: 0
+      state:
+        name: Bug Fix
+        description: Investigate and fix a reported bug with proper testing
+        tags: [bug-fix, debugging, testing]
+        parameter_count: 2
+
+  - name: Parse template with minimal metadata
+    inputs:
+      files:
+        .crumbs/blazes/simple.yaml: |
+          name: Simple Template
+          description: A simple template
+          tags: []
+          parameters: []
+      command: |
+        Parse .crumbs/blazes/simple.yaml and extract metadata
+    expected:
+      exit_code: 0
+      state:
+        name: Simple Template
+        description: A simple template
+        tags: []
+        parameter_count: 0
+
+  - name: Skip malformed template with warning
+    inputs:
+      files:
+        .crumbs/blazes/valid.yaml: |
+          name: Valid Template
+          description: Valid template
+          tags: [valid]
+          parameters: []
+        .crumbs/blazes/malformed.yaml: |
+          name: [invalid yaml structure
+          description:
+      command: |
+        Parse all templates in directory
+    expected:
+      state:
+        valid_templates: 1
+        skipped_templates: 1
+        warning_logged: true
+
+  # --- S4: Agent matches a task description to template tags ---
+
+  - name: Match task to template tags (exact match)
+    inputs:
+      files:
+        .crumbs/blazes/bug-fix.yaml: |
+          name: Bug Fix
+          description: Fix a bug
+          tags: [bug-fix, debugging]
+          parameters: []
+        .crumbs/blazes/feature.yaml: |
+          name: Feature
+          description: Add a feature
+          tags: [feature, enhancement]
+          parameters: []
+      task_context:
+        description: "Fix the login bug that crashes on empty password"
+      command: |
+        Match task description to template tags
+    expected:
+      state:
+        matched_template: Bug Fix
+        match_reason: tags contain bug-fix or debugging
+
+  - name: Match task to template tags (semantic match)
+    inputs:
+      files:
+        .crumbs/blazes/code-review.yaml: |
+          name: Code Review
+          description: Review code changes
+          tags: [review, code-review, pr-review]
+          parameters: []
+      task_context:
+        description: "Review the pull request for the authentication module"
+      command: |
+        Match task description to template tags using semantic similarity
+    expected:
+      state:
+        matched_template: Code Review
+        match_reason: task contains review keyword matching pr-review tag
+
+  - name: No match when no templates have relevant tags
+    inputs:
+      files:
+        .crumbs/blazes/deployment.yaml: |
+          name: Deployment
+          description: Deploy to production
+          tags: [deploy, production]
+          parameters: []
+      task_context:
+        description: "Refactor the database layer"
+      command: |
+        Attempt to match task to template tags
+    expected:
+      state:
+        matched_template: null
+        match_reason: no matching tags
+
+  # --- S5: Agent selects the best-matching template ---
+
+  - name: Select single matching template
+    inputs:
+      files:
+        .crumbs/blazes/bug-fix.yaml: |
+          name: Bug Fix
+          description: Fix a bug
+          tags: [bug-fix]
+          parameters: []
+      task_context:
+        description: "Fix the crash on startup"
+      command: |
+        Match and select best template
+    expected:
+      state:
+        selected_template: Bug Fix
+
+  - name: Select most specific template when multiple match
+    inputs:
+      files:
+        .crumbs/blazes/general-fix.yaml: |
+          name: General Fix
+          description: General fix template
+          tags: [fix]
+          parameters: []
+        .crumbs/blazes/security-fix.yaml: |
+          name: Security Fix
+          description: Fix security vulnerabilities
+          tags: [fix, security, vulnerability]
+          parameters: []
+      task_context:
+        description: "Fix the SQL injection vulnerability in the login form"
+      command: |
+        Match task and select most specific template
+    expected:
+      state:
+        selected_template: Security Fix
+        selection_reason: more specific tags matched (security, vulnerability)
+
+  - name: Prompt user when multiple templates match equally
+    inputs:
+      files:
+        .crumbs/blazes/template-a.yaml: |
+          name: Template A
+          description: First template
+          tags: [common-tag]
+          parameters: []
+        .crumbs/blazes/template-b.yaml: |
+          name: Template B
+          description: Second template
+          tags: [common-tag]
+          parameters: []
+      task_context:
+        description: "Task matching common-tag"
+      command: |
+        Match and select when multiple equally match
+    expected:
+      state:
+        candidates: [Template A, Template B]
+        user_prompt_required: true
+
+  # --- S6: Agent extracts parameter definitions (name, type, description, default) ---
+
+  - name: Extract parameter definitions with all fields
+    inputs:
+      files:
+        .crumbs/blazes/bug-fix.yaml: |
+          name: Bug Fix
+          description: Fix a bug
+          tags: [bug-fix]
+          parameters:
+            - name: bug_description
+              type: text
+              description: Short description of the bug
+            - name: severity
+              type: enum
+              description: Bug severity level
+              default: medium
+              options: [low, medium, high, critical]
+            - name: affected_files
+              type: list
+              description: Files likely affected by the bug
+      command: |
+        Extract parameter definitions from template
+    expected:
+      state:
+        parameter_count: 3
+        parameters:
+          - name: bug_description
+            type: text
+            description: Short description of the bug
+            default: null
+          - name: severity
+            type: enum
+            description: Bug severity level
+            default: medium
+          - name: affected_files
+            type: list
+            description: Files likely affected by the bug
+            default: null
+
+  - name: Extract parameters with defaults
+    inputs:
+      files:
+        .crumbs/blazes/with-defaults.yaml: |
+          name: With Defaults
+          description: Template with default values
+          tags: []
+          parameters:
+            - name: timeout
+              type: number
+              description: Timeout in seconds
+              default: 30
+            - name: retry
+              type: boolean
+              description: Whether to retry on failure
+              default: true
+      command: |
+        Extract parameters and identify defaults
+    expected:
+      state:
+        parameters:
+          - name: timeout
+            default: 30
+            has_default: true
+          - name: retry
+            default: true
+            has_default: true
+
+  - name: Identify parameters that can be inferred from context
+    inputs:
+      files:
+        .crumbs/blazes/bug-fix.yaml: |
+          name: Bug Fix
+          description: Fix a bug
+          tags: [bug-fix]
+          parameters:
+            - name: bug_description
+              type: text
+              description: Short description of the bug
+            - name: affected_files
+              type: list
+              description: Files likely affected by the bug
+      task_context:
+        description: "Fix the login crash bug"
+        files_in_context: [src/auth/login.go, src/auth/session.go]
+      command: |
+        Extract parameters and identify which can be inferred
+    expected:
+      state:
+        inferred_parameters:
+          - name: bug_description
+            inferred_value: "login crash bug"
+          - name: affected_files
+            inferred_value: [src/auth/login.go, src/auth/session.go]
+        user_input_required: []
+
+  # --- S7: Agent presents selected template and parameters to user ---
+
+  - name: Present template selection to user
+    inputs:
+      files:
+        .crumbs/blazes/bug-fix.yaml: |
+          name: Bug Fix
+          description: Investigate and fix a reported bug with proper testing
+          tags: [bug-fix, debugging]
+          parameters:
+            - name: bug_description
+              type: text
+              description: Short description of the bug
+            - name: reproduction_steps
+              type: text
+              description: Steps to reproduce the bug
+      task_context:
+        description: "Fix the login crash"
+      command: |
+        Select template and present to user for confirmation
+    expected:
+      stdout_contains: "Selected template: Bug Fix"
+      stdout_contains: "Description: Investigate and fix a reported bug"
+      stdout_contains: "Parameters needed:"
+      stdout_contains: "bug_description"
+      stdout_contains: "reproduction_steps"
+      state:
+        user_confirmation_requested: true
+
+  - name: Present template with inferred parameters
+    inputs:
+      files:
+        .crumbs/blazes/bug-fix.yaml: |
+          name: Bug Fix
+          description: Fix a bug
+          tags: [bug-fix]
+          parameters:
+            - name: bug_description
+              type: text
+              description: Short description of the bug
+            - name: affected_files
+              type: list
+              description: Files to examine
+      task_context:
+        description: "Fix the null pointer in parser.go"
+        files_in_context: [src/parser.go]
+      command: |
+        Present template with inferred values highlighted
+    expected:
+      stdout_contains: "Selected template: Bug Fix"
+      stdout_contains: "bug_description: null pointer (inferred)"
+      stdout_contains: "affected_files: [src/parser.go] (inferred)"
+
+  - name: Present template with missing required parameters
+    inputs:
+      files:
+        .crumbs/blazes/deployment.yaml: |
+          name: Deployment
+          description: Deploy to environment
+          tags: [deploy]
+          parameters:
+            - name: environment
+              type: enum
+              description: Target environment
+              options: [staging, production]
+            - name: version
+              type: text
+              description: Version to deploy
+      task_context:
+        description: "Deploy the latest build"
+      command: |
+        Present template indicating required parameters
+    expected:
+      stdout_contains: "Selected template: Deployment"
+      stdout_contains: "Required parameters:"
+      stdout_contains: "environment (required)"
+      stdout_contains: "version (required)"
+
+  # --- error handling ---
+
+  - name: Handle template directory permission denied
+    inputs:
+      env:
+        template_dir: /root/protected/blazes/
+      command: |
+        Attempt to read protected template directory
+    expected:
+      state:
+        error: permission denied
+        templates_list: []
+
+cleanup:
+  - Remove temp template directory

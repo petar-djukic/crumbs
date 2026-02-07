@@ -1,0 +1,433 @@
+id: test013-docker-bootstrap
+title: Docker bootstrap (docs to working system)
+description: >
+  Validates that an agent can build crumbs from documentation alone inside a
+  fresh Docker container, then use crumbs to track its own work. Each test case
+  exercises a step in the bootstrap process from environment setup through
+  self-hosted issue tracking.
+traces:
+  - rel99.0-uc002-docker-bootstrap
+tags:
+  - integration
+  - docker
+  - bootstrap
+  - self-hosting
+
+preconditions:
+  - Docker installed and running on host
+  - Claude API access available (ANTHROPIC_API_KEY set)
+  - docs/ directory contains VISION.md, ARCHITECTURE.md, road-map.yaml, PRDs, use cases
+  - No crumbs source code in container (only docs/ mounted)
+
+test_cases:
+
+  # --- S1: Docker container starts with only docs/ mounted (no source code) ---
+
+  - name: Start container with only docs mounted
+    inputs:
+      command: |
+        docker run -it \
+          -v $(pwd)/docs:/workspace/docs:ro \
+          -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+          crumbs-bootstrap
+    expected:
+      exit_code: 0
+      state:
+        container_started: true
+        docs_mounted: true
+        docs_readonly: true
+
+  - name: Verify no source code in container
+    inputs:
+      command: |
+        ls /workspace/
+        ls /workspace/pkg 2>&1 || echo "no pkg"
+        ls /workspace/internal 2>&1 || echo "no internal"
+        ls /workspace/cmd 2>&1 || echo "no cmd"
+    expected:
+      stdout_contains: "no pkg"
+      stdout_contains: "no internal"
+      stdout_contains: "no cmd"
+      state:
+        source_code_present: false
+
+  - name: Verify Go toolchain available
+    inputs:
+      command: go version
+    expected:
+      exit_code: 0
+      stdout_contains: "go version"
+
+  - name: Verify Claude available
+    inputs:
+      command: claude --version || claude-code --version
+    expected:
+      exit_code: 0
+
+  # --- S2: Agent reads and understands all documentation ---
+
+  - name: Read VISION.md
+    inputs:
+      command: cat /workspace/docs/VISION.md
+    expected:
+      exit_code: 0
+      stdout_contains: "crumbs"
+
+  - name: Read ARCHITECTURE.md
+    inputs:
+      command: cat /workspace/docs/ARCHITECTURE.md
+    expected:
+      exit_code: 0
+      stdout_contains: "Cupboard"
+
+  - name: Read road-map.yaml
+    inputs:
+      command: cat /workspace/docs/road-map.yaml
+    expected:
+      exit_code: 0
+      stdout_contains: "releases"
+
+  - name: Read all PRDs in product-requirements
+    inputs:
+      command: ls /workspace/docs/product-requirements/prd-*.yaml | wc -l
+    expected:
+      exit_code: 0
+      state:
+        prd_count_gt: 0
+
+  # --- S3: Agent implements release 01.0 from documentation ---
+
+  - name: Create pkg/types directory structure
+    inputs:
+      command: |
+        mkdir -p /workspace/pkg/types
+        mkdir -p /workspace/internal/sqlite
+        mkdir -p /workspace/cmd/crumbs
+    expected:
+      exit_code: 0
+      files:
+        /workspace/pkg/types: directory_exists
+        /workspace/internal/sqlite: directory_exists
+        /workspace/cmd/crumbs: directory_exists
+
+  - name: Implement Cupboard interface per prd-cupboard-core
+    inputs:
+      command: |
+        Agent implements pkg/types/cupboard.go with:
+        - Cupboard interface (Attach, Detach, GetTable)
+        - Table interface (Get, Set, Delete, Fetch)
+        - Config struct (Backend, DataDir)
+    expected:
+      files:
+        /workspace/pkg/types/cupboard.go: file_exists
+      state:
+        cupboard_interface_defined: true
+        table_interface_defined: true
+        config_struct_defined: true
+
+  # --- S4: Cupboard interface works with Attach/Detach ---
+
+  - name: Attach initializes storage
+    inputs:
+      command: |
+        config := Config{Backend: "sqlite", DataDir: "/tmp/test-crumbs"}
+        cupboard.Attach(config)
+    expected:
+      exit_code: 0
+      state:
+        data_dir_created: true
+        sqlite_db_initialized: true
+
+  - name: Detach cleans up resources
+    inputs:
+      setup:
+        - Attach cupboard with config
+      command: cupboard.Detach()
+    expected:
+      exit_code: 0
+      state:
+        resources_released: true
+
+  # --- S5: Table interface works with Get, Set, Delete, Fetch ---
+
+  - name: Table.Set creates entity
+    inputs:
+      setup:
+        - Attach cupboard
+      command: |
+        crumbsTable := cupboard.GetTable("crumbs")
+        id, err := crumbsTable.Set("", &Crumb{Name: "Test", State: "draft"})
+    expected:
+      exit_code: 0
+      state:
+        id_generated: true
+        crumb_created: true
+
+  - name: Table.Get retrieves entity
+    inputs:
+      setup:
+        - Attach cupboard
+        - Create crumb via Table.Set
+      command: |
+        entity, err := crumbsTable.Get(crumb_id)
+    expected:
+      exit_code: 0
+      state:
+        entity_retrieved: true
+        entity_matches_created: true
+
+  - name: Table.Delete removes entity
+    inputs:
+      setup:
+        - Attach cupboard
+        - Create crumb via Table.Set
+      command: crumbsTable.Delete(crumb_id)
+    expected:
+      exit_code: 0
+      state:
+        entity_deleted: true
+
+  - name: Table.Fetch queries entities
+    inputs:
+      setup:
+        - Attach cupboard
+        - Create multiple crumbs with different states
+      command: |
+        filter := map[string]any{"state": "draft"}
+        entities, err := crumbsTable.Fetch(filter)
+    expected:
+      exit_code: 0
+      state:
+        entities_returned: true
+        filter_applied: true
+
+  # --- S6: Crumb entity works with state transitions and property methods ---
+
+  - name: Crumb state transitions work
+    inputs:
+      setup:
+        - Attach cupboard
+        - Create crumb in draft state
+      steps:
+        - crumb.State = "ready"; crumbsTable.Set(crumb.CrumbID, crumb)
+        - crumb.State = "taken"; crumbsTable.Set(crumb.CrumbID, crumb)
+        - crumb.State = "pebble"; crumbsTable.Set(crumb.CrumbID, crumb)
+    expected:
+      state:
+        final_state: pebble
+
+  - name: Crumb property methods work
+    inputs:
+      setup:
+        - Attach cupboard
+        - Create crumb
+      steps:
+        - crumb.SetProperty("priority", "high")
+        - crumbsTable.Set(crumb.CrumbID, crumb)
+        - value := crumb.GetProperty("priority")
+    expected:
+      state:
+        property_set: true
+        property_value: "high"
+
+  # --- S7: SQLite backend works with JSONL persistence ---
+
+  - name: JSONL files created on write
+    inputs:
+      setup:
+        - Attach cupboard with DataDir=/tmp/test-crumbs
+        - Create crumb via Table.Set
+      command: ls /tmp/test-crumbs/*.jsonl
+    expected:
+      exit_code: 0
+      stdout_contains: "crumbs.jsonl"
+
+  - name: Data loads from JSONL on startup
+    inputs:
+      setup:
+        - Attach cupboard, create crumb, detach
+      steps:
+        - Attach cupboard again with same DataDir
+        - crumbsTable.Get(crumb_id)
+    expected:
+      state:
+        crumb_loaded_from_jsonl: true
+        crumb_data_matches: true
+
+  # --- S8: All release 01.0 tests pass ---
+
+  - name: Run release 01.0 tests
+    inputs:
+      command: go test ./... -v
+    expected:
+      exit_code: 0
+      stdout_contains: "PASS"
+
+  # --- S9: All release 01.0 use case success criteria are met ---
+
+  - name: Verify rel01.0-uc001 success criteria
+    description: Cupboard lifecycle use case validation
+    inputs:
+      steps:
+        - Attach cupboard with SQLite config
+        - GetTable for each standard table (crumbs, trails, links, stashes, blazes, properties)
+        - Detach cupboard
+    expected:
+      state:
+        all_tables_accessible: true
+        lifecycle_complete: true
+
+  - name: Verify rel01.0-uc002 success criteria
+    description: SQLite CRUD use case validation
+    inputs:
+      steps:
+        - Create, read, update, delete crumb
+        - Verify JSONL persistence
+    expected:
+      state:
+        crud_operations_work: true
+        jsonl_persisted: true
+
+  # --- S10: Crumbs CLI initializes and accepts work items ---
+
+  - name: Build crumbs CLI
+    inputs:
+      command: go build -o crumbs ./cmd/crumbs
+    expected:
+      exit_code: 0
+      files:
+        /workspace/crumbs: file_exists
+
+  - name: Initialize crumbs data directory
+    inputs:
+      command: ./crumbs init --datadir /tmp/crumbs-data
+    expected:
+      exit_code: 0
+      state:
+        data_dir_created: true
+
+  - name: Create work item via CLI
+    inputs:
+      command: |
+        ./crumbs create --type task --name "Implement release 02.0" --state draft
+    expected:
+      exit_code: 0
+      stdout_contains: "Created"
+
+  # --- S11: Remaining releases (02.0+) are tracked in crumbs ---
+
+  - name: Import release 02.0 work items
+    inputs:
+      steps:
+        - ./crumbs create --type epic --name "Release 02.0: Properties with enforcement"
+        - ./crumbs create --type task --name "Implement property enforcement" --state draft
+        - ./crumbs create --type task --name "Add property validation" --state draft
+    expected:
+      state:
+        work_items_created: 3
+
+  - name: List pending work items
+    inputs:
+      command: ./crumbs list --state draft
+    expected:
+      exit_code: 0
+      state:
+        items_listed: true
+
+  - name: Update work item status
+    inputs:
+      setup:
+        - Create work item in draft state
+      command: ./crumbs update ${item_id} --state ready
+    expected:
+      exit_code: 0
+      state:
+        item_state: ready
+
+  # --- S12: Final crumbs implementation matches documentation ---
+
+  - name: Verify Cupboard interface matches prd-cupboard-core
+    inputs:
+      command: |
+        Inspect pkg/types/cupboard.go
+        Verify Attach, Detach, GetTable methods present
+        Verify Table interface has Get, Set, Delete, Fetch
+    expected:
+      state:
+        cupboard_interface_complete: true
+        matches_prd: true
+
+  - name: Verify Crumb struct matches prd-crumbs-interface
+    inputs:
+      command: |
+        Inspect pkg/types/crumb.go
+        Verify all fields from prd-crumbs-interface R1
+    expected:
+      state:
+        crumb_struct_complete: true
+        matches_prd: true
+
+  - name: Verify SQLite backend matches prd-sqlite-backend
+    inputs:
+      command: |
+        Inspect internal/sqlite/*.go
+        Verify JSONL format, directory layout, startup loading
+    expected:
+      state:
+        sqlite_backend_complete: true
+        matches_prd: true
+
+  # --- error conditions ---
+
+  - name: Handle missing ANTHROPIC_API_KEY
+    inputs:
+      env:
+        ANTHROPIC_API_KEY: ""
+      command: Attempt to run Claude agent
+    expected:
+      exit_code: 1
+      stderr_contains: "API key"
+
+  - name: Handle documentation gaps
+    description: Agent should file issues for missing specs
+    inputs:
+      setup:
+        - Remove one PRD file from docs/
+      command: Agent attempts to implement based on incomplete docs
+    expected:
+      state:
+        issue_filed: true
+        issue_describes_missing_spec: true
+
+  # --- full workflow ---
+
+  - name: End-to-end bootstrap workflow
+    description: >
+      Complete bootstrap from empty container to self-hosting crumbs.
+      Validates the entire flow from documentation to working system.
+    inputs:
+      steps:
+        - Start container with only docs/ mounted
+        - Verify no source code present
+        - Read all documentation (VISION, ARCHITECTURE, PRDs, use cases)
+        - Implement release 01.0 (pkg/types, internal/sqlite, cmd/crumbs)
+        - Run tests and verify passing
+        - Initialize crumbs for self-hosting
+        - Import remaining work items for releases 02.0+
+        - Use crumbs CLI to track work on one item (create, update, complete)
+        - Verify JSONL persistence
+    expected:
+      state:
+        container_started: true
+        no_initial_source: true
+        docs_read: true
+        release_01_implemented: true
+        tests_pass: true
+        crumbs_initialized: true
+        work_tracked_in_crumbs: true
+        self_hosting_verified: true
+
+cleanup:
+  - Stop and remove Docker container
+  - Remove crumbs-output volume
+  - Clean up temp directories

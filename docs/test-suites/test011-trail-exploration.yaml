@@ -1,0 +1,347 @@
+id: test011-trail-exploration
+title: Trail-based exploration and lifecycle
+description: >
+  Validates trail creation, crumb-trail membership via belongs_to links, trail
+  completion (making crumbs permanent), and trail abandonment (atomic deletion
+  of associated crumbs). Each test case exercises the trail lifecycle through
+  the Table interface.
+traces:
+  - rel03.0-uc001-trail-exploration
+tags:
+  - integration
+  - trails
+  - lifecycle
+
+preconditions:
+  - Cupboard initialized with SQLite backend
+  - trails, crumbs, and links tables accessible via GetTable
+  - No existing trails, crumbs, or links in the database
+
+test_cases:
+
+  # --- S1: Trail created via Table.Set starts in active state ---
+
+  - name: Create trail starts in active state
+    inputs:
+      command: |
+        trail := &Trail{State: "active", CreatedAt: time.Now()}
+        trailsTable.Set("", trail)
+    expected:
+      exit_code: 0
+      state:
+        trail_state: active
+        trail_id_generated: true
+        created_at_set: true
+
+  - name: Create trail in draft state
+    inputs:
+      command: |
+        trail := &Trail{State: "draft", CreatedAt: time.Now()}
+        trailsTable.Set("", trail)
+    expected:
+      exit_code: 0
+      state:
+        trail_state: draft
+
+  # --- S2: belongs_to links associate crumbs with trails ---
+
+  - name: Create belongs_to link associates crumb with trail
+    inputs:
+      setup:
+        - Create trail in active state
+        - Create crumb in draft state
+      command: |
+        link := &Link{LinkType: "belongs_to", FromID: crumb.CrumbID, ToID: trail.TrailID}
+        linksTable.Set("", link)
+    expected:
+      exit_code: 0
+      state:
+        link_type: belongs_to
+        link_from_id: crumb_id
+        link_to_id: trail_id
+
+  - name: Multiple crumbs can belong to same trail
+    inputs:
+      setup:
+        - Create trail in active state
+        - Create crumb1 in draft state
+        - Create crumb2 in draft state
+      steps:
+        - linksTable.Set("", &Link{LinkType: "belongs_to", FromID: crumb1.CrumbID, ToID: trail.TrailID})
+        - linksTable.Set("", &Link{LinkType: "belongs_to", FromID: crumb2.CrumbID, ToID: trail.TrailID})
+    expected:
+      exit_code: 0
+      state:
+        links_for_trail: 2
+
+  # --- S3: Querying links table with belongs_to filter returns crumbs on that trail ---
+
+  - name: Fetch crumbs on trail via belongs_to filter
+    inputs:
+      setup:
+        - Create trail in active state
+        - Create crumb1 and crumb2, link both to trail via belongs_to
+        - Create crumb3 not linked to any trail
+      command: |
+        filter := map[string]any{"link_type": "belongs_to", "to_id": trail.TrailID}
+        linksTable.Fetch(filter)
+    expected:
+      exit_code: 0
+      state:
+        result_count: 2
+        result_contains: [crumb1_id, crumb2_id]
+        result_excludes: [crumb3_id]
+
+  # --- S4: Deleting belongs_to link disassociates without deleting the crumb ---
+
+  - name: Delete belongs_to link keeps crumb intact
+    inputs:
+      setup:
+        - Create trail in active state
+        - Create crumb and link to trail via belongs_to
+      steps:
+        - linksTable.Delete(link.LinkID)
+        - crumbsTable.Get(crumb.CrumbID)
+    expected:
+      exit_code: 0
+      state:
+        crumb_exists: true
+        link_exists: false
+
+  # --- S5: trail.Abandon() then Table.Set deletes trail crumbs atomically ---
+
+  - name: Abandon trail deletes associated crumbs
+    inputs:
+      setup:
+        - Create trail in active state
+        - Create crumb1 and crumb2, link both to trail via belongs_to
+      steps:
+        - trail.Abandon()
+        - trailsTable.Set(trail.TrailID, trail)
+        - crumbsTable.Get(crumb1.CrumbID)
+        - crumbsTable.Get(crumb2.CrumbID)
+    expected:
+      state:
+        trail_state: abandoned
+        crumb1_error: ErrNotFound
+        crumb2_error: ErrNotFound
+
+  - name: Abandon trail removes belongs_to links
+    inputs:
+      setup:
+        - Create trail in active state
+        - Create crumb and link to trail via belongs_to
+      steps:
+        - trail.Abandon()
+        - trailsTable.Set(trail.TrailID, trail)
+        - linksTable.Fetch(map[string]any{"link_type": "belongs_to", "to_id": trail.TrailID})
+    expected:
+      state:
+        trail_state: abandoned
+        links_for_trail: 0
+
+  # --- S6: Crumbs removed from trail before abandon survive ---
+
+  - name: Crumb removed before abandon survives
+    inputs:
+      setup:
+        - Create trail in active state
+        - Create crumb1 and crumb2, link both to trail via belongs_to
+      steps:
+        - linksTable.Delete(link_for_crumb1.LinkID)  # Remove crumb1 from trail
+        - trail.Abandon()
+        - trailsTable.Set(trail.TrailID, trail)
+        - crumbsTable.Get(crumb1.CrumbID)
+        - crumbsTable.Get(crumb2.CrumbID)
+    expected:
+      state:
+        crumb1_exists: true
+        crumb2_error: ErrNotFound
+
+  # --- S7: trail.Complete() then Table.Set removes belongs_to links ---
+
+  - name: Complete trail removes belongs_to links
+    inputs:
+      setup:
+        - Create trail in active state
+        - Create crumb1 and crumb2, link both to trail via belongs_to
+      steps:
+        - trail.Complete()
+        - trailsTable.Set(trail.TrailID, trail)
+        - linksTable.Fetch(map[string]any{"link_type": "belongs_to", "to_id": trail.TrailID})
+    expected:
+      state:
+        trail_state: completed
+        links_for_trail: 0
+
+  # --- S8: Completed trail crumbs remain queryable ---
+
+  - name: Completed trail crumbs remain accessible
+    inputs:
+      setup:
+        - Create trail in active state
+        - Create crumb1 and crumb2, link both to trail via belongs_to
+      steps:
+        - trail.Complete()
+        - trailsTable.Set(trail.TrailID, trail)
+        - crumbsTable.Get(crumb1.CrumbID)
+        - crumbsTable.Get(crumb2.CrumbID)
+    expected:
+      state:
+        crumb1_exists: true
+        crumb2_exists: true
+
+  - name: Completed trail crumbs are indistinguishable from permanent crumbs
+    description: After completion, crumbs have no belongs_to link and exist as permanent entities.
+    inputs:
+      setup:
+        - Create trail in active state
+        - Create crumb and link to trail via belongs_to
+      steps:
+        - trail.Complete()
+        - trailsTable.Set(trail.TrailID, trail)
+        - crumbsTable.Get(crumb.CrumbID)
+        - linksTable.Fetch(map[string]any{"link_type": "belongs_to", "from_id": crumb.CrumbID})
+    expected:
+      state:
+        crumb_exists: true
+        crumb_has_belongs_to_link: false
+
+  # --- S9: Trail state is completed or abandoned after respective operations ---
+
+  - name: Trail state is completed after Complete
+    inputs:
+      setup:
+        - Create trail in active state
+      steps:
+        - trail.Complete()
+        - trailsTable.Set(trail.TrailID, trail)
+        - trailsTable.Get(trail.TrailID)
+    expected:
+      state:
+        trail_state: completed
+        completed_at_set: true
+
+  - name: Trail state is abandoned after Abandon
+    inputs:
+      setup:
+        - Create trail in active state
+      steps:
+        - trail.Abandon()
+        - trailsTable.Set(trail.TrailID, trail)
+        - trailsTable.Get(trail.TrailID)
+    expected:
+      state:
+        trail_state: abandoned
+        completed_at_set: true
+
+  - name: Complete on non-active trail returns ErrInvalidState
+    inputs:
+      setup:
+        - Create trail in draft state
+      command: trail.Complete()
+    expected:
+      error: ErrInvalidState
+
+  - name: Abandon on non-active trail returns ErrInvalidState
+    inputs:
+      setup:
+        - Create trail in completed state
+      command: trail.Abandon()
+    expected:
+      error: ErrInvalidState
+
+  # --- S10: No orphan crumbs or links after abandonment ---
+
+  - name: No orphan links after abandonment
+    inputs:
+      setup:
+        - Create trail in active state
+        - Create crumb and link to trail via belongs_to
+        - Create child_of link between crumbs on the trail
+      steps:
+        - trail.Abandon()
+        - trailsTable.Set(trail.TrailID, trail)
+        - linksTable.Fetch(map[string]any{"from_id": crumb.CrumbID})
+        - linksTable.Fetch(map[string]any{"to_id": crumb.CrumbID})
+    expected:
+      state:
+        links_from_crumb: 0
+        links_to_crumb: 0
+
+  - name: Crumb properties deleted on trail abandonment
+    inputs:
+      setup:
+        - Create trail in active state
+        - Create crumb with properties, link to trail via belongs_to
+      steps:
+        - trail.Abandon()
+        - trailsTable.Set(trail.TrailID, trail)
+    expected:
+      state:
+        crumb_properties_deleted: true
+
+  # --- branches_from link tests ---
+
+  - name: Create branches_from link indicates branch point
+    inputs:
+      setup:
+        - Create parent crumb (e.g., task we are exploring approaches for)
+        - Create trail in active state
+      command: |
+        link := &Link{LinkType: "branches_from", FromID: trail.TrailID, ToID: parentCrumb.CrumbID}
+        linksTable.Set("", link)
+    expected:
+      exit_code: 0
+      state:
+        link_type: branches_from
+        link_from_id: trail_id
+        link_to_id: parent_crumb_id
+
+  - name: Query branches_from link to find branch point
+    inputs:
+      setup:
+        - Create parent crumb
+        - Create trail and link via branches_from
+      command: |
+        filter := map[string]any{"link_type": "branches_from", "from_id": trail.TrailID}
+        linksTable.Fetch(filter)
+    expected:
+      state:
+        result_count: 1
+        branch_point_is: parent_crumb_id
+
+  # --- full workflow ---
+
+  - name: Full trail exploration workflow
+    description: >
+      Create a trail branching from a parent crumb, add exploration crumbs,
+      remove one crumb, abandon the trail, verify cleanup, then create another
+      trail and complete it successfully.
+    inputs:
+      steps:
+        - Create parent crumb in ready state
+        - Create trail1 in active state
+        - Create branches_from link from trail1 to parent crumb
+        - Create explore_crumb1 and explore_crumb2, link both to trail1
+        - Remove explore_crumb1 from trail1 (delete belongs_to link)
+        - Abandon trail1 (trail1.Abandon() then trailsTable.Set)
+        - Verify explore_crumb1 still exists (was removed before abandon)
+        - Verify explore_crumb2 is deleted (was on trail at abandon time)
+        - Create trail2 in active state
+        - Create explore_crumb3, link to trail2
+        - Complete trail2 (trail2.Complete() then trailsTable.Set)
+        - Verify explore_crumb3 still exists (completion preserves crumbs)
+        - Verify no belongs_to link for explore_crumb3 (link removed on complete)
+    expected:
+      state:
+        trail1_state: abandoned
+        trail2_state: completed
+        explore_crumb1_exists: true
+        explore_crumb2_exists: false
+        explore_crumb3_exists: true
+        explore_crumb3_has_belongs_to: false
+
+cleanup:
+  - Remove temp data directory
+  - Detach cupboard
