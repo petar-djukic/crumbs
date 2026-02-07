@@ -41,7 +41,7 @@ An architecture document describes **how the system is built**: components, inte
 - **Audience**: Implementers, PRD authors, and reviewers. Assume readers need to build or extend the system and to trace decisions to requirements.
 - **Tone**: Use "we" in active voice (e.g. "We define a protocol-agnostic coordination abstraction"). Follow documentation-standards: concise, active voice, no forbidden terms.
 - **Scope**: Describe structure and contracts; do not duplicate PRD-level requirements. Point to PRDs for field specs, operation signatures, acceptance criteria, and state machine details.
-- **Figures**: Per documentation-standards. Source in `docs/plantuml/`, image in `docs/images/`, named figure caption (e.g. "Figure N Title").
+- **Figures**: Per documentation-standards. Define PlantUML inline using fenced code blocks; do not create separate `.puml` files. Use named figure captions (e.g. "Figure N Title").
 - **Tables**: Name all tables (e.g. "Table 1: Routing Dimensions"). Use for operations, technology choices, phases, related documents.
 - **Location**: Markdown in `docs/ARCHITECTURE.md` (or project root `ARCHITECTURE.md` if preferred).
 

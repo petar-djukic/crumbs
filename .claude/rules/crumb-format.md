@@ -109,7 +109,7 @@ When proposing or implementing code issues, keep implementation in **internal/**
 
 | Issue type | Output | Key sections in issue |
 | ---------- | ------ | ---------------------- |
-| Documentation (ARCHITECTURE, general docs) | `docs/*.md`, `docs/**/*.puml` | Required Reading, Files to Create/Modify, Requirements, Acceptance Criteria; follow documentation-standards |
+| Documentation (ARCHITECTURE, general docs) | `docs/*.md` | Required Reading, Files to Create/Modify, Requirements, Acceptance Criteria; follow documentation-standards |
 | Documentation (PRD) | `docs/product-requirements/prd-*.yaml` | Required Reading, Files to Create/Modify, Required sections (Problem, Goals, Requirements, Non-Goals, Acceptance Criteria), Acceptance Criteria; follow prd-format |
 | Documentation (use case) | `docs/use-cases/rel*-uc*-*.md` | Required Reading, Files to Create/Modify, Summary, Actor/trigger, Flow, Success criteria; follow use-case-format |
 | Documentation (test suite) | `docs/test-suites/test*.yaml` | Required Reading, Files to Create/Modify, traces, preconditions, test_cases with inputs/expected; follow test-case-format |

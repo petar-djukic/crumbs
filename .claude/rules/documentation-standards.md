@@ -53,33 +53,54 @@ DO NOT use these overused or imprecise terms:
 
 ## Figures and Diagrams
 
-All diagrams MUST be created in PlantUML and follow this workflow:
+All diagrams MUST be written in PlantUML and defined inline in the markdown file using fenced code blocks. Do not create separate `.puml` files or generate PNG images.
 
-1. **Source Files:** Create `.puml` files in `docs/plantuml/` directory
-2. **Generated Images:** Convert to PNG and store in `docs/images/` directory
-3. **Markdown References:** Use this exact format:
+### Inline PlantUML Format
+
+Use a fenced code block with the `plantuml` language tag, wrapped in a centered table for captioning:
 
 ```markdown
 |  |
 |:--:|
-| ![plantuml/diagram-name.puml](images/diagram-name.png) |
+| ```plantuml |
+| @startuml |
+| ... diagram source ... |
+| @enduml |
+| ``` |
 |Figure N Title of the Figure |
 ```
 
 **Example:**
-```markdown
+
+````markdown
 |  |
 |:--:|
-| ![plantuml/system-context.puml](images/system-context.png) |
-|Figure 1 System Context - Beads-based task coordination |
+
+```plantuml
+@startuml
+!theme plain
+skinparam backgroundColor white
+
+package "Applications" {
+  [Agents]
+  [CLI Tool]
+}
+
+[Agents] --> [Cupboard Interface]
+[CLI Tool] --> [Cupboard Interface]
+
+@enduml
 ```
+
+|Figure 1 System Context |
+````
 
 ### Figure Rules
 
-- Source path in alt text: `![plantuml/source.puml](...)`
-- Image path in src: `(images/generated.png)`
+- Define the diagram inline using `` ```plantuml `` fenced code blocks
+- Place the code block between the `|:--:|` alignment row and the caption row
 - Caption format: `|Figure N Description |` (no colon after "Figure N")
-- Center-align using `|:--:|` in table
+- Number figures sequentially within each document
 
 ## Citations and References
 

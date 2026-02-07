@@ -27,7 +27,7 @@ A vision document states **what the project is**, **why it exists**, **how succe
 ## Optional Sections
 
 - **Frontmatter** – YAML at top of file (e.g. title, subtitle, date, author, source) for tooling or publishing. Not required for the rule.
-- **Figures** – Diagrams (e.g. PlantUML) per documentation-standards: source in `docs/plantuml/`, image in `docs/images/`, reference in markdown with named figure caption.
+- **Figures** – Diagrams (e.g. PlantUML) per documentation-standards: define inline using fenced code blocks; do not create separate `.puml` files. Use named figure captions.
 
 ## Writing Guidelines
 

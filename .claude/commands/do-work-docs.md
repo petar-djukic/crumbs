@@ -24,18 +24,7 @@ Read VISION.md and ARCHITECTURE.md for context. For PRDs also scan existing `doc
 1. Produce the deliverable at the **exact output path** given in the issue.
 2. Include all **required sections** from the format rule (Problem, Goals, Requirements, Non-Goals, Acceptance Criteria for PRDs; Summary, Actor/trigger, Flow, Architecture touchpoints, Success criteria, Out of scope for use cases; etc.).
 3. Follow **documentation-standards** (concise, active voice, no forbidden terms; tables/lists per doc standards).
-4. For diagrams: create `.puml` files in `docs/plantuml/`, convert to PNG in `docs/images/`, and reference using this exact format:
-
-   ```markdown
-   |  |
-   |:--:|
-   | ![plantuml/diagram-name.puml](images/diagram-name.png) |
-   |Figure N Title of the Figure |
-   ```
-
-   - Source path in alt text: `![plantuml/source.puml](...)`
-   - Image path in src: `(images/generated.png)`
-   - Caption format: `|Figure N Description |` (no colon after "Figure N")
+4. For diagrams: define PlantUML inline in the markdown file using fenced code blocks with the `plantuml` language tag. Do not create separate `.puml` files or generate PNG images. Place the code block between a centered table alignment row (`|:--:|`) and a caption row (`|Figure N Description |`). See documentation-standards for the full format.
 5. Verify the issue **Acceptance Criteria** (e.g. "All required sections present", "File saved at [path]").
 
 ## 4. After writing
