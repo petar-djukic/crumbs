@@ -53,7 +53,7 @@ releases:
     done_when: Every crumb always has a value for every defined property. No gaps, no partial state.
     deliverables:
       - Property and Category entities
-      - PropertyTable with Define, List operations
+      - Property and Category access via Table interface (Get, Set, Fetch)
       - "Crumb property methods: SetProperty, GetProperty, ClearProperty"
       - Built-in property seeding (priority, type, description, owner, labels, dependencies)
       - "Property enforcement: auto-initialization on crumb creation, backfill on property definition"
@@ -67,7 +67,7 @@ releases:
     description: Implement trail lifecycle for exploratory workflows and stash for shared state coordination.
     done_when: An agent can explore implementation approaches with trails, abandoning failed attempts and completing successful ones.
     deliverables:
-      - "Trail entity with lifecycle methods: Complete, Abandon, AddCrumb, RemoveCrumb, GetCrumbs"
+      - "Trail entity with lifecycle methods: Complete, Abandon"
       - "Stash entity with methods: SetValue, GetValue, Increment, Acquire, Release, GetHistory"
       - Trail filtering in Fetch
       - Atomic cleanup on trail abandonment

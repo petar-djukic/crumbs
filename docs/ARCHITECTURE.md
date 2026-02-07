@@ -45,7 +45,7 @@ package "internal/sqlite" {
 
 Crumbs have a lifecycle driven by state transitions and trail operations. State is a core field on the Crumb struct, not a property (see prd-crumbs-interface R1, R2).
 
-**Crumb states** (prd-crumbs-interface R2): `draft` → `pending` → `ready` → `taken` → `pebble` or `dust`. Terminal states are `pebble` (completed successfully) and `dust` (failed or abandoned). Initial state on creation is `draft`. CrumbTable tracks state but does not enforce transitions—agents or coordination layers define transition rules.
+**Crumb states** (prd-crumbs-interface R2): `draft` → `pending` → `ready` → `taken` → `pebble` or `dust`. Terminal states are `pebble` (completed successfully) and `dust` (failed or abandoned). Initial state on creation is `draft`. The Table interface tracks state but does not enforce transitions—agents or coordination layers define transition rules.
 
 <!-- TODO: trails should have a state equivalent to draft and pending-->
 **Trail states** (prd-trails-interface R2): `active` → `completed` or `abandoned`. The `Trail.Complete()` and `Trail.Abandon()` entity methods update the trail's state field. When persisted via `Table.Set`, the backend performs cascade operations: completing a trail removes `belongs_to` links (crumbs become permanent), abandoning a trail deletes its crumbs.
