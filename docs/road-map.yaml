@@ -31,10 +31,10 @@ releases:
         summary: Config, attach, detach, error handling
         status: done
       - id: rel01.0-uc002-sqlite-crud
-        summary: "ORM pattern: get, modify, save entities"
+        summary: "Table interface CRUD: Set, Get, Fetch, Delete across entity types with JSONL persistence"
         status: done
       - id: rel01.0-uc003-crud-operations
-        summary: Add, Get, Archive, Purge, Fetch operations
+        summary: "Crumb entity: state machine (draft→pebble/dust), SetState, Pebble, Dust, state-based filtering"
         status: done
       - id: rel01.0-uc004-scaffolding-validation
         summary: Types, interfaces, and CLI compile; version command works; all tables accessible
