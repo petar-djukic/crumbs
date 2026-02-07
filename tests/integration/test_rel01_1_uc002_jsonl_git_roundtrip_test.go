@@ -1,7 +1,7 @@
 // CLI integration tests for JSONL git roundtrip persistence.
-// Validates test002-jsonl-git-roundtrip.yaml test cases.
-// Implements: docs/test-suites/test002-jsonl-git-roundtrip.yaml;
-//             docs/use-cases/rel01.1-uc002-jsonl-git-roundtrip.md;
+// Validates test-rel01.1-uc002-jsonl-git-roundtrip.yaml test cases.
+// Implements: docs/test-suites/test-rel01.1-uc002-jsonl-git-roundtrip.yaml;
+//             docs/use-cases/rel01.1-uc002-jsonl-git-roundtrip.yaml;
 //             prd-sqlite-backend R1, R4, R5.
 package integration
 
