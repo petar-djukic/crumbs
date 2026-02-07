@@ -1,0 +1,231 @@
+id: test004-cupboard-lifecycle
+title: Cupboard lifecycle and CRUD operations
+description: >
+  Validates crumb state transitions, trail creation and lifecycle,
+  crumb-trail linking via belongs_to relationships, and crumb archival (dust state).
+  Each test case exercises the core CRUD operations via the cupboard CLI.
+traces:
+  - rel01.0-uc001-cupboard-lifecycle
+  - rel01.0-uc003-crud-operations
+tags:
+  - cli
+  - integration
+  - lifecycle
+
+preconditions:
+  - Cupboard binary built from cmd/cupboard
+  - Fresh temp directory for config and data
+  - Config file points SQLite backend at the temp data directory
+  - No existing crumbs, trails, or links
+
+test_cases:
+
+  # --- crumb state transitions ---
+
+  - name: Create crumb with draft state
+    inputs:
+      command: cupboard set crumbs "" '{"Name":"New crumb","State":"draft"}'
+    expected:
+      exit_code: 0
+      stdout_contains: "CrumbID"
+      state:
+        crumb_state: draft
+
+  - name: Transition crumb from draft to ready
+    description: Create a crumb in draft state, then update to ready state.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Ready crumb","State":"draft"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Ready crumb","State":"ready"}'
+    expected:
+      exit_code: 0
+      state:
+        crumb_state: ready
+
+  - name: Transition crumb from ready to taken
+    description: Create a crumb, move to ready, then claim it (taken).
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Taken crumb","State":"ready"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Taken crumb","State":"taken"}'
+    expected:
+      exit_code: 0
+      state:
+        crumb_state: taken
+
+  - name: Transition crumb to pebble (completed successfully)
+    description: Move a crumb to terminal pebble state (completed).
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Pebble crumb","State":"taken"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Pebble crumb","State":"pebble"}'
+    expected:
+      exit_code: 0
+      state:
+        crumb_state: pebble
+
+  - name: Transition crumb to dust (failed or abandoned)
+    description: Move a crumb to terminal dust state (failed/abandoned).
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Dust crumb","State":"draft"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Dust crumb","State":"dust"}'
+    expected:
+      exit_code: 0
+      state:
+        crumb_state: dust
+
+  # --- trail creation and lifecycle ---
+
+  - name: Create trail in active state
+    inputs:
+      command: cupboard set trails "" '{"State":"active"}'
+    expected:
+      exit_code: 0
+      stdout_contains: "TrailID"
+      state:
+        trail_state: active
+
+  - name: Create multiple trails with unique IDs
+    inputs:
+      setup:
+        - cupboard set trails "" '{"State":"active"}'
+      command: cupboard set trails "" '{"State":"active"}'
+    expected:
+      exit_code: 0
+      state:
+        trail_count: 2
+
+  - name: Complete trail (successful exploration)
+    description: Transition a trail from active to completed state.
+    inputs:
+      setup:
+        - cupboard set trails "" '{"State":"active"}'
+      command: cupboard set trails ${trail_id} '{"TrailID":"${trail_id}","State":"completed"}'
+    expected:
+      exit_code: 0
+      state:
+        trail_state: completed
+
+  - name: Abandon trail (failed exploration)
+    description: Transition a trail from active to abandoned state.
+    inputs:
+      setup:
+        - cupboard set trails "" '{"State":"active"}'
+      command: cupboard set trails ${trail_id} '{"TrailID":"${trail_id}","State":"abandoned"}'
+    expected:
+      exit_code: 0
+      state:
+        trail_state: abandoned
+
+  # --- crumb-trail linking ---
+
+  - name: Link crumb to trail via belongs_to
+    description: Create a crumb and trail, then link crumb to trail using belongs_to.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Linked crumb","State":"draft"}'
+        - cupboard set trails "" '{"State":"active"}'
+      command: cupboard set links "" '{"LinkType":"belongs_to","FromID":"${crumb_id}","ToID":"${trail_id}"}'
+    expected:
+      exit_code: 0
+      stdout_contains: "LinkID"
+      state:
+        link_type: belongs_to
+
+  - name: Link multiple crumbs to different trails
+    description: Create 2 crumbs and 2 trails, link each crumb to a separate trail.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Crumb 1","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Crumb 2","State":"draft"}'
+        - cupboard set trails "" '{"State":"active"}'
+        - cupboard set trails "" '{"State":"active"}'
+      steps:
+        - cupboard set links "" '{"LinkType":"belongs_to","FromID":"${crumb1_id}","ToID":"${trail1_id}"}'
+        - cupboard set links "" '{"LinkType":"belongs_to","FromID":"${crumb2_id}","ToID":"${trail2_id}"}'
+    expected:
+      exit_code: 0
+      state:
+        link_count: 2
+
+  # --- crumb archival (dust) ---
+
+  - name: Archive crumb by setting dust state
+    description: Mark a crumb as dust (soft delete) and verify it is filtered from draft list.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Keep crumb","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Dust crumb","State":"draft"}'
+      command: cupboard set crumbs ${crumb2_id} '{"CrumbID":"${crumb2_id}","Name":"Dust crumb","State":"dust"}'
+    expected:
+      exit_code: 0
+      state:
+        draft_count: 1
+        dust_count: 1
+
+  - name: Filter excludes dust crumbs
+    description: Verify that listing by state=draft excludes dust crumbs.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Active crumb","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Archived crumb","State":"dust"}'
+      command: cupboard list crumbs State=draft
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 1
+
+  # --- JSON persistence verification ---
+
+  - name: Trails persisted to JSONL
+    description: Verify that trail state changes are persisted to trails.jsonl file.
+    inputs:
+      setup:
+        - cupboard set trails "" '{"State":"active"}'
+        - cupboard set trails "" '{"State":"active"}'
+      steps:
+        - cupboard set trails ${trail1_id} '{"TrailID":"${trail1_id}","State":"completed"}'
+        - cupboard set trails ${trail2_id} '{"TrailID":"${trail2_id}","State":"abandoned"}'
+    expected:
+      exit_code: 0
+      files:
+        trails.jsonl:
+          contains:
+            - '"state":"completed"'
+            - '"state":"abandoned"'
+
+  # --- full workflow ---
+
+  - name: Full lifecycle with crumbs and trails
+    description: >
+      Create crumbs, transition states, create trails, link crumbs to trails,
+      complete and abandon trails, dust a crumb.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Implement feature X","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Write tests","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Try approach A","State":"draft"}'
+      steps:
+        - cupboard set crumbs ${crumb1_id} '{"CrumbID":"${crumb1_id}","Name":"Implement feature X","State":"pebble"}'
+        - cupboard set trails "" '{"State":"active"}'
+        - cupboard set trails "" '{"State":"active"}'
+        - cupboard set links "" '{"LinkType":"belongs_to","FromID":"${crumb2_id}","ToID":"${trail1_id}"}'
+        - cupboard set links "" '{"LinkType":"belongs_to","FromID":"${crumb3_id}","ToID":"${trail2_id}"}'
+        - cupboard set trails ${trail1_id} '{"TrailID":"${trail1_id}","State":"completed"}'
+        - cupboard set trails ${trail2_id} '{"TrailID":"${trail2_id}","State":"abandoned"}'
+        - cupboard set crumbs ${crumb3_id} '{"CrumbID":"${crumb3_id}","Name":"Try approach A","State":"dust"}'
+    expected:
+      exit_code: 0
+      state:
+        crumb_count: 3
+        pebble_count: 1
+        dust_count: 1
+        draft_count: 1
+        trail_count: 2
+        completed_trail_count: 1
+        abandoned_trail_count: 1
+        link_count: 2
+
+cleanup:
+  - Remove temp config and data directories
