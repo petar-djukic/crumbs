@@ -86,7 +86,7 @@ for _, e := range entities {
 
 ```go
 trailsTable, _ := cupboard.GetTable("trails")
-trail := &Trail{ParentCrumbID: nil}
+trail := &Trail{}
 trailsTable.Set("", trail)  // trail created in active state
 ```
 

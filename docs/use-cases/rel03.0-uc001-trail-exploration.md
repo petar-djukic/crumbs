@@ -10,37 +10,47 @@ The actor is a coding agent or developer exploring alternative implementation ap
 
 ## Flow
 
-1. **Create cupboard and get tables**: Construct a Cupboard and call `Attach(config)`. Get the trails, crumbs, and links tables.
+1. **Create cupboard and get tables**: Construct a Cupboard via `sqlite.NewBackend()` and call `Attach(config)`. Get the trails, crumbs, and links tables.
 
 ```go
-cupboard := NewCupboard()
+cupboard := sqlite.NewBackend()
 cupboard.Attach(config)
 trailsTable, _ := cupboard.GetTable("trails")
 crumbsTable, _ := cupboard.GetTable("crumbs")
 linksTable, _ := cupboard.GetTable("links")
 ```
 
-2. **Create a parent crumb (optional)**: Create a task that the trail will explore approaches for. This is optional; trails can exist without a parent.
+2. **Create a parent crumb (optional)**: Create a task that the trail will explore approaches for. This is optional; trails can exist without branching from a crumb.
 
 ```go
 parentCrumb := &Crumb{Name: "Implement caching layer"}
 parentID, _ := crumbsTable.Set("", parentCrumb)
 ```
 
-3. **Create a trail**: Construct a Trail and call `trailsTable.Set("", trail)`. The trail starts in "active" state.
+3. **Create a trail and link branch point**: Construct a Trail and call `trailsTable.Set("", trail)`. The trail starts in "active" state. To indicate this trail branches from a crumb, create a `branches_from` link.
 
 ```go
-trail := &Trail{ParentCrumbID: &parentID}
+trail := &Trail{}
 trailID, _ := trailsTable.Set("", trail)
+
+// Create branches_from link to indicate the trail explores from this crumb
+branchLink := &Link{LinkType: "branches_from", FromID: trailID, ToID: parentID}
+linksTable.Set("", branchLink)
 ```
 
-4. **Verify trail state**: Retrieve the trail and confirm it exists with state "active" and the correct parent.
+4. **Verify trail state and branch point**: Retrieve the trail and confirm it exists with state "active". Query the links table for the branches_from link to verify the branch point.
 
 ```go
 entity, _ := trailsTable.Get(trailID)
 trail := entity.(*Trail)
 // trail.State should be "active"
-// trail.ParentCrumbID should point to parentID
+
+// Verify branch point via links table
+branchLinks, _ := linksTable.Fetch(map[string]any{
+    "LinkType": "branches_from",
+    "FromID":   trailID,
+})
+// branchLinks[0].ToID should equal parentID
 ```
 
 5. **Add exploration crumbs**: Create crumbs for the exploration and associate them with the trail via belongs_to links.
@@ -64,12 +74,21 @@ linkB := &Link{LinkType: "belongs_to", FromID: crumbBID, ToID: trailID}
 linksTable.Set("", linkB)
 ```
 
-7. **List crumbs on trail**: Query the crumbs table with a trail_id filter to get crumbs belonging to this trail.
+7. **List crumbs on trail**: Query the links table for belongs_to links where to_id equals the trail ID to find crumbs belonging to this trail.
 
 ```go
-filter := map[string]any{"trail_id": trailID}
-entities, _ := crumbsTable.Fetch(filter)
-// Should return both exploration crumbs
+// Find all belongs_to links for this trail
+linkFilter := map[string]any{"LinkType": "belongs_to", "ToID": trailID}
+links, _ := linksTable.Fetch(linkFilter)
+// Each link.FromID is a crumb_id on this trail
+
+// Retrieve the crumbs
+for _, l := range links {
+    link := l.(*Link)
+    entity, _ := crumbsTable.Get(link.FromID)
+    crumb := entity.(*Crumb)
+    // process crumb
+}
 ```
 
 8. **Remove a crumb from trail**: Delete the belongs_to link to disassociate the crumb without deleting it.
@@ -124,11 +143,11 @@ entity, _ := crumbsTable.Get(crumbCID)  // should succeed
 crumbC := entity.(*Crumb)               // crumb is now permanent
 ```
 
-13. **Filter crumbs by trail**: After completion, crumbs no longer have belongs_to links, so trail_id filter returns empty.
+13. **Filter crumbs by trail**: After completion, crumbs no longer have belongs_to links, so querying links returns empty.
 
 ```go
-filter := map[string]any{"trail_id": trail2ID}
-entities, _ := crumbsTable.Fetch(filter)
+linkFilter := map[string]any{"LinkType": "belongs_to", "ToID": trail2ID}
+links, _ := linksTable.Fetch(linkFilter)
 // Should return empty slice (links were removed on complete)
 ```
 
@@ -141,9 +160,9 @@ This use case exercises the following interfaces and components:
 | Interface | Operations Used |
 |-----------|-----------------|
 | Cupboard | Attach, Detach, GetTable |
-| Table (crumbs) | Get, Set, Delete, Fetch (with trail_id filter) |
+| Table (crumbs) | Get, Set, Delete, Fetch |
 | Table (trails) | Get, Set |
-| Table (links) | Get, Set, Delete, Fetch |
+| Table (links) | Get, Set, Delete, Fetch (with belongs_to/branches_from filters) |
 | Trail entity | Complete, Abandon |
 
 We validate:
@@ -152,7 +171,7 @@ We validate:
 - Crumb-trail membership via belongs_to links (prd-trails-interface R7)
 - Trail completion makes crumbs permanent by removing links (prd-trails-interface R5)
 - Trail abandonment deletes associated crumbs atomically (prd-trails-interface R6)
-- Trail_id filter in crumbs Fetch (prd-crumbs-interface R9)
+- Link-based querying for trail membership (prd-sqlite-backend)
 - belongs_to link management (prd-sqlite-backend)
 
 ## Success Criteria
@@ -161,7 +180,7 @@ The demo succeeds when:
 
 - [ ] Trail created via Table.Set starts in "active" state
 - [ ] belongs_to links associate crumbs with trails
-- [ ] Fetch with trail_id filter returns crumbs on that trail
+- [ ] Querying links table with belongs_to filter returns crumbs on that trail
 - [ ] Deleting belongs_to link disassociates without deleting the crumb
 - [ ] trail.Abandon() then Table.Set deletes trail's crumbs atomically
 - [ ] Crumbs removed from trail before abandon survive

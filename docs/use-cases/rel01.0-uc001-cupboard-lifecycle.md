@@ -73,7 +73,7 @@ cfg := Config{
 }
 
 // 2. Create and attach cupboard
-cupboard := NewCupboard()
+cupboard := sqlite.NewBackend()
 err := cupboard.Attach(cfg)
 if err != nil {
     log.Fatal("attach failed:", err)

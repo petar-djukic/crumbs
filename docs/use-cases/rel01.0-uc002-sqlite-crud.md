@@ -68,7 +68,7 @@ Observable demo:
 
 ```go
 // Attach
-cupboard := NewCupboard()
+cupboard := sqlite.NewBackend()
 config := Config{DataDir: "/tmp/crumbs-demo", Backend: "sqlite"}
 err := cupboard.Attach(config)
 
