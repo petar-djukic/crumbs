@@ -1,0 +1,73 @@
+id: rel02.0-uc002-regeneration-compatibility
+title: Regeneration Compatibility
+summary: |
+  The --regenerate cycle deletes all Go code, rebuilds cupboard from documentation,
+  and verifies that the new generation reads and operates on JSONL data created by
+  the previous generation. This validates backward compatibility across regeneration cycles.
+actor: The do-work.sh --regenerate script
+trigger: Developer or CI pipeline running a regeneration cycle to validate that cupboard can be rebuilt from documentation alone and remain compatible with existing data
+flow:
+  - F1: "Build and install generation N: Generation N is built, tested, and installed. The go install step places the cupboard binary in $GOBIN. This binary becomes the reference implementation for the current JSONL format."
+  - F2: "Create JSONL data using generation N: Create crumbs using the generation N binary. This data represents the contract that generation N+1 must honor."
+  - F3: "Run --regenerate: The script tags the current repo state, deletes all Go source files, reinitializes the Go module, and commits. Internally runs git tag, find -delete, rm, go mod init, git add, git commit."
+  - F4: "Rebuild from documentation: The make-work/do-work loop rebuilds cupboard from documentation. The new code (generation N+1) is written by agents reading PRDs, architecture docs, and use cases. The agents produce a fresh implementation that must conform to the documented JSONL format (prd-sqlite-backend R2)."
+  - F5: "Build generation N+1: Build and verify generation N+1 compiles successfully."
+  - F6: "Load generation N data with generation N+1: Point generation N+1 at the JSONL data created by generation N. The backend's startup sequence (prd-sqlite-backend R4) loads JSONL into SQLite. If the format has drifted, this step fails."
+  - F7: "Verify read operations: Verify read operations against generation N data return correct values."
+  - F8: "Verify write operations: Verify write operations update generation N data correctly. Generation N+1 must write JSONL in a format that both itself and generation N can read."
+  - F9: "Verify generation N reads N+1 modifications: Verify the installed generation N binary can still read the data after generation N+1 modifies it. This confirms write compatibility in both directions."
+  - F10: "Verify property operations across generations: If generation N defined properties and set values, generation N+1 must load those properties and values correctly (requires rel02.0 property enforcement)."
+touchpoints:
+  - T1: "scripts/do-work.sh --regenerate: Orchestrates the regeneration cycle (tag, delete, reinit, rebuild)"
+  - T2: "SQLite backend startup: Loads JSONL files into SQLite; format must match across generations (prd-sqlite-backend R4)"
+  - T3: "JSONL file format: The contract between generations; format stability is the invariant (prd-sqlite-backend R2)"
+  - T4: "JSONL write path: Writes must produce JSONL that older and newer generations can parse (prd-sqlite-backend R5)"
+  - T5: "Unknown field handling: Unknown fields in JSONL are ignored, enabling forward compatibility (prd-sqlite-backend R7.2)"
+  - T6: "Cupboard interface: Attach/Detach, GetTable work identically across generations (prd-cupboard-core R4, R5)"
+  - T7: "Property system: Property definitions and values persist across regeneration (prd-properties-interface R4)"
+success_criteria:
+  - S1: Build and install generation N succeeds, cupboard --help works from $GOBIN
+  - S2: Create crumbs with generation N produces crumbs.jsonl with the created entries
+  - S3: Run --regenerate deletes Go files, reinitializes module, creates clean commit, and creates tag
+  - S4: Build generation N+1 from fresh code succeeds, new binary produced
+  - S5: Generation N+1 reads generation N data via list crumbs, returning all crumbs created in step 2
+  - S6: Generation N+1 modifies generation N data via set crumbs, JSONL reflects change
+  - S7: Generation N (installed cupboard) reads data modified by N+1 and returns updated values
+  - S8: Properties and values created by N are readable by N+1
+out_of_scope:
+  - Schema migrations or versioned JSONL formats (we rely on format stability and unknown-field tolerance)
+  - Testing more than two generations in sequence (N and N+1 only)
+  - Cross-platform compatibility (both generations run on the same OS/architecture)
+  - Performance comparison between generations
+  - Validating that agents produce correct code during regeneration (that is the make-work/do-work loop's responsibility)
+test_suite: TBD
+dependencies:
+  - D1: rel01.1-uc001-go-install (Generation N must be installable via go install)
+  - D2: rel01.1-uc002-jsonl-git-roundtrip (JSONL must be the source of truth, surviving database deletion)
+  - D3: rel02.0-uc001-property-enforcement (Property data must persist across generations)
+  - D4: prd-sqlite-backend R2, R4, R5, R7 (JSONL format, startup loading, write persistence, error handling)
+  - D5: prd-cupboard-core R3, R4, R5 (Table interface, Attach/Detach lifecycle)
+  - D6: prd-properties-interface R4, R9 (Property persistence and seeding)
+  - D7: do-work.sh --regenerate option must be implemented
+risks:
+  - K1: "JSONL format drift between generations | PRD specifies the format (prd-sqlite-backend R2); agents read the PRD during regeneration"
+  - K2: "New fields added by N+1 break generation N | Unknown fields are ignored per prd-sqlite-backend R7.2 (forward compatibility)"
+  - K3: "Generation N+1 fails to build | Build verification is step 5 in the success criteria; failure is caught before data tests"
+  - K4: "Property schema changes break cross-generation reads | Property definitions live in JSONL; the format is stable per prd-properties-interface"
+  - K5: "Regeneration deletes test data | Test data lives in a separate directory (/tmp/regen-test), not in the repo"
+demo: |
+  # Full cycle
+  go install ./cmd/cupboard
+  cupboard init --datadir /tmp/regen-test
+  cupboard set crumbs "" '{"Name":"Compat test","State":"draft"}'
+  CRUMB_ID=$(cupboard list crumbs --json | jq -r '.[0].crumb_id')
+
+  ./scripts/do-work.sh --regenerate --cycles 1
+
+  go build -o /tmp/cupboard-new ./cmd/cupboard
+  /tmp/cupboard-new list crumbs --datadir /tmp/regen-test
+  # Expect: "Compat test" crumb present
+
+  /tmp/cupboard-new set crumbs "$CRUMB_ID" '{"Name":"Compat test","State":"ready"}' --datadir /tmp/regen-test
+  cupboard get crumbs "$CRUMB_ID" --datadir /tmp/regen-test
+  # Expect: state is "ready"

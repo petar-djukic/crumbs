@@ -1,0 +1,66 @@
+id: rel02.0-uc001-property-enforcement
+title: Property Enforcement
+summary: |
+  A developer defines custom properties, verifies built-in properties are seeded,
+  and validates that all crumbs automatically have values for all defined properties.
+  This tracer bullet validates the property enforcement mechanism: auto-initialization
+  on crumb creation and backfill on property definition.
+actor: Developer or automated test harness
+trigger: Need to validate that the property system enforces the invariant that every crumb has a value for every defined property, with no gaps or partial state
+flow:
+  - F1: "Create cupboard with seeded properties: Construct a Cupboard and call Attach(config) with a SQLite backend. The backend seeds built-in properties (priority, type, description, owner, labels) during initialization."
+  - F2: "Verify built-in properties: Call cupboard.GetTable(\"properties\") and use table.Fetch(nil) to list all properties. Confirm the five built-in properties exist with correct value types."
+  - F3: "Add a crumb: Get the crumbs table, construct a Crumb, and call table.Set(\"\", crumb). The operation creates the crumb and auto-initializes all five built-in properties with their default values."
+  - F4: "Verify property initialization: Call crumb.GetProperties() to get all properties. Confirm it returns all five properties with default values (empty strings for text, empty lists for list types, null for categorical)."
+  - F5: "Set a property value: Call crumb.SetProperty(propertyID, value) then persist with table.Set. Verify UpdatedAt changes."
+  - F6: "Get a property value: Call crumb.GetProperty(propertyID). Verify it returns the value set in the previous step."
+  - F7: "Define a custom property: Construct a Property and call propsTable.Set(\"\", prop). The operation creates the property and backfills all existing crumbs with the default value (0 for integer)."
+  - F8: "Verify backfill occurred: Retrieve the crumb and call crumb.GetProperties(). Confirm the crumb now has six properties including \"estimate\" with value 0."
+  - F9: "Add another crumb after property definition: Create another crumb. Verify the new crumb has all six properties (five built-in plus estimate) auto-initialized."
+  - F10: "Update custom property: Call crumb.SetProperty(propertyID, value) then persist to set the estimate to 5."
+  - F11: "Clear property to default: Call crumb.ClearProperty(propertyID) then persist. Verify the estimate resets to 0 (the default), not null or unset."
+  - F12: "Verify invariant holds: Retrieve both crumbs and call GetProperties(). Confirm each has exactly six properties with no gaps."
+  - F13: "Detach the cupboard: Call cupboard.Detach()."
+touchpoints:
+  - T1: "Cupboard interface: Attach, Detach, GetTable (prd-cupboard-core R2)"
+  - T2: "Table (crumbs): Get, Set, Fetch"
+  - T3: "Table (properties): Get, Set, Fetch"
+  - T4: "Crumb entity: SetProperty, GetProperty, GetProperties, ClearProperty (prd-crumbs-interface R5)"
+  - T5: "Property entity: struct fields"
+  - T6: "Built-in property seeding (prd-properties-interface R9, prd-sqlite-backend R9)"
+  - T7: "Crumb creation with property auto-initialization (prd-crumbs-interface R3)"
+  - T8: "Property definition with backfill to existing crumbs (prd-properties-interface R4)"
+success_criteria:
+  - S1: properties table Fetch returns five built-in properties after initialization
+  - S2: Newly added crumbs have all defined properties with default values
+  - S3: SetProperty updates value and changes UpdatedAt
+  - S4: GetProperty returns the current value
+  - S5: Creating a Property via Table.Set backfills existing crumbs
+  - S6: GetProperties() returns all properties (never partial) for any crumb
+  - S7: ClearProperty resets value to default, not null or unset
+  - S8: Crumbs added after property definition have the new property auto-initialized
+  - S9: No crumb ever has fewer properties than are defined
+out_of_scope:
+  - Core CRUD operations (Get, Set, Delete, Fetch) - see rel01.0-uc003
+  - Category management (DefineCategory, GetCategories entity methods)
+  - Property deletion or renaming (not supported per prd-properties-interface)
+  - Trail operations - see rel03.0-uc001
+  - Concurrent property definition and crumb creation
+  - Property value validation beyond type checking
+test_suite: TBD
+dependencies:
+  - D1: rel01.0-uc001 (Cupboard lifecycle) must pass
+  - D2: rel01.0-uc003 (Core CRUD) must pass
+  - D3: prd-properties-interface must be implemented (Property entity, Table operations)
+  - D4: prd-crumbs-interface property methods must be implemented
+risks:
+  - K1: "Backfill performance on large datasets | Test with 1000+ crumbs to validate acceptable latency"
+  - K2: "Atomic transaction failures | Verify rollback behavior when backfill fails mid-operation"
+  - K3: "Default value edge cases (null vs zero) | Explicit test cases for each value type's default"
+  - K4: "Race condition on Define + Add | Document that Define should complete before concurrent Adds"
+demo: |
+  # Run the demo binary or test
+  go test -v ./internal/sqlite -run TestPropertyEnforcement
+
+  # Or run a CLI demo
+  crumbs demo properties --datadir /tmp/crumbs-demo
