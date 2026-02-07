@@ -19,7 +19,7 @@ releases:
   - version: "01.0"
     name: Core Storage with SQLite Backend
     description: Implement the Cupboard and Table interfaces with SQLite backend. Validates core concepts and provides a working system for local use.
-    done_when: All three use cases pass. An agent can create, query, and manage crumbs via the Table interface.
+    done_when: All four use cases pass. An agent can create, query, and manage crumbs via the Table interface.
     deliverables:
       - Cupboard interface with Attach, Detach, GetTable
       - Table interface with Get, Set, Delete, Fetch
@@ -36,6 +36,9 @@ releases:
       - id: rel01.0-uc003-crud-operations
         summary: Add, Get, Archive, Purge, Fetch operations
         status: done
+      - id: rel01.0-uc004-scaffolding-validation
+        summary: Types, interfaces, and CLI compile; version command works; all tables accessible
+        status: not_started
 
   - version: "01.1"
     name: Post-Core Validation

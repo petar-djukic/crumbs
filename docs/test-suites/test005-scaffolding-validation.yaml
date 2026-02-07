@@ -1,0 +1,266 @@
+id: test005-scaffolding-validation
+title: Scaffolding validation (types, interfaces, CLI compile)
+description: >
+  Validates that all entity types, interfaces, and the cupboard CLI compile
+  and link correctly. Verifies the version command, standard table names,
+  and GetTable for all six tables. This is the first use case implemented.
+traces:
+  - rel01.0-uc004-scaffolding-validation
+  - prd-cupboard-core R2
+  - prd-cupboard-core R2.5
+tags:
+  - cli
+  - smoke
+  - compile
+
+preconditions:
+  - Go toolchain installed (go build works)
+  - Source tree is checked out and module dependencies resolved
+
+test_cases:
+
+  # --- build ---
+
+  - name: Cupboard CLI compiles without errors
+    inputs:
+      command: go build -o cupboard ./cmd/cupboard
+    expected:
+      exit_code: 0
+
+  # --- version command ---
+
+  - name: Version command prints version and exits 0
+    inputs:
+      command: cupboard version
+    expected:
+      exit_code: 0
+      stdout_contains: "cupboard"
+
+  - name: Version command works without backend connection
+    description: >
+      The version command must not require an initialized backend.
+      Running it without --data-dir or any config file must succeed.
+    inputs:
+      env:
+        HOME: /tmp/cupboard-no-config
+      command: cupboard version
+    expected:
+      exit_code: 0
+      stdout_contains: "cupboard"
+
+  # --- entity struct compilation ---
+
+  - name: Crumb struct has required fields
+    description: >
+      Compile-time test. Instantiate a Crumb with all documented fields
+      to verify the struct definition matches prd-crumbs-interface.
+    inputs:
+      go_code: |
+        c := &types.Crumb{
+            CrumbID:    "test",
+            Name:       "test",
+            State:      "draft",
+            CreatedAt:  time.Now(),
+            UpdatedAt:  time.Now(),
+            Properties: map[string]any{},
+        }
+        _ = c
+    expected:
+      compiles: true
+
+  - name: Trail struct has required fields
+    inputs:
+      go_code: |
+        t := &types.Trail{
+            TrailID:   "test",
+            State:     "active",
+            CreatedAt: time.Now(),
+        }
+        _ = t
+    expected:
+      compiles: true
+
+  - name: Property struct has required fields
+    inputs:
+      go_code: |
+        p := &types.Property{
+            PropertyID:  "test",
+            Name:        "priority",
+            Description: "Task priority",
+            ValueType:   "categorical",
+            CreatedAt:   time.Now(),
+        }
+        _ = p
+    expected:
+      compiles: true
+
+  - name: Category struct has required fields
+    inputs:
+      go_code: |
+        c := &types.Category{
+            CategoryID: "test",
+            PropertyID: "test",
+            Name:       "high",
+            Ordinal:    1,
+        }
+        _ = c
+    expected:
+      compiles: true
+
+  - name: Stash struct has required fields
+    inputs:
+      go_code: |
+        s := &types.Stash{
+            StashID:   "test",
+            Name:      "shared-config",
+            StashType: "context",
+            Value:     nil,
+            Version:   0,
+            CreatedAt: time.Now(),
+        }
+        _ = s
+    expected:
+      compiles: true
+
+  - name: Metadata struct has required fields
+    inputs:
+      go_code: |
+        m := &types.Metadata{
+            MetadataID: "test",
+            CrumbID:    "test",
+            TableName:  "comments",
+            Content:    "{}",
+            CreatedAt:  time.Now(),
+        }
+        _ = m
+    expected:
+      compiles: true
+
+  - name: Link struct has required fields
+    inputs:
+      go_code: |
+        l := &types.Link{
+            LinkID:    "test",
+            LinkType:  "belongs_to",
+            FromID:    "crumb-1",
+            ToID:      "trail-1",
+            CreatedAt: time.Now(),
+        }
+        _ = l
+    expected:
+      compiles: true
+
+  # --- interface satisfaction ---
+
+  - name: SQLite backend satisfies Cupboard interface
+    description: >
+      Compile-time assertion that sqlite.Backend implements types.Cupboard.
+    inputs:
+      go_code: |
+        var _ types.Cupboard = (*sqlite.Backend)(nil)
+    expected:
+      compiles: true
+
+  - name: Table interface defines Get, Set, Delete, Fetch
+    description: >
+      Compile-time assertion that the Table interface has all four methods.
+    inputs:
+      go_code: |
+        var t types.Table
+        _, _ = t.Get("id")
+        _, _ = t.Set("id", nil)
+        _ = t.Delete("id")
+        _, _ = t.Fetch(map[string]any{})
+    expected:
+      compiles: true
+
+  # --- standard table names ---
+
+  - name: Standard table name constants are defined
+    inputs:
+      go_code: |
+        names := []string{
+            types.CrumbsTable,
+            types.TrailsTable,
+            types.PropertiesTable,
+            types.MetadataTable,
+            types.LinksTable,
+            types.StashesTable,
+        }
+        _ = names
+    expected:
+      compiles: true
+
+  # --- GetTable for all standard tables ---
+
+  - name: GetTable succeeds for crumbs table
+    inputs:
+      setup:
+        - cupboard init --data-dir ${tmpdir}
+      command: cupboard get crumbs nonexistent-probe-id --data-dir ${tmpdir}
+    expected:
+      exit_code: 1
+      stderr_contains: "not found"
+    description: >
+      We probe the crumbs table by requesting a nonexistent ID.
+      Exit code 1 with "not found" confirms the table exists and is accessible.
+      Exit code 0 would also be acceptable if the table returns empty.
+
+  - name: GetTable succeeds for trails table
+    inputs:
+      setup:
+        - cupboard init --data-dir ${tmpdir}
+      command: cupboard get trails nonexistent-probe-id --data-dir ${tmpdir}
+    expected:
+      exit_code: 1
+      stderr_contains: "not found"
+
+  - name: GetTable succeeds for properties table
+    inputs:
+      setup:
+        - cupboard init --data-dir ${tmpdir}
+      command: cupboard get properties nonexistent-probe-id --data-dir ${tmpdir}
+    expected:
+      exit_code: 1
+      stderr_contains: "not found"
+
+  - name: GetTable succeeds for metadata table
+    inputs:
+      setup:
+        - cupboard init --data-dir ${tmpdir}
+      command: cupboard get metadata nonexistent-probe-id --data-dir ${tmpdir}
+    expected:
+      exit_code: 1
+      stderr_contains: "not found"
+
+  - name: GetTable succeeds for links table
+    inputs:
+      setup:
+        - cupboard init --data-dir ${tmpdir}
+      command: cupboard get links nonexistent-probe-id --data-dir ${tmpdir}
+    expected:
+      exit_code: 1
+      stderr_contains: "not found"
+
+  - name: GetTable succeeds for stashes table
+    inputs:
+      setup:
+        - cupboard init --data-dir ${tmpdir}
+      command: cupboard get stashes nonexistent-probe-id --data-dir ${tmpdir}
+    expected:
+      exit_code: 1
+      stderr_contains: "not found"
+
+  - name: GetTable fails for unknown table name
+    description: >
+      Requesting a table that does not exist must return ErrTableNotFound.
+      The CLI surfaces this as a non-zero exit code.
+    inputs:
+      setup:
+        - cupboard init --data-dir ${tmpdir}
+      command: cupboard get nonexistent nonexistent-id --data-dir ${tmpdir}
+    expected:
+      exit_code: 1
+
+cleanup:
+  - Remove temp directories created during tests
