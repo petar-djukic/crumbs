@@ -1,0 +1,84 @@
+id: rel01.0-uc004-scaffolding-validation
+title: Scaffolding Validation
+summary: |
+  A developer builds the cupboard CLI, runs the version command to confirm
+  the binary works, and verifies that all standard tables and entity types
+  are accessible through the Cupboard and Table interfaces. This is the first
+  use case implemented and validates that the type system, interfaces, and
+  CLI entry point compile and link correctly before any backend behavior is
+  exercised.
+actor: Developer who has cloned the repository and wants to confirm that the project compiles
+trigger: Running go build on the cupboard CLI and executing the version command
+flow:
+  - F1: "Verify module path and local replace: the go.mod file declares module github.com/mesh-intelligence/crumbs with a replace directive pointing to ./ for local development"
+  - F2: "Build the cupboard CLI: run go build ./cmd/cupboard; the command must complete without errors producing a cupboard binary"
+  - F3: "Run the version command: execute cupboard version; the command prints the version string and a list of implemented use cases then exits with code 0"
+  - F4: "Verify entity structs compile: the build transitively compiles all entity types in pkg/types; each struct must have its documented fields and methods"
+  - F5: "Verify Table interface compiles: the Table interface must define Get, Set, Delete, and Fetch methods; a compile-time assertion confirms the contract is met"
+  - F6: "Verify Cupboard interface compiles: the Cupboard interface must define GetTable, Attach, and Detach methods; the SQLite backend must satisfy this interface at compile time"
+  - F7: "Verify standard table names are defined: the constants CrumbsTable, TrailsTable, PropertiesTable, MetadataTable, LinksTable, and StashesTable must exist in pkg/types"
+  - F8: "Attach and enumerate tables: create a Cupboard, attach with a temporary directory, and call GetTable for each of the six standard table names; each call must return a non-nil Table without error; detach afterward"
+touchpoints:
+  - T1: "go.mod: module path github.com/mesh-intelligence/crumbs with local replace directive"
+  - T2: "Cupboard interface: Attach, GetTable, Detach (prd-cupboard-core R2)"
+  - T3: "Table interface: compile-time verification of Get, Set, Delete, Fetch signatures (prd-cupboard-core R2)"
+  - T4: "Entity types (all 7): compile-time verification of struct fields (prd-crumbs-interface R1, prd-trails-interface, prd-properties-interface, prd-stash-interface, prd-metadata-interface)"
+  - T5: "SQLite backend: NewBackend, Attach (schema creation), Detach (prd-sqlite-backend)"
+  - T6: "CLI (cmd/cupboard): version command with implemented use case listing"
+  - T7: "GetTable returns a Table for all six standard table names (prd-cupboard-core R2.5)"
+success_criteria:
+  - S1: go.mod declares module github.com/mesh-intelligence/crumbs with replace directive to ./
+  - S2: go build ./cmd/cupboard completes without errors through the mesh-intelligence module path
+  - S3: cupboard version prints a version string, lists implemented use cases, and exits with code 0
+  - S4: The use case list in version output includes rel01.0-uc004-scaffolding-validation
+  - S5: All seven entity structs (Crumb, Trail, Property, Category, Stash, Metadata, Link) compile with documented fields
+  - S6: Table interface compiles with Get, Set, Delete, Fetch methods
+  - S7: Cupboard interface compiles with GetTable, Attach, Detach methods
+  - S8: SQLite backend satisfies the Cupboard interface at compile time
+  - S9: Standard table name constants are defined for all six tables
+  - S10: GetTable succeeds for crumbs, trails, properties, metadata, links, stashes
+  - S11: GetTable for an unknown table name returns ErrTableNotFound
+out_of_scope:
+  - Creating, retrieving, or deleting entities (see rel01.0-uc002 and rel01.0-uc003)
+  - State transitions or entity methods beyond compile-time existence
+  - JSONL persistence or file creation details (see rel01.0-uc002)
+  - Property enforcement or backfill (see rel02.0-uc001)
+  - Trail lifecycle operations (see rel03.0-uc001)
+test_suite: test005-scaffolding-validation
+dependencies:
+  - D1: prd-cupboard-core (Cupboard and Table interface definitions)
+  - D2: prd-sqlite-backend (Backend implementation of Cupboard interface)
+  - D3: prd-crumbs-interface, prd-trails-interface, prd-properties-interface, prd-metadata-interface, prd-stash-interface (Entity struct definitions)
+risks:
+  - K1: "Struct fields change as PRDs evolve | Test against the fields listed in the current PRDs; update the use case when PRDs change"
+  - K2: "Backend implementation lags behind interface | Compile-time interface satisfaction catches mismatches immediately"
+  - K3: "Version command output format changes | Test for exit code 0 and non-empty output; exact string is secondary"
+demo: |
+  # Build
+  go build -o cupboard ./cmd/cupboard
+
+  # Version (includes implemented use cases)
+  ./cupboard version
+  # Output:
+  # cupboard v0.1.0
+  # module: github.com/mesh-intelligence/crumbs
+  #
+  # Implemented use cases:
+  #   rel01.0-uc004  scaffolding-validation
+
+  # Enumerate all tables
+  cupboard := sqlite.NewBackend()
+  cfg := Config{Backend: "sqlite", DataDir: tmpDir}
+  err := cupboard.Attach(cfg)
+
+  tables := []string{"crumbs", "trails", "properties", "metadata", "links", "stashes"}
+  for _, name := range tables {
+      tbl, err := cupboard.GetTable(name)
+      // err must be nil, tbl must be non-nil
+  }
+
+  // Unknown table
+  _, err = cupboard.GetTable("nonexistent")
+  // err must be ErrTableNotFound
+
+  cupboard.Detach()

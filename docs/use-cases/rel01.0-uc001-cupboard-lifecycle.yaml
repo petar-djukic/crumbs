@@ -1,0 +1,84 @@
+id: rel01.0-uc001-cupboard-lifecycle
+title: Configuration and Cupboard Lifecycle
+summary: |
+  An application initializes a Cupboard with a typed Config struct, attaches
+  to a SQLite backend, accesses tables for data operations, and detaches to
+  release resources. This tracer bullet validates the configuration workflow
+  and cupboard lifecycle management defined in prd-cupboard-core.
+actor: Developer integrating the Crumbs library into their application
+trigger: Application startup requiring backend connection and data operations
+flow:
+  - F1: "Create configuration: construct a Config struct specifying Backend as sqlite and DataDir as the path to the data directory"
+  - F2: "Validate configuration: optionally validate the Config before calling Attach; invalid configurations fail at Attach time with a descriptive error"
+  - F3: "Create Cupboard instance: instantiate the Cupboard; at this point the cupboard is not attached to any backend"
+  - F4: "Attach to backend: call Attach(config) on the Cupboard; validates config, creates DataDir if needed, initializes SQLite schema, and seeds built-in data"
+  - F5: "Handle attach errors: if Attach fails log the error and exit or retry; if Attach is called on an already-attached cupboard it returns ErrAlreadyAttached"
+  - F6: "Access tables: call GetTable for crumbs, properties, and other standard tables; each returns a Table interface ready for Get, Set, Delete, and Fetch operations"
+  - F7: "Verify connection: perform a simple operation such as Fetch with an empty filter to confirm the backend is working"
+  - F8: "Perform data operations: use the tables for normal application work with CRUD operations; entity IDs are UUID v7 generated on Set when the ID field is empty"
+  - F9: "Detach from backend: when the application shuts down call Detach(); blocks until in-flight operations complete then closes database connections"
+  - F10: "Verify detach: after Detach any Cupboard operation returns ErrCupboardDetached; the application must create a new Cupboard instance to reconnect"
+touchpoints:
+  - T1: "Config struct: construction with Backend and DataDir fields (prd-cupboard-core R1)"
+  - T2: "Cupboard interface: Attach, Detach, GetTable (prd-cupboard-core R2)"
+  - T3: "Table interface: Fetch for connection verification (prd-cupboard-core R2)"
+  - T4: "Attach idempotency and validation (prd-cupboard-core R4)"
+  - T5: "Detach resource release and idempotency (prd-cupboard-core R5)"
+  - T6: "Error handling after detach (prd-cupboard-core R6)"
+  - T7: "Standard error types: ErrAlreadyAttached, ErrCupboardDetached, ErrTableNotFound (prd-cupboard-core R7)"
+success_criteria:
+  - S1: Config struct is created with Backend=sqlite and valid DataDir
+  - S2: Attach(config) returns nil and initializes the backend
+  - S3: Attach on an already-attached cupboard returns ErrAlreadyAttached
+  - S4: GetTable(crumbs) returns a valid Table interface
+  - S5: GetTable(unknown) returns ErrTableNotFound
+  - S6: Fetch on a table returns an empty slice or populated data if present
+  - S7: Detach() returns nil and releases all resources
+  - S8: Detach on an already-detached cupboard returns nil (idempotent)
+  - S9: GetTable after Detach returns ErrCupboardDetached
+out_of_scope:
+  - Connection pooling or retry policies
+  - File-based configuration loading (JSON/YAML parsing)
+test_suite: test004-cupboard-lifecycle
+dependencies:
+  - D1: prd-cupboard-core must be defined (Config, Cupboard, Table interfaces)
+  - D2: SQLite backend must implement the Cupboard interface
+risks:
+  - K1: "DataDir permissions prevent database creation | Document required permissions; test with non-writable path"
+  - K2: "Attach called concurrently from multiple goroutines | Document that Attach must be called once; use mutex in implementation"
+  - K3: "Detach called while operations are in-flight | Detach blocks until operations complete per R5.3"
+demo: |
+  // 1. Create config
+  cfg := Config{
+      Backend: "sqlite",
+      DataDir: "/tmp/crumbs-demo",
+  }
+
+  // 2. Create and attach cupboard
+  cupboard := sqlite.NewBackend()
+  err := cupboard.Attach(cfg)
+  if err != nil {
+      log.Fatal("attach failed:", err)
+  }
+
+  // 3. Access tables
+  crumbs, err := cupboard.GetTable("crumbs")
+  if err != nil {
+      log.Fatal("get table failed:", err)
+  }
+
+  // 4. Verify connection
+  items, err := crumbs.Fetch(map[string]any{})
+  fmt.Printf("Found %d crumbs\n", len(items))
+
+  // 5. Detach
+  err = cupboard.Detach()
+  if err != nil {
+      log.Fatal("detach failed:", err)
+  }
+
+  // 6. Verify operations fail after detach
+  _, err = cupboard.GetTable("crumbs")
+  if errors.Is(err, ErrCupboardDetached) {
+      fmt.Println("Correctly returned ErrCupboardDetached")
+  }

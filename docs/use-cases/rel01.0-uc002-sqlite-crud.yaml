@@ -1,0 +1,106 @@
+id: rel01.0-uc002-sqlite-crud
+title: Table Interface CRUD Operations
+summary: |
+  A developer attaches a SQLite backend, obtains a Table reference, and
+  exercises the four uniform Table operations (Get, Set, Delete, Fetch) to
+  create, retrieve, update, and remove entities. This tracer bullet validates
+  the ORM-style pattern where callers create entity structs, persist them
+  through Table.Set, retrieve them with Table.Get, query with Table.Fetch, and
+  remove with Table.Delete. The focus is on the Table interface contract, not
+  on any entity-specific behavior.
+actor: Developer or agent working through the Cupboard API
+trigger: Need to verify that the Table interface provides correct CRUD behavior across all standard tables with JSONL persistence and UUID v7 generation
+flow:
+  - F1: "Attach backend: construct a Cupboard, call Attach(config) with a SQLite backend configuration; the backend creates DataDir, initializes JSONL files, creates cupboard.db, and seeds built-in data"
+  - F2: "Get a table: call cupboard.GetTable(crumbs) to obtain a Table; the returned Table provides Get, Set, Delete, and Fetch operations"
+  - F3: "Create an entity (Set with empty ID): construct a Crumb struct and call table.Set with empty ID; the backend generates a UUID v7, initializes timestamps, inserts into SQLite, and persists to JSONL"
+  - F4: "Retrieve the entity (Get): call table.Get(id) with the generated ID; the backend queries SQLite, hydrates the row into the entity struct, and returns it"
+  - F5: "Verify round-trip fidelity: compare the retrieved entity fields against what was created; CrumbID, Name, State, CreatedAt, and UpdatedAt must match"
+  - F6: "Update the entity (Set with existing ID): modify a field on the struct and call table.Set(id, crumb); the backend updates the SQLite row and writes the change to JSONL"
+  - F7: "Verify the update persists: call table.Get(id) again; the modified field must reflect the change; UpdatedAt must be equal to or later than the previous value"
+  - F8: "Create a second entity: call table.Set with empty ID to create another entity; the generated ID must differ from the first"
+  - F9: "Fetch all entities: call table.Fetch with an empty filter; the result must contain both entities"
+  - F10: "Fetch with filter: call table.Fetch with a state filter; the result must include only entities matching the filter"
+  - F11: "Delete an entity: call table.Delete(id); the backend removes the entity from SQLite and JSONL; a subsequent Get returns an error"
+  - F12: "Get nonexistent entity: call table.Get with a nonexistent ID; the operation must return an error indicating the entity was not found"
+  - F13: "Delete nonexistent entity: call table.Delete with a nonexistent ID; the operation must return an error"
+  - F14: "Verify JSONL persistence: inspect the JSONL file to confirm that create, update, and delete operations are reflected; each line is valid JSON"
+  - F15: "Repeat on another table: call cupboard.GetTable(trails), create a Trail, retrieve it, and delete it; the same Table interface contract holds across entity types"
+  - F16: "Detach: call cupboard.Detach() to release resources; subsequent Table operations return ErrCupboardDetached"
+touchpoints:
+  - T1: "Cupboard interface: Attach, GetTable, Detach (prd-cupboard-core R2)"
+  - T2: "Table interface: Get, Set, Delete, Fetch (prd-cupboard-core R2)"
+  - T3: "SQLite backend: UUID v7 generation, hydration, dehydration, JSONL persistence (prd-sqlite-backend R5, R14)"
+  - T4: "Table.Set with empty ID generates UUID v7 and creates entity (prd-sqlite-backend R5)"
+  - T5: "Table.Get retrieves and hydrates entity from SQLite (prd-sqlite-backend R14)"
+  - T6: "Table.Fetch returns matching entities; empty filter returns all (prd-cupboard-core R2)"
+  - T7: "Table.Delete removes entity from SQLite and JSONL (prd-sqlite-backend R5)"
+  - T8: "JSONL files are human-readable and reflect all write operations (prd-sqlite-backend R5, R16)"
+success_criteria:
+  - S1: Set with empty ID returns a UUID v7 and persists to JSONL
+  - S2: Get(id) returns the entity with all fields matching what was created
+  - S3: Set(id, entity) updates the entity; Get confirms the change
+  - S4: Fetch with empty filter returns all entities in the table
+  - S5: Fetch with filter returns only matching entities
+  - S6: Delete(id) removes the entity; subsequent Get returns an error
+  - S7: Get and Delete on nonexistent IDs return errors
+  - S8: The same operations work on the crumbs table and the trails table
+  - S9: JSONL file reflects all create, update, and delete operations
+  - S10: Detach prevents further operations with ErrCupboardDetached
+out_of_scope:
+  - Crumb state machine transitions (SetState, Pebble, Dust) — see rel01.0-uc003
+  - Entity method behavior beyond field assignment — see rel01.0-uc003
+  - Property operations (SetProperty, GetProperty, ClearProperty) — see rel02.0-uc001
+  - Trail lifecycle (Complete, Abandon, cascade behavior) — see rel03.0-uc001
+  - Concurrent access patterns
+  - Error recovery (corrupt JSONL, I/O failures)
+test_suite: test006-sqlite-crud
+dependencies:
+  - D1: prd-cupboard-core (Cupboard and Table interface definitions)
+  - D2: prd-sqlite-backend (SQLite backend, JSONL persistence, hydration/dehydration)
+  - D3: prd-crumbs-interface (Crumb entity struct used as example entity)
+  - D4: prd-trails-interface (Trail entity struct used to verify cross-table behavior)
+risks:
+  - K1: "JSONL file corruption on crash | Atomic write (temp file + rename) per prd-sqlite-backend R5.2"
+  - K2: "Type assertion fails on Get | Callers must type-assert; document the pattern"
+  - K3: "UUID v7 collision | Timestamp + random bits make collision negligible"
+demo: |
+  // Attach
+  cupboard := sqlite.NewBackend()
+  cfg := Config{Backend: "sqlite", DataDir: tmpDir}
+  cupboard.Attach(cfg)
+
+  // Get table
+  table, _ := cupboard.GetTable("crumbs")
+
+  // Create
+  crumb := &Crumb{Name: "Implement feature X"}
+  id, _ := table.Set("", crumb)
+
+  // Retrieve
+  entity, _ := table.Get(id)
+  retrieved := entity.(*Crumb)
+
+  // Update
+  retrieved.Name = "Implement feature X (revised)"
+  table.Set(id, retrieved)
+
+  // Fetch all
+  all, _ := table.Fetch(map[string]any{})
+  // len(all) == 1
+
+  // Delete
+  table.Delete(id)
+
+  // Get after delete returns error
+  _, err := table.Get(id)
+  // err != nil
+
+  // Same pattern on trails table
+  trails, _ := cupboard.GetTable("trails")
+  trail := &Trail{State: "active"}
+  tid, _ := trails.Set("", trail)
+  trails.Get(tid)
+  trails.Delete(tid)
+
+  cupboard.Detach()

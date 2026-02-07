@@ -1,0 +1,98 @@
+id: rel01.0-uc003-crud-operations
+title: Crumb Entity Operations
+summary: |
+  A developer creates crumbs and exercises the full crumb state machine,
+  transitioning crumbs through draft to pending to ready to taken to pebble
+  (success) and draft to dust (failure). This tracer bullet validates the
+  Crumb entity methods (SetState, Pebble, Dust), timestamp behavior on state
+  transitions, and state-based filtering. The focus is on crumbs-specific
+  behavior, not on the generic Table interface (see rel01.0-uc002).
+actor: Developer or agent managing work items
+trigger: Need to verify that crumbs follow the documented state machine and that entity methods correctly modify state, update timestamps, and interact with Table persistence
+flow:
+  - F1: "Setup: attach a Cupboard with SQLite backend and obtain the crumbs table via cupboard.GetTable(crumbs)"
+  - F2: "Create crumb in draft state: call table.Set with empty ID and a new Crumb; the backend generates a UUID v7 and initializes the crumb with State draft, CreatedAt, UpdatedAt, and an empty Properties map"
+  - F3: "Verify initial state: retrieve the crumb via table.Get(id); confirm State is draft, timestamps are set, and Properties is initialized"
+  - F4: "Transition draft to pending: call crumb.SetState(pending) then table.Set(id, crumb); retrieve and confirm State is pending and UpdatedAt has advanced"
+  - F5: "Transition pending to ready: call crumb.SetState(ready) then table.Set(id, crumb); retrieve and confirm State is ready"
+  - F6: "Transition ready to taken: call crumb.SetState(taken) then table.Set(id, crumb); retrieve and confirm State is taken"
+  - F7: "Complete via Pebble: call crumb.Pebble() then table.Set(id, crumb); retrieve and confirm State is pebble (terminal success); UpdatedAt must reflect the transition time"
+  - F8: "Create a second crumb for the failure path: call table.Set with empty ID and a new Crumb; verify State is draft"
+  - F9: "Fail via Dust: call crumb2.Dust() then table.Set(id2, crumb2); retrieve and confirm State is dust (terminal failure)"
+  - F10: "Filter by state: call table.Fetch with states filter for draft; verify the result excludes both the pebble crumb and the dust crumb"
+  - F11: "Filter for terminal states: call table.Fetch with states filter for pebble; verify only the completed crumb is returned; repeat for dust"
+  - F12: "Create crumb and transition to dust from any non-terminal state: create a third crumb, transition to ready, then call Dust(); verify the crumb reaches dust regardless of its previous state"
+  - F13: "Verify UpdatedAt tracks transitions: for each state transition confirm that UpdatedAt changed and is equal to or later than the previous value; CreatedAt must remain unchanged"
+  - F14: "Detach: call cupboard.Detach()"
+touchpoints:
+  - T1: "Table interface: Get, Set, Fetch for persistence and retrieval (prd-cupboard-core R2)"
+  - T2: "Crumb entity: SetState, Pebble, Dust methods (prd-crumbs-interface R2)"
+  - T3: "Crumb state machine: draft to pending to ready to taken to pebble; any to dust (prd-crumbs-interface R2, R4, R5)"
+  - T4: "Crumb creation defaults to draft state with initialized timestamps (prd-crumbs-interface R1, R3)"
+  - T5: "UpdatedAt advances on every state transition; CreatedAt remains constant (prd-crumbs-interface R3)"
+  - T6: "State-based Fetch filtering correctly includes and excludes crumbs by state (prd-crumbs-interface R9, R10)"
+success_criteria:
+  - S1: New crumb starts in draft state with CreatedAt and UpdatedAt set
+  - S2: SetState(pending) transitions draft to pending
+  - S3: SetState(ready) transitions pending to ready
+  - S4: SetState(taken) transitions ready to taken
+  - S5: Pebble() transitions taken to pebble (terminal)
+  - S6: Dust() transitions draft to dust (terminal)
+  - S7: Dust() works from any non-terminal state (tested from ready)
+  - S8: UpdatedAt advances on each transition; CreatedAt stays constant
+  - S9: Fetch by state returns only crumbs in the requested state
+  - S10: Fetch excludes pebble and dust crumbs when filtering for non-terminal states
+  - S11: Properties map is initialized on creation
+out_of_scope:
+  - Generic Table CRUD operations (create, update, delete, fetch) — see rel01.0-uc002
+  - Property operations (SetProperty, GetProperty, ClearProperty) — see rel02.0-uc001
+  - Trail membership (belongs_to links) — see rel03.0-uc001
+  - Crumb deletion (Table.Delete) — see rel01.0-uc002
+  - Invalid state transition rejection (not enforced by the Table; agents define rules)
+  - Concurrent state transitions
+test_suite: test004-cupboard-lifecycle
+dependencies:
+  - D1: rel01.0-uc002 (Table CRUD must work; Set, Get, Fetch used throughout)
+  - D2: prd-crumbs-interface (Crumb entity, state machine, entity methods)
+  - D3: prd-sqlite-backend (Persistence of state changes to JSONL)
+risks:
+  - K1: "State transition rules change | Test against the state machine defined in prd-crumbs-interface; update when PRD changes"
+  - K2: "Dust from unexpected states | Test Dust from multiple starting states to ensure it works universally"
+  - K3: "Timestamp precision | Use time comparison with tolerance; avoid exact equality checks"
+demo: |
+  table, _ := cupboard.GetTable("crumbs")
+
+  // Success path: draft -> pending -> ready -> taken -> pebble
+  crumb := &Crumb{Name: "Explore approach A"}
+  id, _ := table.Set("", crumb)
+
+  entity, _ := table.Get(id)
+  c := entity.(*Crumb)
+  // c.State == "draft"
+
+  c.SetState("pending")
+  table.Set(id, c)
+
+  c.SetState("ready")
+  table.Set(id, c)
+
+  c.SetState("taken")
+  table.Set(id, c)
+
+  c.Pebble()
+  table.Set(id, c)
+  // c.State == "pebble"
+
+  // Failure path: draft -> dust
+  crumb2 := &Crumb{Name: "Try approach B"}
+  id2, _ := table.Set("", crumb2)
+
+  entity2, _ := table.Get(id2)
+  c2 := entity2.(*Crumb)
+  c2.Dust()
+  table.Set(id2, c2)
+  // c2.State == "dust"
+
+  // Filter: only draft crumbs (excludes pebble and dust)
+  drafts, _ := table.Fetch(map[string]any{"states": []string{"draft"}})
+  // len(drafts) == 0
