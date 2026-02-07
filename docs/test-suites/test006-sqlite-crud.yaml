@@ -1,0 +1,464 @@
+id: test006-sqlite-crud
+title: Table interface CRUD operations
+description: >
+  Validates the Table interface CRUD operations (Get, Set, Delete, Fetch) through the
+  SQLite backend. Tests cover creating entities with UUID v7 generation, retrieving
+  entities with field fidelity, updating entities, querying with filters, deleting
+  entities, error handling for nonexistent IDs, cross-table behavior, JSONL persistence,
+  and post-detach error handling.
+traces:
+  - rel01.0-uc002-sqlite-crud
+tags:
+  - cli
+  - integration
+  - crud
+  - sqlite
+
+preconditions:
+  - Cupboard binary built from cmd/cupboard
+  - Fresh temp directory for config and data
+  - Config file points SQLite backend at the temp data directory
+  - No existing crumbs, trails, or links
+
+test_cases:
+
+  # --- S1: Set with empty ID returns UUID v7 and persists to JSONL ---
+
+  - name: Create crumb with empty ID generates UUID v7
+    description: Calling Set with empty ID generates a UUID v7 identifier.
+    inputs:
+      command: cupboard set crumbs "" '{"Name":"Test crumb","State":"draft"}'
+    expected:
+      exit_code: 0
+      stdout_contains: "CrumbID"
+      state:
+        crumb_count: 1
+        crumb_id_format: uuid_v7
+
+  - name: Created crumb persists to JSONL file
+    description: After Set, the entity appears in crumbs.jsonl.
+    inputs:
+      command: cupboard set crumbs "" '{"Name":"Persisted crumb","State":"draft"}'
+    expected:
+      exit_code: 0
+      files:
+        crumbs.jsonl:
+          contains:
+            - '"name":"Persisted crumb"'
+            - '"state":"draft"'
+
+  - name: Two creates generate unique UUIDs
+    description: Each Set with empty ID generates a unique UUID v7.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"First crumb","State":"draft"}'
+      command: cupboard set crumbs "" '{"Name":"Second crumb","State":"draft"}'
+    expected:
+      exit_code: 0
+      state:
+        crumb_count: 2
+        unique_ids: true
+
+  # --- S2: Get(id) returns entity with all fields matching ---
+
+  - name: Get retrieves entity with matching fields
+    description: Get returns the crumb with all fields matching what was created.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Retrieve me","State":"ready"}'
+      command: cupboard get crumbs ${crumb_id}
+    expected:
+      exit_code: 0
+      stdout_json:
+        Name: "Retrieve me"
+        State: "ready"
+      state:
+        has_crumb_id: true
+        has_created_at: true
+        has_updated_at: true
+
+  - name: Round-trip fidelity for crumb fields
+    description: Create and retrieve a crumb; all fields must match exactly.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Fidelity test","State":"pending"}'
+      command: cupboard get crumbs ${crumb_id}
+    expected:
+      exit_code: 0
+      stdout_json:
+        Name: "Fidelity test"
+        State: "pending"
+
+  # --- S3: Set(id, entity) updates entity; Get confirms change ---
+
+  - name: Update entity via Set with existing ID
+    description: Set with existing ID updates the entity in SQLite and JSONL.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Original name","State":"draft"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Updated name","State":"draft"}'
+    expected:
+      exit_code: 0
+      state:
+        crumb_name: "Updated name"
+
+  - name: Updated entity confirmed via Get
+    description: After update, Get returns the modified field values.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Before update","State":"draft"}'
+        - cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"After update","State":"ready"}'
+      command: cupboard get crumbs ${crumb_id}
+    expected:
+      exit_code: 0
+      stdout_json:
+        Name: "After update"
+        State: "ready"
+
+  - name: Update persists to JSONL
+    description: After update, the JSONL file reflects the new values.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"JSONL update test","State":"draft"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"JSONL updated","State":"taken"}'
+    expected:
+      exit_code: 0
+      files:
+        crumbs.jsonl:
+          contains:
+            - '"name":"JSONL updated"'
+            - '"state":"taken"'
+
+  - name: UpdatedAt changes on update
+    description: UpdatedAt timestamp is equal to or later than after update.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Timestamp test","State":"draft"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Timestamp updated","State":"draft"}'
+    expected:
+      exit_code: 0
+      state:
+        updated_at_changed: true
+
+  # --- S4: Fetch with empty filter returns all entities ---
+
+  - name: Fetch with empty filter returns all crumbs
+    description: Fetch with empty filter returns every crumb in the table.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Crumb A","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Crumb B","State":"ready"}'
+        - cupboard set crumbs "" '{"Name":"Crumb C","State":"taken"}'
+      command: cupboard list crumbs
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 3
+
+  - name: Fetch empty table returns empty list
+    description: Fetch on a table with no entities returns an empty result.
+    inputs:
+      command: cupboard list crumbs
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 0
+
+  # --- S5: Fetch with filter returns only matching entities ---
+
+  - name: Fetch with state filter returns matching crumbs
+    description: Fetch with state=ready returns only crumbs in ready state.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Draft crumb","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Ready crumb 1","State":"ready"}'
+        - cupboard set crumbs "" '{"Name":"Ready crumb 2","State":"ready"}'
+        - cupboard set crumbs "" '{"Name":"Taken crumb","State":"taken"}'
+      command: cupboard list crumbs State=ready
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 2
+
+  - name: Fetch with filter returns no matches
+    description: Fetch with filter matching no entities returns empty list.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Draft crumb","State":"draft"}'
+      command: cupboard list crumbs State=pebble
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 0
+
+  # --- S6: Delete(id) removes entity; subsequent Get returns error ---
+
+  - name: Delete removes entity from SQLite
+    description: Delete removes the crumb from SQLite; subsequent Get fails.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Delete me","State":"draft"}'
+      command: cupboard delete crumbs ${crumb_id}
+    expected:
+      exit_code: 0
+    verify:
+      command: cupboard get crumbs ${crumb_id}
+      exit_code: 1
+
+  - name: Delete removes entity from JSONL
+    description: After Delete, the entity is no longer in the JSONL file.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"JSONL delete test","State":"draft"}'
+      command: cupboard delete crumbs ${crumb_id}
+    expected:
+      exit_code: 0
+      files:
+        crumbs.jsonl:
+          not_contains:
+            - '"name":"JSONL delete test"'
+
+  - name: Fetch after delete excludes deleted entity
+    description: After Delete, Fetch no longer returns the deleted entity.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Keep this","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Delete this","State":"draft"}'
+        - cupboard delete crumbs ${crumb2_id}
+      command: cupboard list crumbs
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 1
+
+  # --- S7: Get and Delete on nonexistent IDs return errors ---
+
+  - name: Get nonexistent crumb returns error
+    description: Get with a nonexistent ID returns an error.
+    inputs:
+      command: cupboard get crumbs nonexistent-uuid-12345
+    expected:
+      exit_code: 1
+      stderr_contains: "not found"
+
+  - name: Delete nonexistent crumb returns error
+    description: Delete with a nonexistent ID returns an error.
+    inputs:
+      command: cupboard delete crumbs nonexistent-uuid-12345
+    expected:
+      exit_code: 1
+      stderr_contains: "not found"
+
+  - name: Get nonexistent trail returns error
+    inputs:
+      command: cupboard get trails nonexistent-uuid-12345
+    expected:
+      exit_code: 1
+      stderr_contains: "not found"
+
+  - name: Delete nonexistent trail returns error
+    inputs:
+      command: cupboard delete trails nonexistent-uuid-12345
+    expected:
+      exit_code: 1
+      stderr_contains: "not found"
+
+  # --- S8: Same operations work on crumbs and trails tables ---
+
+  - name: Create trail with empty ID generates UUID v7
+    description: Set on trails table with empty ID generates a UUID v7.
+    inputs:
+      command: cupboard set trails "" '{"State":"active"}'
+    expected:
+      exit_code: 0
+      stdout_contains: "TrailID"
+      state:
+        trail_count: 1
+        trail_id_format: uuid_v7
+
+  - name: Get trail returns entity with matching fields
+    inputs:
+      setup:
+        - cupboard set trails "" '{"State":"active"}'
+      command: cupboard get trails ${trail_id}
+    expected:
+      exit_code: 0
+      stdout_json:
+        State: "active"
+
+  - name: Update trail via Set with existing ID
+    inputs:
+      setup:
+        - cupboard set trails "" '{"State":"draft"}'
+      command: cupboard set trails ${trail_id} '{"TrailID":"${trail_id}","State":"active"}'
+    expected:
+      exit_code: 0
+      state:
+        trail_state: "active"
+
+  - name: Fetch trails with empty filter returns all trails
+    inputs:
+      setup:
+        - cupboard set trails "" '{"State":"active"}'
+        - cupboard set trails "" '{"State":"completed"}'
+      command: cupboard list trails
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 2
+
+  - name: Fetch trails with filter returns matching trails
+    inputs:
+      setup:
+        - cupboard set trails "" '{"State":"active"}'
+        - cupboard set trails "" '{"State":"active"}'
+        - cupboard set trails "" '{"State":"completed"}'
+      command: cupboard list trails State=active
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 2
+
+  - name: Delete trail removes from storage
+    inputs:
+      setup:
+        - cupboard set trails "" '{"State":"active"}'
+      command: cupboard delete trails ${trail_id}
+    expected:
+      exit_code: 0
+    verify:
+      command: cupboard get trails ${trail_id}
+      exit_code: 1
+
+  - name: Trail persists to JSONL file
+    inputs:
+      command: cupboard set trails "" '{"State":"pending"}'
+    expected:
+      exit_code: 0
+      files:
+        trails.jsonl:
+          contains:
+            - '"state":"pending"'
+
+  # --- S9: JSONL file reflects create, update, delete operations ---
+
+  - name: JSONL reflects create operation
+    inputs:
+      command: cupboard set crumbs "" '{"Name":"Create JSONL test","State":"draft"}'
+    expected:
+      exit_code: 0
+      files:
+        crumbs.jsonl:
+          contains:
+            - '"name":"Create JSONL test"'
+
+  - name: JSONL reflects update operation
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Before JSONL update","State":"draft"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"After JSONL update","State":"ready"}'
+    expected:
+      exit_code: 0
+      files:
+        crumbs.jsonl:
+          contains:
+            - '"name":"After JSONL update"'
+            - '"state":"ready"'
+          not_contains:
+            - '"name":"Before JSONL update"'
+
+  - name: JSONL reflects delete operation
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"To be deleted","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"To be kept","State":"draft"}'
+      command: cupboard delete crumbs ${crumb1_id}
+    expected:
+      exit_code: 0
+      files:
+        crumbs.jsonl:
+          contains:
+            - '"name":"To be kept"'
+          not_contains:
+            - '"name":"To be deleted"'
+
+  - name: Multiple operations reflected in JSONL
+    description: Sequence of create, update, delete operations correctly reflected in JSONL.
+    inputs:
+      steps:
+        - cupboard set crumbs "" '{"Name":"Multi op 1","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Multi op 2","State":"draft"}'
+        - cupboard set crumbs ${crumb1_id} '{"CrumbID":"${crumb1_id}","Name":"Multi op 1 updated","State":"ready"}'
+        - cupboard delete crumbs ${crumb2_id}
+    expected:
+      exit_code: 0
+      files:
+        crumbs.jsonl:
+          contains:
+            - '"name":"Multi op 1 updated"'
+            - '"state":"ready"'
+          not_contains:
+            - '"name":"Multi op 2"'
+
+  - name: JSONL lines are valid JSON
+    description: Each line in the JSONL file is valid JSON.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Valid JSON 1","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Valid JSON 2","State":"ready"}'
+    expected:
+      state:
+        jsonl_valid: true
+
+  # --- S10: Detach prevents further operations with ErrCupboardDetached ---
+
+  - name: Operations after detach return error
+    description: After Detach, Table operations return ErrCupboardDetached.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Pre-detach crumb","State":"draft"}'
+        - cupboard detach
+      command: cupboard get crumbs ${crumb_id}
+    expected:
+      exit_code: 1
+      stderr_contains: "detached"
+
+  - name: Set after detach returns error
+    inputs:
+      setup:
+        - cupboard detach
+      command: cupboard set crumbs "" '{"Name":"After detach","State":"draft"}'
+    expected:
+      exit_code: 1
+      stderr_contains: "detached"
+
+  - name: Fetch after detach returns error
+    inputs:
+      setup:
+        - cupboard detach
+      command: cupboard list crumbs
+    expected:
+      exit_code: 1
+      stderr_contains: "detached"
+
+  - name: Delete after detach returns error
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Detach delete test","State":"draft"}'
+        - cupboard detach
+      command: cupboard delete crumbs ${crumb_id}
+    expected:
+      exit_code: 1
+      stderr_contains: "detached"
+
+  - name: GetTable after detach returns error
+    inputs:
+      setup:
+        - cupboard detach
+      command: cupboard get crumbs some-id
+    expected:
+      exit_code: 1
+      stderr_contains: "detached"
+
+cleanup:
+  - Remove temp config and data directories
