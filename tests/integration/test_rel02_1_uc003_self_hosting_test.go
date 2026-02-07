@@ -1,6 +1,7 @@
 // CLI integration tests for cupboard self-hosting workflow.
-// Validates test001-self-hosting.yaml test cases.
-// Implements: docs/test-suites/test001-self-hosting.yaml;
+// Validates test-rel02.1-uc003-self-hosting.yaml test cases.
+// Implements: docs/test-suites/test-rel02.1-uc003-self-hosting.yaml;
+//             docs/use-cases/rel02.1-uc003-self-hosting.yaml;
 //             docs/ARCHITECTURE § CLI.
 package integration
 
