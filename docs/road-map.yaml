@@ -39,13 +39,13 @@ releases:
     use_cases:
       - id: rel01.0-uc001-cupboard-lifecycle
         summary: Config, attach, detach, error handling
-        status: not_started
+        status: done
       - id: rel01.0-uc002-sqlite-crud
         summary: "ORM pattern: get, modify, save entities"
-        status: not_started
+        status: done
       - id: rel01.0-uc003-crud-operations
         summary: Add, Get, Archive, Purge, Fetch operations
-        status: not_started
+        status: done
 
   - version: "02.0"
     name: Properties with Enforcement
