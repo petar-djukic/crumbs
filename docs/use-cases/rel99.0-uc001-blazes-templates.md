@@ -61,11 +61,13 @@ trail:
       dependencies: [2, 3]
 ```
 
-The `trail` section defines the crumbs and their dependency graph. Parameter placeholders use mustache-style syntax (`{{ parameter_name }}`). The instantiation mechanism that expands parameters and creates the actual trail is deferred to a future PRD.
+The `trail` section defines the crumbs and their dependency graph. Crumbs follow the structure defined in prd-crumbs-interface R1 (CrumbID, Name, State, CreatedAt, UpdatedAt, Properties). Crumb dependencies use the `child_of` link type from the links table. Parameter placeholders use mustache-style syntax (`{{ parameter_name }}`). The instantiation mechanism that expands parameters and creates the actual trail is deferred to a future PRD (prd-blazes-instantiation).
 
 ## Architecture Touchpoints
 
 This use case exercises the following interfaces and components:
+
+Table 1: Components exercised by this use case
 
 | Component | Role |
 |-----------|------|
@@ -81,7 +83,11 @@ The use case validates:
 - Tag-based semantic matching for template selection
 - Parameter schema extraction from template definition
 
-This use case does not exercise Cupboard or Table interfaces directly. It operates on the file system and YAML parsing layer that precedes trail instantiation.
+This use case does not exercise Cupboard or Table interfaces directly. It operates on the file system and YAML parsing layer that precedes trail instantiation. Once instantiation is implemented (per prd-blazes-instantiation), the flow will continue to:
+
+- Trail creation via Cupboard.GetTable("trails").Set per prd-trails-interface R3
+- Crumb creation via Cupboard.GetTable("crumbs").Set per prd-crumbs-interface R3
+- Link creation via Cupboard.GetTable("links").Set for belongs_to (prd-trails-interface R7) and child_of relationships
 
 ## Success Criteria
 
@@ -123,23 +129,48 @@ yq '.parameters[] | .name + ": " + .description' .crumbs/blazes/bug-fix.yaml
 
 This use case does not cover:
 
-- Trail instantiation from template (deferred to future PRD)
-- Parameter value binding and placeholder expansion
-- Creating crumbs and trails from template definitions
-- Template validation and error handling for malformed YAML
+- Trail instantiation from template (requires prd-blazes-instantiation)
+- Parameter value binding and placeholder expansion (requires prd-blazes-instantiation)
+- Creating crumbs via Table.Set per prd-crumbs-interface R3 (requires prd-blazes-instantiation)
+- Creating trails via Table.Set per prd-trails-interface R3 (requires prd-blazes-instantiation)
+- Creating belongs_to links per prd-trails-interface R7 (requires prd-blazes-instantiation)
+- Template validation and error handling for malformed YAML (requires prd-blazes-schema)
 - Template versioning or inheritance
 - Remote template repositories
 - Template creation or editing workflows
 
-The instantiation mechanism that transforms a selected template with bound parameters into an actual trail with crumbs will be specified in a separate PRD (prd-blazes-instantiation) and use case.
+The instantiation mechanism that transforms a selected template with bound parameters into an actual trail with crumbs will be specified in prd-blazes-instantiation. That PRD will reference prd-trails-interface R3 (trail creation), prd-crumbs-interface R3 (crumb creation), and the links table for establishing crumb membership (belongs_to) and dependencies (child_of).
 
 ## Dependencies
+
+### Infrastructure
 
 - File system access to template directory
 - YAML parsing capability (standard library or dependency)
 - Agent context for semantic matching (task description, tags)
 
 This use case does not depend on Cupboard or Table implementations. It operates at the template discovery layer.
+
+### PRD Coverage
+
+Table 2: PRD requirements referenced by this use case
+
+| PRD | Requirements | Coverage |
+|-----|--------------|----------|
+| prd-crumbs-interface | R1 (Crumb struct), R2 (State values), R9 (Filter map) | Partial: template defines crumb structure; instantiation deferred |
+| prd-trails-interface | R1 (Trail struct), R2 (State values), R3 (Trail creation) | Partial: template defines trail structure; instantiation deferred |
+| prd-stash-interface | R2 (Stash types: context, artifact) | Partial: templates may reference shared resources; instantiation deferred |
+
+### PRD Gaps
+
+The following PRDs do not yet exist and are required for full blaze functionality:
+
+| Missing PRD | Purpose |
+|-------------|---------|
+| prd-blazes-instantiation | Defines how templates are expanded into trails and crumbs, including parameter binding, placeholder expansion, and link creation |
+| prd-blazes-schema | Defines the YAML schema for blaze templates, validation rules, and versioning |
+
+Until prd-blazes-instantiation is written, this use case validates only template discovery and selection. Trail and crumb creation from templates remains out of scope.
 
 ## Risks and Mitigations
 
