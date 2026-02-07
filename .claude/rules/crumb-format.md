@@ -24,13 +24,13 @@ Documentation issues produce markdown (and optionally diagrams) under `docs/`. T
 | ----------------- | ---------------- | ----------- | ------------ |
 | **ARCHITECTURE / docs** | `docs/ARCHITECTURE.md` or specific doc | documentation-standards | Updating system overview, components, diagrams, design decisions |
 | **PRD** | `docs/product-requirements/prd-[feature-name].yaml` | prd-format | New or updated product requirements; numbered requirements, Problem/Goals/Non-Goals |
-| **Use case** | `docs/use-cases/rel[NN].[N]-uc[NNN]-[short-name].md` | use-case-format | Tracer-bullet flows, actor/trigger, demo criteria |
+| **Use case** | `docs/use-cases/rel[NN].[N]-uc[NNN]-[short-name].yaml` | use-case-format | Tracer-bullet flows, actor/trigger, demo criteria; must include test suite |
 | **Test suite** | `docs/test-suites/test[NNN]-[short-name].yaml` | test-case-format | Test cases with inputs and expected outputs |
 | **Engineering guideline** | `docs/engineering/eng[NN]-[short-name].md` | engineering-guideline-format | Conventions and practices |
 
 ### What to Put in the Issue
 
-- **File or directory path** – e.g. `docs/product-requirements/prd-feature-name.yaml`, `docs/use-cases/uc-scenario-name.md`
+- **File or directory path** – e.g. `docs/product-requirements/prd-feature-name.yaml`, `docs/use-cases/rel01.0-uc001-scenario-name.yaml`
 - **Required sections** – List the sections from the format rule (e.g. for PRD: Problem, Goals, Requirements, Non-Goals, Acceptance Criteria)
 - **Scope or content hints** – Bullet points or short paragraphs for Problem, Goals, main requirements, and non-goals so the agent does not have to infer them
 - **Reference to format rule** – e.g. "Follow .claude/rules/prd-format.md" or "per prd-format rule"
@@ -111,7 +111,7 @@ When proposing or implementing code issues, keep implementation in **internal/**
 | ---------- | ------ | ---------------------- |
 | Documentation (ARCHITECTURE, general docs) | `docs/*.md` | Required Reading, Files to Create/Modify, Requirements, Acceptance Criteria; follow documentation-standards |
 | Documentation (PRD) | `docs/product-requirements/prd-*.yaml` | Required Reading, Files to Create/Modify, Required sections (Problem, Goals, Requirements, Non-Goals, Acceptance Criteria), Acceptance Criteria; follow prd-format |
-| Documentation (use case) | `docs/use-cases/rel*-uc*-*.md` | Required Reading, Files to Create/Modify, Summary, Actor/trigger, Flow, Success criteria; follow use-case-format |
+| Documentation (use case) | `docs/use-cases/rel*-uc*-*.yaml` | Required Reading, Files to Create/Modify, Summary, Actor/trigger, Flow, Success criteria; follow use-case-format |
 | Documentation (test suite) | `docs/test-suites/test*.yaml` | Required Reading, Files to Create/Modify, traces, preconditions, test_cases with inputs/expected; follow test-case-format |
 | Documentation (engineering guideline) | `docs/engineering/eng*.md` | Required Reading, Files to Create/Modify, Introduction, Body; follow engineering-guideline-format |
 | Code | `pkg/`, `internal/`, `cmd/` | Required Reading, Files to Create/Modify, Requirements, Design Decisions, Acceptance Criteria (tests/behavior); see Go layout above |

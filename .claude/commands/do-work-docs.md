@@ -7,7 +7,7 @@ Read VISION.md and ARCHITECTURE.md for context. For PRDs also scan existing `doc
 ## 1. Select a documentation task
 
 1. Run `bd ready` to see available work.
-2. **Pick a documentation issue**: one whose description specifies a **documentation** deliverable (output path under `docs/`, e.g. `docs/product-requirements/prd-*.yaml`, `docs/use-cases/uc-*.md`, `docs/invention-disclosures/`, or `docs/ARCHITECTURE.md`). If the issue lists "File location", "PRD location", "Output path", or "Required sections" from a doc format rule, it is a documentation task.
+2. **Pick a documentation issue**: one whose description specifies a **documentation** deliverable (output path under `docs/`, e.g. `docs/product-requirements/prd-*.yaml`, `docs/use-cases/rel*-uc*-*.yaml`, `docs/invention-disclosures/`, or `docs/ARCHITECTURE.md`). If the issue lists "File location", "PRD location", "Output path", or "Required sections" from a doc format rule, it is a documentation task.
 3. Run `bd update <issue-id> --status in_progress` to claim it.
 
 ## 2. Before writing
