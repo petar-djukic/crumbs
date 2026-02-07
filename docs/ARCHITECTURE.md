@@ -62,7 +62,80 @@ Crumbs have a lifecycle driven by state transitions and trail operations. State 
 
 |  |
 |:--:|
-| ![plantuml/graph-model.puml](images/graph-model.png) |
+
+```plantuml
+@startuml graph-model
+!theme plain
+skinparam backgroundColor white
+skinparam classAttributeIconSize 0
+
+' Entity types (simplified)
+class Crumb {
+    CrumbID
+}
+
+class Trail {
+    TrailID
+}
+
+class Stash {
+    StashID
+}
+
+' Link entity (central node)
+class Link {
+    LinkID: string
+    LinkType: string
+    FromID: string
+    ToID: string
+    CreatedAt: time.Time
+}
+
+' Link types as relationships
+Crumb --> Trail : belongs_to
+note on link
+    Crumb membership in Trail.
+    When trail completes,
+    link removed (crumb permanent).
+    When trail abandoned,
+    crumb deleted.
+end note
+
+Crumb --> Crumb : child_of
+note on link
+    Crumb dependency.
+    Child blocked until
+    parent reaches pebble.
+end note
+
+Trail --> Crumb : branches_from
+note on link
+    Trail branch point.
+    Trail explores alternative
+    path from this crumb.
+end note
+
+Stash --> Trail : scoped_to
+note on link
+    Stash scoped to trail.
+    Shares trail lifecycle.
+    Global stashes have
+    no scoped_to link.
+end note
+
+' Legend
+legend right
+    Link types (via links table)
+    |= Type |= Direction |
+    | belongs_to | Crumb -> Trail |
+    | child_of | Crumb -> Crumb |
+    | branches_from | Trail -> Crumb |
+    | scoped_to | Stash -> Trail |
+endlegend
+
+@enduml
+```
+
 |Figure 3 Graph model showing Link entity with four typed edges between entities |
 
 **Trail ownership rule**: All crumbs must belong to a trail. A crumb without a `belongs_to` link is either permanent (was on a completed trail) or orphaned (should be cleaned up). When a trail is completed, the backend removes all `belongs_to` links for its crumbs—they no longer belong to any trail and become part of the permanent record. When a trail is abandoned, the backend deletes all crumbs that belong to it, along with their properties, metadata, and links.
@@ -124,10 +197,76 @@ type Table interface {
 
 All entity types use this same interface. Get and Fetch return `any`; callers type-assert to the appropriate entity struct (Crumb, Trail, Property, etc.). Set accepts entity structs directly. When id is empty, Set generates a UUID v7 and creates a new entity; when id is provided, Set updates the existing entity.
 
-<!-- TODO: convert to inline plantuml diagram -->
 |  |
 |:--:|
-| ![plantuml/cupboard-interfaces.puml](images/cupboard-interfaces.png) |
+
+```plantuml
+@startuml cupboard-interfaces
+!theme plain
+skinparam backgroundColor white
+skinparam classAttributeIconSize 0
+
+' Interfaces (pkg/types)
+interface Cupboard <<interface>> {
+    +GetTable(name: string): (Table, error)
+    +Attach(config: Config): error
+    +Detach(): error
+}
+
+interface Table <<interface>> {
+    +Get(id: string): (any, error)
+    +Set(id: string, data: any): (string, error)
+    +Delete(id: string): error
+    +Fetch(filter: map[string]any): ([]any, error)
+}
+
+' Configuration (pkg/types)
+class Config {
+    Backend: string
+    DataDir: string
+    SQLiteConfig: *SQLiteConfig
+    --
+    +Validate(): error
+}
+
+class SQLiteConfig {
+    SyncStrategy: string
+    BatchSize: int
+    BatchInterval: int
+    --
+    +Validate(): error
+    +GetSyncStrategy(): string
+    +GetBatchSize(): int
+    +GetBatchInterval(): int
+}
+
+' Implementation (internal/sqlite)
+class Backend <<internal/sqlite>> {
+    -mu: sync.RWMutex
+    -attached: bool
+    -config: Config
+    -db: *sql.DB
+    -tables: map[string]*Table
+    --
+    +NewBackend(): *Backend
+}
+
+class "Table" as SqliteTable <<internal/sqlite>> {
+    -backend: *Backend
+    -tableName: string
+}
+
+' Relationships
+Config *-- SQLiteConfig : contains
+Cupboard <|.. Backend : implements
+Table <|.. SqliteTable : implements
+Cupboard ..> Table : returns
+Backend o-- SqliteTable : manages
+Backend --> Config : uses
+
+@enduml
+```
+
 |Figure 1 Cupboard and Table interfaces with SQLite backend implementation |
 
 ### Entity Types
@@ -146,10 +285,113 @@ Entities are plain structs with fields. Entity methods (SetState, Pebble, Dust, 
 
 Relationships use the links table (Decision 10): `branches_from` (trail→crumb branch point), `scoped_to` (stash→trail scope), `belongs_to` (crumb→trail membership), `child_of` (crumb→crumb dependencies).
 
-<!-- TODO: convert to inline plantuml diagram -->
 |  |
 |:--:|
-| ![plantuml/entity-types.puml](images/entity-types.png) |
+
+```plantuml
+@startuml entity-types
+!theme plain
+skinparam backgroundColor white
+skinparam classAttributeIconSize 0
+
+' Entity structs (pkg/types)
+class Crumb {
+    CrumbID: string
+    Name: string
+    State: string
+    CreatedAt: time.Time
+    UpdatedAt: time.Time
+    Properties: map[string]any
+    --
+    +SetState(state: string): error
+    +Pebble(): error
+    +Dust(): error
+    +SetProperty(propertyID: string, value: any): error
+    +GetProperty(propertyID: string): (any, error)
+    +GetProperties(): map[string]any
+    +ClearProperty(propertyID: string): error
+}
+
+class Trail {
+    TrailID: string
+    State: string
+    CreatedAt: time.Time
+    CompletedAt: *time.Time
+    --
+    +Complete(): error
+    +Abandon(): error
+}
+
+class Property {
+    PropertyID: string
+    Name: string
+    Description: string
+    ValueType: string
+    CreatedAt: time.Time
+}
+
+class Category {
+    CategoryID: string
+    PropertyID: string
+    Name: string
+    Ordinal: int
+}
+
+class Stash {
+    StashID: string
+    Name: string
+    StashType: string
+    Value: any
+    Version: int64
+    CreatedAt: time.Time
+    --
+    +SetValue(value: any): error
+    +GetValue(): any
+    +Increment(delta: int64): (int64, error)
+    +Acquire(holder: string): error
+    +Release(holder: string): error
+}
+
+class StashHistoryEntry {
+    HistoryID: string
+    Version: int64
+    Value: any
+    Operation: string
+    ChangedBy: *string
+    CreatedAt: time.Time
+}
+
+class Metadata {
+    MetadataID: string
+    CrumbID: string
+    TableName: string
+    Content: string
+    PropertyID: *string
+    CreatedAt: time.Time
+}
+
+class Link {
+    LinkID: string
+    LinkType: string
+    FromID: string
+    ToID: string
+    CreatedAt: time.Time
+}
+
+class Schema {
+    SchemaName: string
+    Description: string
+    ContentType: string
+}
+
+' Relationships
+Property "1" <-- "*" Category : belongs to
+Crumb "1" <-- "*" Metadata : attached to
+Stash "1" <-- "*" StashHistoryEntry : history of
+
+@enduml
+```
+
 |Figure 2 Entity types with fields, methods, and relationships |
 
 ### Usage Pattern
