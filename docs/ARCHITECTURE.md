@@ -124,6 +124,7 @@ type Table interface {
 
 All entity types use this same interface. Get and Fetch return `any`; callers type-assert to the appropriate entity struct (Crumb, Trail, Property, etc.). Set accepts entity structs directly. When id is empty, Set generates a UUID v7 and creates a new entity; when id is provided, Set updates the existing entity.
 
+<!-- TODO: convert to inline plantuml diagram -->
 |  |
 |:--:|
 | ![plantuml/cupboard-interfaces.puml](images/cupboard-interfaces.png) |
@@ -145,6 +146,7 @@ Entities are plain structs with fields. Entity methods (SetState, Pebble, Dust, 
 
 Relationships use the links table (Decision 10): `branches_from` (trail→crumb branch point), `scoped_to` (stash→trail scope), `belongs_to` (crumb→trail membership), `child_of` (crumb→crumb dependencies).
 
+<!-- TODO: convert to inline plantuml diagram -->
 |  |
 |:--:|
 | ![plantuml/entity-types.puml](images/entity-types.png) |
