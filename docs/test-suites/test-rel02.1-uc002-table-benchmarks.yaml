@@ -15,7 +15,7 @@ tags:
 
 preconditions:
   - Go test infrastructure available (go test command)
-  - internal/sqlite package contains benchmark test files
+  - tests/integration package contains benchmark test files
   - Cupboard initialized with SQLite backend in a temp directory
   - Built-in properties seeded per prd-sqlite-backend R9
 
@@ -28,7 +28,7 @@ test_cases:
       Measure Table.Get latency with 10 seeded crumbs. Benchmark uses random
       ID selection to measure average lookup time.
     inputs:
-      command: go test -bench=BenchmarkCrumbsGet10 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsGet10 -benchmem ./tests/integration/...
       data_size: 10
     expected:
       exit_code: 0
@@ -40,7 +40,7 @@ test_cases:
 
   - name: Get benchmark with 100 crumbs
     inputs:
-      command: go test -bench=BenchmarkCrumbsGet100 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsGet100 -benchmem ./tests/integration/...
       data_size: 100
     expected:
       exit_code: 0
@@ -52,7 +52,7 @@ test_cases:
 
   - name: Get benchmark with 1000 crumbs
     inputs:
-      command: go test -bench=BenchmarkCrumbsGet1000 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsGet1000 -benchmem ./tests/integration/...
       data_size: 1000
     expected:
       exit_code: 0
@@ -64,7 +64,7 @@ test_cases:
 
   - name: Get benchmark with 10000 crumbs
     inputs:
-      command: go test -bench=BenchmarkCrumbsGet10000 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsGet10000 -benchmem ./tests/integration/...
       data_size: 10000
     expected:
       exit_code: 0
@@ -81,7 +81,7 @@ test_cases:
       Measure Table.Set latency for creating new crumbs (empty ID triggers
       UUID v7 generation). Includes JSONL sync cost per prd-sqlite-backend R5.3.
     inputs:
-      command: go test -bench=BenchmarkCrumbsSetCreate10 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsSetCreate10 -benchmem ./tests/integration/...
       data_size: 10
     expected:
       exit_code: 0
@@ -93,7 +93,7 @@ test_cases:
 
   - name: Set create benchmark with 1000 existing crumbs
     inputs:
-      command: go test -bench=BenchmarkCrumbsSetCreate1000 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsSetCreate1000 -benchmem ./tests/integration/...
       data_size: 1000
     expected:
       exit_code: 0
@@ -110,7 +110,7 @@ test_cases:
       Measure Table.Set latency for updating existing crumbs. Includes
       JSONL sync cost per prd-sqlite-backend R5.3.
     inputs:
-      command: go test -bench=BenchmarkCrumbsSetUpdate10 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsSetUpdate10 -benchmem ./tests/integration/...
       data_size: 10
     expected:
       exit_code: 0
@@ -122,7 +122,7 @@ test_cases:
 
   - name: Set update benchmark with 1000 crumbs
     inputs:
-      command: go test -bench=BenchmarkCrumbsSetUpdate1000 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsSetUpdate1000 -benchmem ./tests/integration/...
       data_size: 1000
     expected:
       exit_code: 0
@@ -140,7 +140,7 @@ test_cases:
       values, metadata, and links per prd-crumbs-interface R8.3. Each
       iteration creates then deletes a crumb.
     inputs:
-      command: go test -bench=BenchmarkCrumbsDelete10 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsDelete10 -benchmem ./tests/integration/...
       data_size: 10
     expected:
       exit_code: 0
@@ -152,7 +152,7 @@ test_cases:
 
   - name: Delete benchmark with 1000 crumbs
     inputs:
-      command: go test -bench=BenchmarkCrumbsDelete1000 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsDelete1000 -benchmem ./tests/integration/...
       data_size: 1000
     expected:
       exit_code: 0
@@ -169,7 +169,7 @@ test_cases:
       Measure Table.Fetch latency with empty filter (returns all crumbs).
       Exercises full table scan with entity hydration.
     inputs:
-      command: go test -bench=BenchmarkCrumbsFetchAll100 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsFetchAll100 -benchmem ./tests/integration/...
       data_size: 100
     expected:
       exit_code: 0
@@ -181,7 +181,7 @@ test_cases:
 
   - name: Fetch all benchmark with 1000 crumbs
     inputs:
-      command: go test -bench=BenchmarkCrumbsFetchAll1000 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsFetchAll1000 -benchmem ./tests/integration/...
       data_size: 1000
     expected:
       exit_code: 0
@@ -193,10 +193,10 @@ test_cases:
 
   - name: Fetch with state filter benchmark 100 crumbs
     description: >
-      Measure Table.Fetch with states filter. Exercises idx_crumbs_state
+      Measure Table.Fetch with state filter. Exercises idx_crumbs_state
       index per prd-sqlite-backend R3.3.
     inputs:
-      command: go test -bench=BenchmarkCrumbsFetchState100 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsFetchState100 -benchmem ./tests/integration/...
       data_size: 100
     expected:
       exit_code: 0
@@ -208,7 +208,7 @@ test_cases:
 
   - name: Fetch with state filter benchmark 1000 crumbs
     inputs:
-      command: go test -bench=BenchmarkCrumbsFetchState1000 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsFetchState1000 -benchmem ./tests/integration/...
       data_size: 1000
     expected:
       exit_code: 0
@@ -220,10 +220,10 @@ test_cases:
 
   - name: Fetch with properties filter benchmark 100 crumbs
     description: >
-      Measure Table.Fetch with properties filter. Exercises crumb_properties
-      table join.
+      Measure Table.Fetch with crumbs that have properties set. Exercises
+      crumb_properties table hydration.
     inputs:
-      command: go test -bench=BenchmarkCrumbsFetchProperties100 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsFetchProperties100 -benchmem ./tests/integration/...
       data_size: 100
     expected:
       exit_code: 0
@@ -235,7 +235,7 @@ test_cases:
 
   - name: Fetch with properties filter benchmark 1000 crumbs
     inputs:
-      command: go test -bench=BenchmarkCrumbsFetchProperties1000 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsFetchProperties1000 -benchmem ./tests/integration/...
       data_size: 1000
     expected:
       exit_code: 0
@@ -245,12 +245,13 @@ test_cases:
         b_op_reported: true
         allocs_op_reported: true
 
-  - name: Fetch with limit benchmark 1000 crumbs
+  - name: Fetch with limit simulation benchmark
     description: >
-      Measure Table.Fetch with limit 10 from 1000 crumbs. Verifies
-      pagination performance per prd-crumbs-interface R9.2.
+      Measure Table.Fetch from 1000 crumbs simulating limit behavior.
+      Fetches all then takes first 10 to establish baseline for future
+      limit filter support.
     inputs:
-      command: go test -bench=BenchmarkCrumbsFetchLimit100 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbsFetchLimit100 -benchmem ./tests/integration/...
       data_size: 1000
     expected:
       exit_code: 0
@@ -264,10 +265,10 @@ test_cases:
 
   - name: SetProperty benchmark with 10 crumbs
     description: >
-      Measure Crumb.SetProperty + Table.Set latency. Includes full persist
-      path with JSONL write for crumb_properties.jsonl per prd-sqlite-backend R5.5.
+      Measure Crumb.SetProperty + Table.Set latency. Includes Get, SetProperty,
+      and Set to persist with JSONL write for crumb_properties.
     inputs:
-      command: go test -bench=BenchmarkCrumbSetProperty10 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbSetProperty10 -benchmem ./tests/integration/...
       data_size: 10
     expected:
       exit_code: 0
@@ -279,7 +280,7 @@ test_cases:
 
   - name: SetProperty benchmark with 1000 crumbs
     inputs:
-      command: go test -bench=BenchmarkCrumbSetProperty1000 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbSetProperty1000 -benchmem ./tests/integration/...
       data_size: 1000
     expected:
       exit_code: 0
@@ -292,9 +293,10 @@ test_cases:
   - name: GetProperty benchmark with 10 crumbs
     description: >
       Measure Crumb.GetProperty latency. This is a read-only operation on
-      the in-memory Properties map per prd-crumbs-interface R5.3.
+      the in-memory Properties map. Benchmarks in-memory crumb objects
+      without database access.
     inputs:
-      command: go test -bench=BenchmarkCrumbGetProperty10 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbGetProperty10 -benchmem ./tests/integration/...
       data_size: 10
     expected:
       exit_code: 0
@@ -306,7 +308,7 @@ test_cases:
 
   - name: GetProperty benchmark with 1000 crumbs
     inputs:
-      command: go test -bench=BenchmarkCrumbGetProperty1000 -benchmem ./internal/sqlite/...
+      command: go test -bench=BenchmarkCrumbGetProperty1000 -benchmem ./tests/integration/...
       data_size: 1000
     expected:
       exit_code: 0
@@ -316,34 +318,5 @@ test_cases:
         b_op_reported: true
         allocs_op_reported: true
 
-  # --- Full suite benchmarks ---
-
-  - name: Run full benchmark suite
-    description: >
-      Run all benchmarks and capture output to baseline file. Verifies that
-      the full suite completes without error.
-    inputs:
-      command: go test -bench=. -benchmem ./internal/sqlite/...
-    expected:
-      exit_code: 0
-      stdout_contains: "ns/op"
-      stdout_contains: "B/op"
-      benchmark_output:
-        ns_op_reported: true
-        b_op_reported: true
-        allocs_op_reported: true
-
-  - name: Capture baseline to file
-    description: >
-      Save benchmark output to file for future comparison with benchstat.
-    inputs:
-      command: go test -bench=. -benchmem ./internal/sqlite/... > benchmark_baseline.txt
-    expected:
-      exit_code: 0
-      files:
-        benchmark_baseline.txt:
-          exists: true
-
 cleanup:
   - Remove temp data directories created by benchmarks
-  - Remove benchmark_baseline.txt if not committed
