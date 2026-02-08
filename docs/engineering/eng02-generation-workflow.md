@@ -30,11 +30,20 @@ After open, the generation branch has documentation and configuration but no Go 
 
 ## Generate
 
-Generation happens on the generation branch through the standard make-work/do-work loop. Each task gets its own worktree branching from the generation branch. When a task completes, its branch merges back into the generation branch (not main). This is the same process described in eng01-git-integration, except the base branch is the generation branch instead of main.
+Generation happens on the generation branch through the make-work/do-work loop. `do-work.sh` records the current branch as the base branch at startup. Each task gets a branch namespaced under the base branch and a corresponding worktree.
+
+Table 2 Task branch naming
+
+| Base branch | Task branch | Example |
+|-------------|-------------|---------|
+| `generation-YYYY-MM-DD-HH-mm` | `<base>/task/<issue-id>` | `generation-2026-02-08-09-30/task/crumbs-abc` |
+| `main` | `main/task/<issue-id>` | `main/task/crumbs-xyz` |
+
+When a task completes, its branch merges back into the base branch (not main) and is deleted. The namespacing makes task branches discoverable: `git branch --list 'generation-2026-02-08-09-30/task/*'` shows all task branches for a generation, including any that were interrupted before completing.
 
 The generation branch accumulates all task merges. At any point you can see the full diff of the generation with `git diff main...HEAD` (from the generation branch) or `git log main..HEAD` for the commit history.
 
-If the process is interrupted, the generation branch persists. Resume by checking out the branch and running the do-work loop again.
+If the process is interrupted, the generation branch persists. Unfinished task branches remain under the `<base>/task/` namespace. Resume by checking out the generation branch and running do-work again.
 
 ## Close
 
@@ -52,7 +61,7 @@ After close, main contains the regenerated code and both tags (pre-generation ba
 
 Tags serve as retrieval points. We use the generation branch name as the tag namespace.
 
-Table 2 Tag conventions
+Table 3 Tag conventions
 
 | Tag | Points to | Purpose |
 |-----|-----------|---------|
@@ -65,7 +74,7 @@ To retrieve a previous generation's pre-state: `git checkout generation-2026-02-
 
 The generation lifecycle is handled by separate scripts.
 
-Table 3 Generation scripts
+Table 4 Generation scripts
 
 | Script | Operation | Precondition |
 |--------|-----------|-------------|

@@ -5,6 +5,10 @@
 # The script handles task picking, reservation, and git worktree management.
 # Claude receives a clean prompt focused on the work itself.
 #
+# Task branches are namespaced under the base branch so they are traceable.
+# For example, if started on generation-2026-02-08-09-30, task branches are
+# named generation-2026-02-08-09-30/task/<issue-id>.
+#
 # Usage: do-work.sh [options] [repo-root]
 #
 # Options:
@@ -13,12 +17,13 @@
 # See docs/engineering/eng02-generation-workflow.md for the full workflow.
 #
 # Workflow:
-# 1. Pick and claim a task from beads
-# 2. Create a git worktree with a branch for the task
-# 3. Run Claude in the worktree
-# 4. Merge the branch back to the current branch
-# 5. Clean up the worktree
-# 6. Repeat until the queue is empty
+# 1. Record the current branch as the base branch
+# 2. Pick and claim a task from beads
+# 3. Create a git worktree with a branch namespaced under the base branch
+# 4. Run Claude in the worktree
+# 5. Merge the task branch back to the base branch
+# 6. Clean up the worktree
+# 7. Repeat until the queue is empty
 #
 
 set -e
@@ -47,10 +52,11 @@ REPO_ROOT=$(pwd)
 PROJECT_NAME=$(basename "$REPO_ROOT")
 WORKTREE_BASE="/tmp/${PROJECT_NAME}-worktrees"
 
-# Returns the current git branch name.
-current_branch() {
-  git rev-parse --abbrev-ref HEAD
-}
+# Record the base branch at startup. All task branches are namespaced under it
+# and merged back to it when done.
+BASE_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+echo "Base branch: $BASE_BRANCH"
 
 # Globals set by pick_task
 ISSUE_JSON=""
@@ -78,7 +84,8 @@ pick_task() {
     return 1
   fi
 
-  BRANCH_NAME="task/$ISSUE_ID"
+  # Namespace task branches under the base branch
+  BRANCH_NAME="$BASE_BRANCH/task/$ISSUE_ID"
   WORKTREE_DIR="$WORKTREE_BASE/$ISSUE_ID"
 
   echo "Picking up task: $ISSUE_ID - $ISSUE_TITLE"
@@ -151,11 +158,11 @@ run_claude() {
 
 merge_branch() {
   echo ""
-  echo "Merging $BRANCH_NAME into $(current_branch)..."
+  echo "Merging $BRANCH_NAME into $BASE_BRANCH..."
 
   cd "$REPO_ROOT"
+  git checkout "$BASE_BRANCH"
 
-  # Merge the task branch into the current branch (main or generation)
   git merge "$BRANCH_NAME" --no-edit
 
   echo "Branch merged."
