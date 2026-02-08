@@ -493,7 +493,8 @@ Success criteria (from VISION): operations complete with low latency, agents int
 | prd-properties-interface.yaml | Property and Category entities, value types |
 | prd-metadata-interface.yaml | Metadata entity, schema registration |
 | prd-stash-interface.yaml | Stash entity, shared state, versioning |
-| engineering/eng01-git-integration.md | Git conventions: JSONL in git, trails as worktrees, merge behavior |
+| engineering/eng01-git-integration.md | Git conventions: JSONL in git, task branches, trails vs git branches, merge behavior |
+| engineering/eng02-generation-workflow.md | Generation lifecycle: open, generate, close; task branch naming; scripts |
 
 ## References
 
