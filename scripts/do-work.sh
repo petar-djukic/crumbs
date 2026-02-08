@@ -13,8 +13,8 @@
 #   --cycles N             Number of make-work cycles (default: 0)
 #
 # Generation lifecycle is handled by separate scripts:
-#   open-generation.sh     Start a new generation branch
-#   close-generation.sh    Merge generation branch to main
+#   open-generation.sh     Open a new generation branch
+#   close-generation.sh    Close generation branch (merge to main)
 #
 # See docs/engineering/eng02-generation-workflow.md for the full workflow.
 #

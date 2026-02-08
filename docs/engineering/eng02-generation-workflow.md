@@ -6,19 +6,19 @@ This guideline describes the generation lifecycle. For task-level branching with
 
 ## Lifecycle
 
-A generation moves through three phases: start, work, and reset.
+A generation moves through three phases: open, generate, and close.
 
 Table 1 Generation lifecycle
 
 | Phase | What happens | Git state after |
 |-------|-------------|----------------|
-| Start | Tag main, create generation branch, delete Go files, reinitialize module | On generation branch with clean slate committed |
-| Work | make-work creates tasks, do-work executes them in worktrees off the generation branch | Generation branch accumulates task merges |
-| Reset | Tag generation branch as closed, merge to main, delete branch | On main with generation merged |
+| Open | Tag main, create generation branch, delete Go files, reinitialize module | On generation branch with clean slate committed |
+| Generate | make-work creates tasks, do-work executes them in worktrees off the generation branch | Generation branch accumulates task merges |
+| Close | Tag generation branch as closed, merge to main, delete branch | On main with generation merged |
 
-## Start
+## Open
 
-Starting a generation preserves the current state and creates a clean branch for agents to rebuild on.
+Opening a generation preserves the current state and creates a clean branch for agents to rebuild on.
 
 1. Tag the current main commit as `generation-YYYY-MM-DD-HH-mm`. This tag captures the pre-generation state so it can be retrieved later.
 2. Create and check out a branch named `generation-YYYY-MM-DD-HH-mm` from main.
@@ -26,27 +26,27 @@ Starting a generation preserves the current state and creates a clean branch for
 4. Reinitialize `go.mod`.
 5. Commit the clean state on the generation branch.
 
-After start, the generation branch has documentation and configuration but no Go code. Agents rebuild everything from the specs.
+After open, the generation branch has documentation and configuration but no Go code. Agents rebuild everything from the specs.
 
-## Work
+## Generate
 
-Work happens on the generation branch through the standard make-work/do-work loop. Each task gets its own worktree branching from the generation branch. When a task completes, its branch merges back into the generation branch (not main). This is the same process described in eng01-git-integration, except the base branch is the generation branch instead of main.
+Generation happens on the generation branch through the standard make-work/do-work loop. Each task gets its own worktree branching from the generation branch. When a task completes, its branch merges back into the generation branch (not main). This is the same process described in eng01-git-integration, except the base branch is the generation branch instead of main.
 
 The generation branch accumulates all task merges. At any point you can see the full diff of the generation with `git diff main...HEAD` (from the generation branch) or `git log main..HEAD` for the commit history.
 
 If the process is interrupted, the generation branch persists. Resume by checking out the branch and running the do-work loop again.
 
-## Reset
+## Close
 
-Resetting closes the current generation and lands the work on main.
+Closing finishes the current generation and lands the work on main.
 
-1. Verify we are on a `generation-*` branch. Refuse to reset if on main or any other branch.
+1. Verify we are on a `generation-*` branch. Refuse to close if on main or any other branch.
 2. Tag the current commit as `generation-YYYY-MM-DD-HH-mm-closed`. This marks the final state of the generation before merging.
 3. Switch to main.
 4. Merge the generation branch into main.
 5. Delete the generation branch.
 
-After reset, main contains the regenerated code and both tags (pre-generation baseline and closed generation) are preserved in the history.
+After close, main contains the regenerated code and both tags (pre-generation baseline and closed generation) are preserved in the history.
 
 ## Tags
 
@@ -69,21 +69,21 @@ Table 3 Generation scripts
 
 | Script | Operation | Precondition |
 |--------|-----------|-------------|
-| `open-generation.sh` | Start a new generation | Must be on main |
+| `open-generation.sh` | Open a new generation | Must be on main |
 | `close-generation.sh` | Close the current generation | Must be on a `generation-*` branch |
-| `do-work.sh` | Pick and execute tasks | Works on any branch (main or generation) |
+| `do-work.sh` | Pick and execute tasks (generate phase) | Works on any branch (main or generation) |
 
 `open-generation.sh` tags main, creates the generation branch, deletes Go files, and commits the clean slate. `close-generation.sh` tags the generation branch as closed, merges to main, and deletes the branch. `do-work.sh` handles the task loop only and is branch-agnostic.
 
 ## Constraints
 
-We run one generation at a time. Starting a new generation while another is in progress is not supported. If a generation branch exists, either reset it or delete it before starting a new one.
+We run one generation at a time. Opening a new generation while another is in progress is not supported. If a generation branch exists, either close it or delete it before opening a new one.
 
 Main must not receive direct commits while a generation is in progress. All work flows through the generation branch.
 
 ## References
 
 - eng01-git-integration (task-level branching, JSONL merge behavior, commit conventions)
-- open-generation.sh (start a generation)
+- open-generation.sh (open a generation)
 - close-generation.sh (close a generation)
 - do-work.sh (task loop)
