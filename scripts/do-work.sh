@@ -9,21 +9,17 @@
 # For example, if started on generation-2026-02-08-09-30, task branches are
 # named generation-2026-02-08-09-30/task/<issue-id>.
 #
+# On startup, the script recovers from a previous interrupted run:
+# - Removes any worktrees for task branches under the base branch
+# - Deletes those task branches
+# - Resets any in_progress issues back to ready
+#
 # Usage: do-work.sh [options] [repo-root]
 #
 # Options:
 #   --silence-claude       Suppress Claude's output
 #
 # See docs/engineering/eng02-generation-workflow.md for the full workflow.
-#
-# Workflow:
-# 1. Record the current branch as the base branch
-# 2. Pick and claim a task from beads
-# 3. Create a git worktree with a branch namespaced under the base branch
-# 4. Run Claude in the worktree
-# 5. Merge the task branch back to the base branch
-# 6. Clean up the worktree
-# 7. Repeat until the queue is empty
 #
 
 set -e
@@ -57,6 +53,77 @@ WORKTREE_BASE="/tmp/${PROJECT_NAME}-worktrees"
 BASE_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
 echo "Base branch: $BASE_BRANCH"
+
+# ---------------------------------------------------------------------------
+# Recovery: clean up stale task branches and in_progress issues from a
+# previous interrupted run. Single-threaded, so anything left over is stale.
+# ---------------------------------------------------------------------------
+
+recover() {
+  local recovered=0
+
+  # 1. Find stale task branches under <base>/task/*
+  local stale_branches
+  stale_branches=$(git branch --list "$BASE_BRANCH/task/*" 2>/dev/null | sed 's/^[* ]*//')
+
+  for branch in $stale_branches; do
+    recovered=1
+    echo "Recovering stale branch: $branch"
+
+    # Extract issue ID from branch name: <base>/task/<issue-id>
+    local issue_id="${branch##*/task/}"
+    local worktree_dir="$WORKTREE_BASE/$issue_id"
+
+    # Remove worktree if it exists
+    if [ -d "$worktree_dir" ]; then
+      echo "  Removing worktree: $worktree_dir"
+      git worktree remove "$worktree_dir" --force 2>/dev/null || true
+    fi
+
+    # Delete the branch
+    echo "  Deleting branch: $branch"
+    git branch -D "$branch" 2>/dev/null || true
+
+    # Reset the issue to ready if it exists in beads
+    if [ -n "$issue_id" ]; then
+      echo "  Resetting issue to ready: $issue_id"
+      bd update "$issue_id" --status ready >/dev/null 2>&1 || true
+    fi
+  done
+
+  # 2. Reset any in_progress issues that have no task branch (orphaned state)
+  local in_progress
+  in_progress=$(bd list --json --status in_progress --type task 2>/dev/null || echo "[]")
+
+  if [ -n "$in_progress" ] && [ "$in_progress" != "[]" ]; then
+    local ids
+    ids=$(echo "$in_progress" | jq -r '.[].id // empty')
+    for id in $ids; do
+      # Only reset if there is no matching branch (already handled above)
+      if ! git show-ref --verify --quiet "refs/heads/$BASE_BRANCH/task/$id"; then
+        recovered=1
+        echo "Resetting orphaned in_progress issue: $id"
+        bd update "$id" --status ready >/dev/null 2>&1 || true
+      fi
+    done
+  fi
+
+  # Prune worktree references for directories that no longer exist
+  git worktree prune 2>/dev/null || true
+
+  if [ "$recovered" = 1 ]; then
+    # Sync beads and commit recovery changes
+    bd sync >/dev/null 2>&1 || true
+    git add .beads/ 2>/dev/null || true
+    git commit -m "Recover stale tasks from interrupted run" --allow-empty >/dev/null 2>&1 || true
+    echo "Recovery complete."
+    echo ""
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Task execution
+# ---------------------------------------------------------------------------
 
 # Globals set by pick_task
 ISSUE_JSON=""
@@ -200,6 +267,8 @@ do_one_task() {
 }
 
 main() {
+  recover
+
   local total_tasks=0
 
   while pick_task; do
