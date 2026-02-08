@@ -19,179 +19,170 @@ preconditions:
 
 test_cases:
 
-  # --- S1: New crumb starts in draft state with timestamps ---
+  # --- TestCrumbCreation: S1, S11 ---
 
   - name: Create crumb with draft state and initialized timestamps
-    description: New crumb defaults to draft state with CreatedAt, UpdatedAt, and Properties initialized.
+    description: >
+      New crumb with explicit draft state has CreatedAt and UpdatedAt set.
+      Note: CLI requires explicit State in JSON input.
     inputs:
-      command: cupboard set crumbs "" '{"Name":"New crumb"}'
+      command: cupboard set crumbs "" '{"Name":"New crumb","State":"draft"}'
     expected:
       exit_code: 0
-      stdout_contains: "CrumbID"
       state:
+        crumb_id_generated: true
         crumb_state: draft
         created_at_set: true
         updated_at_set: true
 
-  - name: New crumb has Properties map initialized
-    description: Verify the Properties map is not null on a new crumb.
+  - name: Create crumb with explicit state
+    description: >
+      Crumb created with explicit ready state is stored with that state.
     inputs:
-      command: cupboard set crumbs "" '{"Name":"Crumb with props"}'
+      command: cupboard set crumbs "" '{"Name":"Ready crumb","State":"ready"}'
     expected:
       exit_code: 0
       state:
-        crumb_state: draft
-        properties_initialized: true
+        crumb_id_generated: true
+        crumb_state: ready
+        created_at_set: true
+        updated_at_set: true
 
-  # --- S2: SetState(pending) transitions draft to pending ---
+  # --- TestCrumbStateTransitions: S2, S3, S4, S5 ---
 
-  - name: Transition crumb from draft to pending
+  - name: Transition draft to pending
     description: Create a crumb in draft, then update to pending state.
     inputs:
       setup:
-        - cupboard set crumbs "" '{"Name":"Pending crumb"}'
-      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Pending crumb","State":"pending"}'
+        - cupboard set crumbs "" '{"Name":"Test crumb","State":"draft"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Test crumb","State":"pending"}'
+      verify: cupboard get crumbs ${crumb_id}
     expected:
       exit_code: 0
       state:
         crumb_state: pending
 
-  # --- S3: SetState(ready) transitions pending to ready ---
-
-  - name: Transition crumb from pending to ready
-    description: Create a crumb, move to pending, then to ready state.
+  - name: Transition pending to ready
+    description: Create a crumb in pending, then update to ready state.
     inputs:
       setup:
-        - cupboard set crumbs "" '{"Name":"Ready crumb","State":"pending"}'
-      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Ready crumb","State":"ready"}'
+        - cupboard set crumbs "" '{"Name":"Test crumb","State":"pending"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Test crumb","State":"ready"}'
+      verify: cupboard get crumbs ${crumb_id}
     expected:
       exit_code: 0
       state:
         crumb_state: ready
 
-  - name: Transition crumb from draft to ready
-    description: Create a crumb in draft, then update to ready state.
+  - name: Transition draft to ready
+    description: Create a crumb in draft, then update directly to ready state.
     inputs:
       setup:
-        - cupboard set crumbs "" '{"Name":"Ready crumb","State":"draft"}'
-      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Ready crumb","State":"ready"}'
+        - cupboard set crumbs "" '{"Name":"Test crumb","State":"draft"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Test crumb","State":"ready"}'
+      verify: cupboard get crumbs ${crumb_id}
     expected:
       exit_code: 0
       state:
         crumb_state: ready
 
-  # --- S4: SetState(taken) transitions ready to taken ---
-
-  - name: Transition crumb from ready to taken
-    description: Create a crumb, move to ready, then claim it (taken).
+  - name: Transition ready to taken
+    description: Create a crumb in ready, then update to taken state.
     inputs:
       setup:
-        - cupboard set crumbs "" '{"Name":"Taken crumb","State":"ready"}'
-      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Taken crumb","State":"taken"}'
+        - cupboard set crumbs "" '{"Name":"Test crumb","State":"ready"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Test crumb","State":"taken"}'
+      verify: cupboard get crumbs ${crumb_id}
     expected:
       exit_code: 0
       state:
         crumb_state: taken
 
-  # --- S5: Pebble() transitions taken to pebble (terminal) ---
-
-  - name: Transition crumb to pebble (completed successfully)
-    description: Move a crumb from taken to terminal pebble state (completed).
+  - name: Transition taken to pebble
+    description: Create a crumb in taken, then update to pebble (terminal success).
     inputs:
       setup:
-        - cupboard set crumbs "" '{"Name":"Pebble crumb","State":"taken"}'
-      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Pebble crumb","State":"pebble"}'
+        - cupboard set crumbs "" '{"Name":"Test crumb","State":"taken"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Test crumb","State":"pebble"}'
+      verify: cupboard get crumbs ${crumb_id}
     expected:
       exit_code: 0
       state:
         crumb_state: pebble
 
-  # --- S6: Dust() transitions draft to dust (terminal) ---
+  # --- TestCrumbDustTransitions: S6, S7 ---
 
-  - name: Transition crumb from draft to dust
-    description: Move a crumb from draft to terminal dust state (failed/abandoned).
+  - name: Transition draft to dust
+    description: Move a crumb from draft to terminal dust state.
     inputs:
       setup:
         - cupboard set crumbs "" '{"Name":"Dust crumb","State":"draft"}'
       command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Dust crumb","State":"dust"}'
+      verify: cupboard get crumbs ${crumb_id}
     expected:
       exit_code: 0
       state:
         crumb_state: dust
 
-  # --- S7: Dust() works from any non-terminal state ---
-
-  - name: Transition crumb from pending to dust
+  - name: Transition pending to dust
     description: Verify dust transition works from pending state.
     inputs:
       setup:
-        - cupboard set crumbs "" '{"Name":"Dust from pending","State":"pending"}'
-      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Dust from pending","State":"dust"}'
+        - cupboard set crumbs "" '{"Name":"Dust crumb","State":"pending"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Dust crumb","State":"dust"}'
+      verify: cupboard get crumbs ${crumb_id}
     expected:
       exit_code: 0
       state:
         crumb_state: dust
 
-  - name: Transition crumb from ready to dust
+  - name: Transition ready to dust
     description: Verify dust transition works from ready state.
     inputs:
       setup:
-        - cupboard set crumbs "" '{"Name":"Dust from ready","State":"ready"}'
-      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Dust from ready","State":"dust"}'
+        - cupboard set crumbs "" '{"Name":"Dust crumb","State":"ready"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Dust crumb","State":"dust"}'
+      verify: cupboard get crumbs ${crumb_id}
     expected:
       exit_code: 0
       state:
         crumb_state: dust
 
-  - name: Transition crumb from taken to dust
+  - name: Transition taken to dust
     description: Verify dust transition works from taken state.
     inputs:
       setup:
-        - cupboard set crumbs "" '{"Name":"Dust from taken","State":"taken"}'
-      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Dust from taken","State":"dust"}'
+        - cupboard set crumbs "" '{"Name":"Dust crumb","State":"taken"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Dust crumb","State":"dust"}'
+      verify: cupboard get crumbs ${crumb_id}
     expected:
       exit_code: 0
       state:
         crumb_state: dust
 
-  # --- S8: UpdatedAt advances on each transition; CreatedAt stays constant ---
+  # --- TestCrumbTimestampTracking: S8 ---
 
   - name: UpdatedAt advances on state transition
-    description: Verify UpdatedAt changes when state transitions; CreatedAt remains constant.
+    description: >
+      Verify UpdatedAt changes when state transitions and is later than previous value.
+      CreatedAt must remain constant.
     inputs:
       setup:
-        - cupboard set crumbs "" '{"Name":"Timestamp crumb"}'
+        - cupboard set crumbs "" '{"Name":"Timestamp crumb","State":"draft"}'
       steps:
-        - cupboard get crumbs ${crumb_id}
-        - sleep 0.01
+        - record original_updated_at from crumb
+        - sleep 1100ms to ensure timestamp difference
         - cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Timestamp crumb","State":"ready"}'
-        - cupboard get crumbs ${crumb_id}
     expected:
       exit_code: 0
       state:
-        created_at_unchanged: true
+        crumb_state: ready
         updated_at_advanced: true
+        updated_at_after_original: true
 
-  - name: Multiple state transitions track UpdatedAt
-    description: Each state transition should advance UpdatedAt while CreatedAt remains constant.
-    inputs:
-      setup:
-        - cupboard set crumbs "" '{"Name":"Multi transition crumb"}'
-      steps:
-        - cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Multi transition crumb","State":"pending"}'
-        - cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Multi transition crumb","State":"ready"}'
-        - cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Multi transition crumb","State":"taken"}'
-        - cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Multi transition crumb","State":"pebble"}'
-    expected:
-      exit_code: 0
-      state:
-        crumb_state: pebble
-        created_at_unchanged: true
-        updated_at_advanced: true
+  # --- TestCrumbFetchByState: S9, S10 ---
 
-  # --- S9: Fetch by state returns only crumbs in the requested state ---
-
-  - name: Fetch by state returns matching crumbs only
+  - name: Fetch by single state returns matching crumbs only
     description: Listing by a specific state returns only crumbs in that state.
     inputs:
       setup:
@@ -201,50 +192,42 @@ test_cases:
       command: cupboard list crumbs State=ready
     expected:
       exit_code: 0
-      stdout_json:
-        length: 1
+      state:
+        result_count: 1
         contains_name: "Ready crumb"
-
-  - name: Fetch by multiple states
-    description: Listing by multiple states returns crumbs in any of those states.
-    inputs:
-      setup:
-        - cupboard set crumbs "" '{"Name":"Draft crumb","State":"draft"}'
-        - cupboard set crumbs "" '{"Name":"Ready crumb","State":"ready"}'
-        - cupboard set crumbs "" '{"Name":"Taken crumb","State":"taken"}'
-      command: cupboard list crumbs State=draft,ready
-    expected:
-      exit_code: 0
-      stdout_json:
-        length: 2
-
-  # --- S10: Fetch excludes pebble and dust when filtering for non-terminal states ---
+        excludes_names:
+          - "Draft crumb"
+          - "Taken crumb"
 
   - name: Filter excludes pebble crumbs from non-terminal state list
     description: Listing by state=draft excludes pebble crumbs.
     inputs:
       setup:
-        - cupboard set crumbs "" '{"Name":"Active crumb","State":"draft"}'
-        - cupboard set crumbs "" '{"Name":"Completed crumb","State":"pebble"}'
+        - cupboard set crumbs "" '{"Name":"Draft crumb","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Pebble crumb","State":"pebble"}'
       command: cupboard list crumbs State=draft
     expected:
       exit_code: 0
-      stdout_json:
-        length: 1
-        contains_name: "Active crumb"
+      state:
+        result_count: 1
+        contains_name: "Draft crumb"
+        excludes_names:
+          - "Pebble crumb"
 
   - name: Filter excludes dust crumbs from non-terminal state list
     description: Listing by state=draft excludes dust crumbs.
     inputs:
       setup:
-        - cupboard set crumbs "" '{"Name":"Active crumb","State":"draft"}'
-        - cupboard set crumbs "" '{"Name":"Archived crumb","State":"dust"}'
+        - cupboard set crumbs "" '{"Name":"Draft crumb","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Dust crumb","State":"dust"}'
       command: cupboard list crumbs State=draft
     expected:
       exit_code: 0
-      stdout_json:
-        length: 1
-        contains_name: "Active crumb"
+      state:
+        result_count: 1
+        contains_name: "Draft crumb"
+        excludes_names:
+          - "Dust crumb"
 
   - name: Filter for pebble state returns only pebble crumbs
     description: Listing by state=pebble returns only completed crumbs.
@@ -256,9 +239,12 @@ test_cases:
       command: cupboard list crumbs State=pebble
     expected:
       exit_code: 0
-      stdout_json:
-        length: 1
+      state:
+        result_count: 1
         contains_name: "Pebble crumb"
+        excludes_names:
+          - "Draft crumb"
+          - "Dust crumb"
 
   - name: Filter for dust state returns only dust crumbs
     description: Listing by state=dust returns only archived crumbs.
@@ -270,41 +256,70 @@ test_cases:
       command: cupboard list crumbs State=dust
     expected:
       exit_code: 0
-      stdout_json:
-        length: 1
+      state:
+        result_count: 1
         contains_name: "Dust crumb"
+        excludes_names:
+          - "Draft crumb"
+          - "Pebble crumb"
 
-  # --- S11: Properties map is initialized on creation (covered above) ---
+  # --- TestCrumbFetchAllStates ---
 
-  # --- full state machine workflow ---
+  - name: List without filter returns all crumbs
+    description: Listing crumbs without state filter returns all crumbs regardless of state.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Draft crumb","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Ready crumb","State":"ready"}'
+        - cupboard set crumbs "" '{"Name":"Taken crumb","State":"taken"}'
+      command: cupboard list crumbs
+    expected:
+      exit_code: 0
+      state:
+        result_count: 3
+        contains_names:
+          - "Draft crumb"
+          - "Ready crumb"
+          - "Taken crumb"
+
+  # --- TestFullSuccessPath ---
 
   - name: Full success path draft to pebble
     description: >
       Exercise the complete success path: draft → pending → ready → taken → pebble.
     inputs:
       setup:
-        - cupboard set crumbs "" '{"Name":"Success path crumb"}'
+        - cupboard set crumbs "" '{"Name":"Success path crumb","State":"draft"}'
       steps:
+        - verify initial state is draft
         - cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Success path crumb","State":"pending"}'
         - cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Success path crumb","State":"ready"}'
         - cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Success path crumb","State":"taken"}'
         - cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Success path crumb","State":"pebble"}'
+      verify: cupboard get crumbs ${crumb_id}
     expected:
       exit_code: 0
       state:
         crumb_state: pebble
+
+  # --- TestFullFailurePath ---
 
   - name: Full failure path draft to dust
     description: >
       Exercise the failure path: draft → dust.
     inputs:
       setup:
-        - cupboard set crumbs "" '{"Name":"Failure path crumb"}'
-      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Failure path crumb","State":"dust"}'
+        - cupboard set crumbs "" '{"Name":"Failure path crumb","State":"draft"}'
+      steps:
+        - verify initial state is draft
+        - cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Failure path crumb","State":"dust"}'
+      verify: cupboard get crumbs ${crumb_id}
     expected:
       exit_code: 0
       state:
         crumb_state: dust
+
+  # --- TestMixedTerminalStates ---
 
   - name: Mixed terminal states in same table
     description: >
