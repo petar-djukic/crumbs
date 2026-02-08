@@ -65,6 +65,10 @@ issues:
     - path: _test\.go
       linters:
         - errcheck  # Tests often ignore errors intentionally
+    # Exclude non-Go files from misspell
+    - path: \.(yaml|yml|md|json|txt)$
+      linters:
+        - misspell
 
 output:
   # Sort results by file, line, column
