@@ -30,7 +30,7 @@ Read VISION.md and ARCHITECTURE.md for context. For PRDs also scan existing `doc
 ## 4. After writing
 
 1. **Check completeness** against the issue Acceptance Criteria and the format rule checklist.
-2. **Calculate metrics**: tokens used; lines added/modified for this change (e.g. `git diff --stat` for the new/changed file). When summarizing changes, run `./scripts/stats.sh` and include its output (Go production/test LOC, doc words) in the summary.
+2. **Calculate metrics**: tokens used; lines added/modified for this change (e.g. `git diff --stat` for the new/changed file). When summarizing changes, run `mage stats` and include its output (Go production/test LOC, doc words) in the summary.
 3. **Log metrics and close**:
    ```bash
    bd comments add <issue-id> "tokens: <count>, loc: <lines_added>+<lines_modified>"
@@ -55,7 +55,7 @@ When you close the **last issue in an epic** (all child tasks complete):
    - If all criteria are met, update road-map.yaml to mark the use case status as "Complete"
    - If not complete, note what remains and ensure follow-up tasks exist
 4. **File follow-up issues** for any gaps discovered
-5. **Summarize epic completion**: run `./scripts/stats.sh` and report what was built and use case status
+5. **Summarize epic completion**: run `mage stats` and report what was built and use case status
 
 IMPORTANT:
 - Never edit `.beads/` by hand; use `bd` only.
@@ -63,4 +63,4 @@ IMPORTANT:
 - Track token usage and lines of code for every issue closed.
 - **Update road-map.yaml** when use cases are completed.
 
-Show what you completed and what's next. When summarizing, run `./scripts/stats.sh` and include its output.
+Show what you completed and what's next. When summarizing, run `mage stats` and include its output.

@@ -96,13 +96,13 @@ test_cases:
     expected:
       exit_code: 0
 
-  - name: Regenerate script runs successfully
-    description: Run the regeneration script which deletes Go files and reinitializes.
+  - name: Regenerate via mage runs successfully
+    description: Run the openGeneration mage target which deletes Go files and reinitializes.
     inputs:
-      command: ./scripts/do-work.sh --regenerate --cycles 0 --dry-run
+      command: mage openGeneration
     expected:
       exit_code: 0
-      stdout_contains: "regenerate"
+      stdout_contains: "generation"
 
   - name: Regeneration creates clean commit
     description: Verify regeneration commits the deletion of Go files.

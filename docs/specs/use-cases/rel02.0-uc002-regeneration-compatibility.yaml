@@ -18,7 +18,7 @@ flow:
   - F9: "Verify generation N reads N+1 modifications: Verify the installed generation N binary can still read the data after generation N+1 modifies it. This confirms write compatibility in both directions."
   - F10: "Verify property operations across generations: If generation N defined properties and set values, generation N+1 must load those properties and values correctly (requires rel02.0 property enforcement)."
 touchpoints:
-  - T1: "scripts/do-work.sh --regenerate: Orchestrates the regeneration cycle (tag, delete, reinit, rebuild)"
+  - T1: "mage openGeneration / closeGeneration: Orchestrates the regeneration cycle (tag, delete, reinit, rebuild)"
   - T2: "SQLite backend startup: Loads JSONL files into SQLite; format must match across generations (prd002-sqlite-backend R4)"
   - T3: "JSONL file format: The contract between generations; format stability is the invariant (prd002-sqlite-backend R2)"
   - T4: "JSONL write path: Writes must produce JSONL that older and newer generations can parse (prd002-sqlite-backend R5)"
@@ -62,7 +62,9 @@ demo: |
   cupboard set crumbs "" '{"Name":"Compat test","State":"draft"}'
   CRUMB_ID=$(cupboard list crumbs --json | jq -r '.[0].crumb_id')
 
-  ./scripts/do-work.sh --regenerate --cycles 1
+  mage openGeneration  # tag, delete Go files, reinit module
+  mage generate        # measure + stitch cycle
+  mage closeGeneration # merge back to main
 
   go build -o /tmp/cupboard-new ./cmd/cupboard
   /tmp/cupboard-new list crumbs --datadir /tmp/regen-test

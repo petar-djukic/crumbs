@@ -90,7 +90,7 @@ crumbs/
 ├── pkg/types/           # Public API: interfaces and types
 ├── internal/sqlite/     # SQLite backend implementation
 ├── docs/                # Documentation (VISION, ARCHITECTURE, PRDs)
-├── scripts/             # Utility scripts
+├── magefiles/           # Mage build targets (build, test, measure, stitch, generate)
 └── .claude/             # Claude Code configuration
 ```
 
@@ -216,14 +216,6 @@ bd sync               # Sync with git
 | Architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)             |
 | PRDs         | [docs/specs/product-requirements/](docs/specs/product-requirements/) |
 | Use Cases    | [docs/specs/use-cases/](docs/specs/use-cases/)                       |
-
-## Validation
-
-Run the self-hosting validation to verify the system works:
-
-```bash
-./scripts/validate-self-hosting.sh
-```
 
 ## License
 
