@@ -1,0 +1,134 @@
+id: rel01.1-uc005-flat-self-hosting
+title: Flat Self-Hosting
+summary: |
+  The cupboard CLI tracks development work on the crumbs repository using only
+  core storage features. The do-work.sh and make-work.sh scripts run end-to-end
+  using generic table commands (get, set, list, delete) and crumb commands.
+  This validates that cupboard works as an issue tracker for real agent workflows
+  without requiring properties, trails, or epics.
+actor: Coding agent (e.g., Claude Code) working on the crumbs codebase via do-work.sh and make-work.sh scripts
+trigger: Cupboard CLI providing the table and crumb commands that scripts need
+flow:
+  - F1: "Initialize cupboard: run cupboard init to create data directory and empty JSONL files"
+    detail: |
+      Initialization creates the data directory and empty JSONL files for all
+      tables. This is the foundation for all subsequent operations.
+  - F2: "Create crumbs via generic table command: run cupboard set crumbs '' '{\"Name\":\"...\",\"State\":\"draft\"}'"
+    detail: |
+      Create crumbs using the generic set command with an empty ID. The backend
+      generates a UUID v7 for the new crumb. Crumbs have Name and State fields
+      only—no properties, no type, no labels.
+  - F3: "List crumbs via generic table command: run cupboard list crumbs to see all crumbs as JSON"
+    detail: |
+      List all crumbs as a JSON array. Filter by state using key=value syntax:
+      cupboard list crumbs State=draft returns only draft crumbs.
+  - F4: "Update crumb state via generic table command: run cupboard set crumbs <id> '{...}' to change state"
+    detail: |
+      Claim work by setting State to taken. Close work by setting State to
+      pebble. The state machine is draft → taken → pebble (or dust).
+  - F5: "Get crumb details via generic table command: run cupboard get crumbs <id> to view a single crumb"
+    detail: |
+      Retrieve a crumb by ID and display its JSON representation. Used by
+      scripts to verify state after operations.
+  - F6: "Delete crumbs via generic table command: run cupboard delete crumbs <id> to remove a crumb"
+    detail: |
+      Remove completed or abandoned crumbs. Not typically used in the normal
+      workflow, but available for cleanup.
+  - F7: "Integrate do-work.sh script: use cupboard commands to pick a task, claim it, and close it after completion"
+    detail: |
+      The do-work workflow:
+      1. List draft crumbs: cupboard list crumbs State=draft
+      2. Pick a task (first result or user selection)
+      3. Claim it: cupboard set crumbs <id> '{"...","State":"taken"}'
+      4. Create worktree, run Claude, merge
+      5. Close it: cupboard set crumbs <id> '{"...","State":"pebble"}'
+      6. Clean up worktree
+  - F8: "Integrate make-work.sh script: use cupboard commands to list existing issues and create new ones"
+    detail: |
+      The make-work workflow:
+      1. List existing crumbs: cupboard list crumbs
+      2. Create new crumbs: cupboard set crumbs '' '{"Name":"...","State":"draft"}'
+      3. Commit JSONL changes to git
+  - F9: "Commit JSONL files to git: per eng01-git-integration, JSONL files are committed as part of session completion"
+    detail: |
+      The git add in session completion commits JSONL files from the data
+      directory. JSONL files are the source of truth and survive database
+      deletion.
+touchpoints:
+  - T1: "cupboard CLI (cmd/cupboard): generic table commands get, set, list, delete (prd-cupboard-cli R3)"
+  - T2: "Cupboard library (pkg/types): Cupboard interface with GetTable, Table interface for CRUD (prd-cupboard-core R2, R3)"
+  - T3: "SQLite backend (internal/sqlite): storage, JSONL persistence, query engine (prd-sqlite-backend R1-R5)"
+  - T4: "Crumb entity (pkg/types): Name, State, CreatedAt, UpdatedAt fields (prd-crumbs-interface R1)"
+  - T5: "do-work.sh: task picking (list with filter), worktree management, agent invocation"
+  - T6: "make-work.sh: work creation (set with empty ID), issue listing"
+  - T7: ".claude/rules/: agent workflow instructions (eng01-git-integration)"
+success_criteria:
+  - S1: "cupboard init creates data directory and JSONL files"
+  - S2: "cupboard set crumbs '' '{\"Name\":\"Test\",\"State\":\"draft\"}' creates a crumb and returns JSON with CrumbID"
+  - S3: "cupboard list crumbs returns all crumbs as JSON array"
+  - S4: "cupboard list crumbs State=draft returns only draft crumbs"
+  - S5: "cupboard set crumbs <id> '{...}' updates crumb state to taken"
+  - S6: "cupboard set crumbs <id> '{...}' updates crumb state to pebble (close)"
+  - S7: "cupboard get crumbs <id> returns crumb details as JSON"
+  - S8: "do-work.sh runs a full cycle (pick, claim, work, close) using cupboard commands"
+  - S9: "make-work.sh creates issues via cupboard and commits JSONL changes"
+  - S10: "JSONL files persist data and survive database deletion"
+out_of_scope:
+  - Properties (type, priority, labels, description) - see rel02.0
+  - Issue-tracking CLI commands (ready, create, update, close) - see rel02.1-uc003
+  - Trails and trail-scoped crumbs - see rel03.0
+  - Epic and task hierarchy (child_of links) - see rel02.1-uc003
+  - Comments and metadata - see rel02.1-uc004
+  - Multi-agent coordination
+test_suite: test-rel01.1-uc005-flat-self-hosting
+dependencies:
+  - D1: "Cupboard interface with Attach/Detach/GetTable (prd-cupboard-core R2, R4, R5)"
+  - D2: "Table interface with Get/Set/Delete/Fetch (prd-cupboard-core R3)"
+  - D3: "Crumb entity with Name and State fields (prd-crumbs-interface R1)"
+  - D4: "SQLite backend with JSONL persistence (prd-sqlite-backend R1-R5)"
+  - D5: "Generic table CLI commands (prd-cupboard-cli R3)"
+  - D6: "rel01.0-uc001-cupboard-lifecycle (Cupboard lifecycle must work)"
+  - D7: "rel01.0-uc002-table-crud (Table CRUD operations must work)"
+  - D8: "rel01.1-uc004-generic-table-cli (generic CLI commands must work)"
+risks:
+  - K1: "Bug in cupboard loses work tracking | Commit JSONL frequently; git history provides recovery"
+  - K2: "Missing state transition validation | Validate state field values in tests"
+  - K3: "Self-hosting reveals missing features | Treat as validation; file issues for gaps"
+demo: |
+  # Initialize cupboard
+  cupboard --data-dir=/tmp/demo init
+
+  # Create a crumb (task)
+  cupboard --data-dir=/tmp/demo set crumbs "" '{"Name":"Implement feature X","State":"draft"}'
+  # Output: {"CrumbID": "01945...", "Name": "Implement feature X", "State": "draft", ...}
+
+  # List all crumbs
+  cupboard --data-dir=/tmp/demo list crumbs
+  # Output: [{"CrumbID": "01945...", "Name": "Implement feature X", ...}]
+
+  # List draft (ready) crumbs
+  cupboard --data-dir=/tmp/demo list crumbs State=draft
+  # Output: [{"CrumbID": "01945...", "State": "draft", ...}]
+
+  # Claim the task (set state to taken)
+  cupboard --data-dir=/tmp/demo set crumbs 01945... '{"CrumbID":"01945...","Name":"Implement feature X","State":"taken"}'
+  # Output: {"CrumbID": "01945...", "State": "taken", ...}
+
+  # Close the task (set state to pebble)
+  cupboard --data-dir=/tmp/demo set crumbs 01945... '{"CrumbID":"01945...","Name":"Implement feature X","State":"pebble"}'
+  # Output: {"CrumbID": "01945...", "State": "pebble", ...}
+
+  # Get crumb details
+  cupboard --data-dir=/tmp/demo get crumbs 01945...
+  # Output: {"CrumbID": "01945...", "State": "pebble", ...}
+
+  # Verify JSONL persistence
+  ls /tmp/demo/crumbs.jsonl
+  # File exists with crumb data
+references:
+  - prd-cupboard-core
+  - prd-cupboard-cli
+  - prd-crumbs-interface
+  - prd-sqlite-backend
+  - eng01-git-integration
+  - docs/ARCHITECTURE.md

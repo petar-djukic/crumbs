@@ -1,0 +1,321 @@
+id: test-rel01.1-uc005-flat-self-hosting
+title: Flat self-hosting issue-tracking workflow
+description: >
+  Validates the cupboard CLI as an issue tracker using only core storage features.
+  Each test case exercises generic table commands (get, set, list, delete) via exec,
+  using a fresh cupboard instance with JSONL backend. No properties, trails, or
+  issue-tracking commands are used.
+traces:
+  - rel01.1-uc005-flat-self-hosting
+tags:
+  - cli
+  - integration
+  - self-hosting
+
+preconditions:
+  - Cupboard binary built from cmd/cupboard
+  - Fresh temp directory for config and data
+  - No existing crumbs
+
+test_cases:
+
+  # --- initialization ---
+
+  - name: Initialize cupboard
+    inputs:
+      command: cupboard init
+    expected:
+      exit_code: 0
+      stdout_contains: output message
+      state:
+        data_directory_exists: true
+        crumbs_jsonl_exists: true
+
+  # --- create (set with empty ID) ---
+
+  - name: Create crumb with name and state
+    inputs:
+      command: cupboard set crumbs "" '{"Name":"Implement feature","State":"draft"}'
+    expected:
+      exit_code: 0
+      stdout_contains: "CrumbID"
+      stdout_json:
+        Name: "Implement feature"
+        State: draft
+
+  - name: Create crumb returns generated UUID
+    inputs:
+      command: cupboard set crumbs "" '{"Name":"Write tests","State":"draft"}'
+    expected:
+      exit_code: 0
+      stdout_json:
+        Name: "Write tests"
+        State: draft
+    verify:
+      command: cupboard list crumbs
+      stdout_contains: "Write tests"
+
+  - name: Create multiple crumbs
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Task 1","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Task 2","State":"draft"}'
+      command: cupboard set crumbs "" '{"Name":"Task 3","State":"draft"}'
+    expected:
+      exit_code: 0
+    verify:
+      command: cupboard list crumbs
+      stdout_json:
+        length: 3
+
+  - name: Create crumb with empty name succeeds
+    description: >
+      Current CLI does not enforce Name field. Set without Name succeeds but
+      creates a crumb with empty Name.
+    inputs:
+      command: cupboard set crumbs "" '{"State":"draft"}'
+    expected:
+      exit_code: 0
+
+  - name: Create crumb defaults state to empty
+    inputs:
+      command: cupboard set crumbs "" '{"Name":"No state provided"}'
+    expected:
+      exit_code: 0
+
+  # --- list ---
+
+  - name: List returns all crumbs as JSON array
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Task A","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Task B","State":"draft"}'
+      command: cupboard list crumbs
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 2
+
+  - name: List empty cupboard returns empty array
+    inputs:
+      command: cupboard list crumbs
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 0
+
+  - name: List with state filter
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Draft task","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Taken task","State":"taken"}'
+      command: cupboard list crumbs State=draft
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 1
+      stdout_contains: "Draft task"
+
+  - name: List with name filter
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Alpha","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Beta","State":"draft"}'
+      command: cupboard list crumbs Name=Alpha
+    expected:
+      exit_code: 0
+      stdout_json:
+        length: 1
+      stdout_contains: "Alpha"
+
+  # --- get ---
+
+  - name: Get crumb by ID
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Visible task","State":"draft"}'
+      command: cupboard get crumbs ${crumb_id}
+    expected:
+      exit_code: 0
+      stdout_contains: "Visible task"
+
+  - name: Get nonexistent ID fails
+    inputs:
+      command: cupboard get crumbs nonexistent-id
+    expected:
+      exit_code: 1
+
+  - name: Get with invalid table fails
+    inputs:
+      command: cupboard get invalid-table abc
+    expected:
+      exit_code: 1
+      stderr_contains: "unknown table"
+
+  # --- update (set with existing ID) ---
+
+  - name: Update crumb name
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Original name","State":"draft"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Updated name","State":"draft"}'
+    expected:
+      exit_code: 0
+    verify:
+      command: cupboard get crumbs ${crumb_id}
+      stdout_contains: "Updated name"
+
+  - name: Update state to taken
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Claimable","State":"draft"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Claimable","State":"taken"}'
+    expected:
+      exit_code: 0
+    verify:
+      command: cupboard get crumbs ${crumb_id}
+      stdout_contains: "taken"
+
+  - name: Update state to pebble
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Closeable","State":"draft"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Closeable","State":"pebble"}'
+    expected:
+      exit_code: 0
+    verify:
+      command: cupboard get crumbs ${crumb_id}
+      stdout_contains: "pebble"
+
+  - name: Update state to dust
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Abandonable","State":"draft"}'
+      command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Abandonable","State":"dust"}'
+    expected:
+      exit_code: 0
+    verify:
+      command: cupboard get crumbs ${crumb_id}
+      stdout_contains: "dust"
+
+  # --- delete ---
+
+  - name: Delete crumb by ID
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"To delete","State":"draft"}'
+      command: cupboard delete crumbs ${crumb_id}
+    expected:
+      exit_code: 0
+      stdout_contains: "Deleted"
+    verify:
+      command: cupboard get crumbs ${crumb_id}
+      exit_code: 1
+
+  - name: Delete nonexistent ID fails
+    inputs:
+      command: cupboard delete crumbs nonexistent-id
+    expected:
+      exit_code: 1
+
+  # --- end-to-end workflows ---
+
+  - name: Do-work cycle with flat crumbs
+    description: >
+      Simulates the do-work workflow using only generic table commands:
+      create task, list draft tasks, claim task (set state to taken),
+      close task (set state to pebble). No properties or comments.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Build widget","State":"draft"}'
+      steps:
+        - command: cupboard list crumbs State=draft
+          verify: length equals 1
+        - command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Build widget","State":"taken"}'
+        - command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Build widget","State":"pebble"}'
+    expected:
+      exit_code: 0
+    verify:
+      command: cupboard get crumbs ${crumb_id}
+      stdout_contains: "pebble"
+
+  - name: Make-work cycle with flat crumbs
+    description: >
+      Simulates the make-work workflow using only generic table commands:
+      list existing issues, create new crumbs. No epics, no parent links.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Existing task","State":"draft"}'
+      steps:
+        - command: cupboard list crumbs
+          verify: length equals 1
+        - command: cupboard set crumbs "" '{"Name":"New task 1","State":"draft"}'
+        - command: cupboard set crumbs "" '{"Name":"New task 2","State":"draft"}'
+        - command: cupboard set crumbs "" '{"Name":"New task 3","State":"draft"}'
+    expected:
+      exit_code: 0
+    verify:
+      command: cupboard list crumbs
+      stdout_json:
+        length: 4
+
+  - name: Full workflow draft to pebble
+    description: >
+      Complete workflow: create, list, claim, close. Verifies state transitions
+      at each step.
+    inputs:
+      steps:
+        - command: cupboard set crumbs "" '{"Name":"Full workflow task","State":"draft"}'
+        - command: cupboard list crumbs State=draft
+          verify: stdout_contains "Full workflow task"
+        - command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Full workflow task","State":"taken"}'
+        - command: cupboard list crumbs State=taken
+          verify: stdout_contains "Full workflow task"
+        - command: cupboard set crumbs ${crumb_id} '{"CrumbID":"${crumb_id}","Name":"Full workflow task","State":"pebble"}'
+        - command: cupboard list crumbs State=pebble
+          verify: stdout_contains "Full workflow task"
+    expected:
+      exit_code: 0
+
+  # --- persistence ---
+
+  - name: JSONL persistence
+    description: >
+      Validates that crumb data is persisted to crumbs.jsonl file.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Crumb 1","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Crumb 2","State":"draft"}'
+        - cupboard set crumbs "" '{"Name":"Crumb 3","State":"draft"}'
+    expected:
+      exit_code: 0
+      state:
+        crumbs_jsonl_count: 3
+
+  - name: JSONL survives database deletion
+    description: >
+      Delete the SQLite database file and verify crumbs are still accessible
+      after cupboard reinitializes from JSONL.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Persistent crumb","State":"draft"}'
+        - rm cupboard.db
+      command: cupboard list crumbs
+    expected:
+      exit_code: 0
+      stdout_contains: "Persistent crumb"
+
+  - name: Multiple sessions maintain data
+    description: >
+      Create crumbs, simulate session end (no explicit action needed with
+      immediate sync), start new session and verify data.
+    inputs:
+      setup:
+        - cupboard set crumbs "" '{"Name":"Session 1 task","State":"draft"}'
+      command: cupboard list crumbs
+    expected:
+      exit_code: 0
+      stdout_contains: "Session 1 task"
+
+cleanup:
+  - Remove temp config and data directories

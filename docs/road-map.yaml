@@ -60,6 +60,9 @@ releases:
       - id: rel01.1-uc004-generic-table-cli
         summary: "Generic table CLI commands: get, set, list, delete across table types"
         status: done
+      - id: rel01.1-uc005-flat-self-hosting
+        summary: "Self-hosting with flat crumbs only: no properties, no trails, no epics"
+        status: not_started
 
   - version: "02.0"
     name: Properties with Enforcement
