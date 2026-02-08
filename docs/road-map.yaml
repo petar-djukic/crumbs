@@ -123,6 +123,15 @@ releases:
         summary: "Trail-crumb lifecycle: container semantics, completion makes permanent, abandon cascades deletion"
         status: not_started
 
+  - version: "03.1"
+    name: Post-Trails Validation
+    description: Validate trails functionality with self-hosting scenarios. Uses trails as epic equivalents to group and control related tasks.
+    done_when: Self-hosting with trail-based epics works end-to-end. Agents can create trails as epics, add crumbs as tasks, and use trail lifecycle to finalize or discard grouped work.
+    use_cases:
+      - id: rel03.1-uc001-self-hosting-with-epics
+        summary: "Self-hosting with trails as epics: group tasks, belongs_to links, complete/abandon lifecycle"
+        status: not_started
+
   - version: "99.0"
     name: Unscheduled
     description: Use cases not yet assigned to a release. These will be scheduled as the roadmap evolves.

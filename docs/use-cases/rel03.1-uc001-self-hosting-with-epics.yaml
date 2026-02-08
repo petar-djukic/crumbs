@@ -1,0 +1,177 @@
+id: rel03.1-uc001-self-hosting-with-epics
+title: Self-Hosting with Epics via Trails
+summary: |
+  The cupboard CLI tracks development work on the crumbs repository using trails
+  as epic equivalents. An agent creates a trail to group related tasks (crumbs),
+  associates crumbs with the trail via belongs_to links, and uses trail lifecycle
+  operations to control grouped work. Completing a trail finalizes all its tasks;
+  abandoning a trail discards them. This validates full-featured self-hosting that
+  replaces beads epics with cupboard trails.
+actor: Coding agent (e.g., Claude Code) working on the crumbs codebase via do-work.sh and make-work.sh scripts
+trigger: Need to organize related tasks under an epic-like container with lifecycle control
+flow:
+  - F1: "Create an epic trail: run cupboard set trails '' '{\"State\":\"draft\"}' to create a trail that will group related tasks"
+    detail: |
+      The trail acts as an epic container. Create it via the generic set command
+      with an empty ID to generate a UUID v7. The trail starts in draft state
+      per prd-trails-interface R2.
+  - F2: "Transition trail to active: run cupboard set trails <trail_id> '{\"State\":\"active\"}'"
+    detail: |
+      Move the trail from draft to active state to enable adding crumbs.
+      Active state indicates the trail is open for work.
+  - F3: "Create tasks for the epic: run cupboard set crumbs '' '{\"Name\":\"Task 1\",\"State\":\"draft\"}' for each task"
+    detail: |
+      Create crumbs that will belong to this epic trail. Each crumb is a task
+      within the epic. Use flat crumb creation (rel01.1-uc005) or issue-tracking
+      commands (rel02.1-uc003) depending on feature availability.
+  - F4: "Associate crumbs with trail: run cupboard set links '' '{\"LinkType\":\"belongs_to\",\"FromID\":\"<crumb_id>\",\"ToID\":\"<trail_id>\"}'"
+    detail: |
+      Create belongs_to links from each crumb to the trail. This establishes
+      the epic-task relationship. A crumb can belong to at most one trail at
+      a time (prd-links-interface R6.1).
+  - F5: "Query crumbs by epic: run cupboard list links LinkType=belongs_to ToID=<trail_id>"
+    detail: |
+      Find all crumbs belonging to this trail by querying the links table.
+      The result contains links; extract FromID to get crumb IDs, then
+      cupboard get crumbs <crumb_id> for each.
+  - F6: "Work on tasks: pick a task, claim it (set State to taken), complete work, close it (set State to pebble)"
+    detail: |
+      The do-work workflow operates on individual crumbs as before. The trail
+      association does not change how agents claim and complete tasks. Use
+      cupboard list crumbs State=draft or cupboard ready if properties are available.
+  - F7: "Add more tasks to epic during work: create new crumbs and link them to the trail"
+    detail: |
+      Epics can grow as work progresses. Create additional crumbs and
+      belongs_to links at any time while the trail is active.
+  - F8: "Complete the epic trail: run cupboard set trails <trail_id> '{\"State\":\"completed\"}'"
+    detail: |
+      When all tasks are done, complete the trail. The backend removes all
+      belongs_to links; crumbs become permanent (prd-trails-interface R5).
+      Crumbs persist in the database, now indistinguishable from never-trailed
+      crumbs.
+  - F9: "Verify crumbs are permanent: run cupboard list links LinkType=belongs_to ToID=<trail_id> returns empty"
+    detail: |
+      After completion, links are removed. Crumbs still exist and can be
+      queried via cupboard list crumbs or cupboard get crumbs <crumb_id>.
+  - F10: "Create another epic for abandonment scenario: create trail, add crumbs, link them"
+    detail: |
+      Test the abandon path by creating a second trail with crumbs.
+  - F11: "Abandon the failed epic: run cupboard set trails <trail_id> '{\"State\":\"abandoned\"}'"
+    detail: |
+      If an epic fails or is no longer needed, abandon the trail. The backend
+      deletes all crumbs that belong to the trail atomically (prd-trails-interface
+      R6). Properties, metadata, and links involving those crumbs are also deleted.
+  - F12: "Verify cascade deletion: cupboard get crumbs <crumb_id> returns error for abandoned crumbs"
+    detail: |
+      Crumbs that belonged to the abandoned trail no longer exist. The trail
+      itself remains in the database (for audit) but has no associated crumbs.
+  - F13: "Integrate with do-work.sh: script creates trail for related work, adds crumbs, completes trail on merge"
+    detail: |
+      The do-work.sh script can optionally create an epic trail when starting
+      a batch of related tasks. After completing all tasks and merging, the
+      script completes the trail to finalize the work.
+  - F14: "Integrate with make-work.sh: script creates trails as epics and groups child tasks"
+    detail: |
+      The make-work.sh script creates trails when importing epics from external
+      sources. Each epic maps to a trail; child tasks become crumbs linked via
+      belongs_to.
+  - F15: "Commit JSONL files to git: per eng01-git-integration, all JSONL files are committed including trails and links"
+    detail: |
+      Session completion commits all JSONL files: crumbs.jsonl, trails.jsonl,
+      and links.jsonl. The trail and link data persist across sessions.
+touchpoints:
+  - T1: "cupboard CLI (cmd/cupboard): generic table commands get, set, list, delete for trails, crumbs, and links"
+  - T2: "Cupboard library (pkg/types): Cupboard interface with GetTable, Table interface for CRUD (prd-cupboard-core R2, R3)"
+  - T3: "Trail entity (pkg/types): State field, lifecycle transitions draft→active→completed/abandoned (prd-trails-interface R2)"
+  - T4: "Trail completion semantics: removes belongs_to links, crumbs become permanent (prd-trails-interface R5)"
+  - T5: "Trail abandonment semantics: deletes associated crumbs atomically (prd-trails-interface R6)"
+  - T6: "Links table: belongs_to links associate crumbs with trails (prd-links-interface R2.1)"
+  - T7: "SQLite backend (internal/sqlite): storage, JSONL persistence, cascade operations (prd-sqlite-backend R1-R5)"
+  - T8: "do-work.sh: optionally creates trail for grouped work, completes trail on merge"
+  - T9: "make-work.sh: maps epics to trails, child tasks to belongs_to-linked crumbs"
+  - T10: ".claude/rules/: agent workflow instructions referencing trail-based epic management"
+success_criteria:
+  - S1: "cupboard set trails '' '{\"State\":\"draft\"}' creates a trail and returns JSON with TrailID"
+  - S2: "cupboard set links '' '{\"LinkType\":\"belongs_to\",...}' creates belongs_to link between crumb and trail"
+  - S3: "cupboard list links LinkType=belongs_to ToID=<trail_id> returns all crumbs in the epic"
+  - S4: "Crumbs in active trail are queryable and modifiable"
+  - S5: "cupboard set trails <id> '{\"State\":\"completed\"}' removes belongs_to links"
+  - S6: "After trail completion, crumbs persist without belongs_to links (permanent)"
+  - S7: "cupboard set trails <id> '{\"State\":\"abandoned\"}' deletes associated crumbs atomically"
+  - S8: "After trail abandonment, cupboard get crumbs <crumb_id> returns not found for deleted crumbs"
+  - S9: "Trail remains in database after abandonment (for audit)"
+  - S10: "do-work.sh can run a full cycle with trail-based epic grouping"
+  - S11: "make-work.sh can create epics as trails and group child tasks"
+  - S12: "JSONL files (trails.jsonl, links.jsonl) persist and are committed to git"
+out_of_scope:
+  - Nested trails (trails containing trails) - not supported per rel03.0-uc001
+  - Trail merging or splitting
+  - Concurrent trail operations
+  - Multi-agent coordination (single agent self-hosting)
+  - Remote backends (SQLite only)
+  - Properties for trails (trail properties are future work per ARCHITECTURE)
+test_suite: test-rel03.1-uc001-self-hosting-with-epics
+dependencies:
+  - D1: "rel01.0-uc001-cupboard-lifecycle (Cupboard and Table interfaces work)"
+  - D2: "rel01.0-uc002-table-crud (Table CRUD operations work)"
+  - D3: "rel01.1-uc005-flat-self-hosting or rel02.1-uc003-self-hosting (basic self-hosting foundation)"
+  - D4: "rel03.0-uc001-trail-exploration (trail lifecycle implemented)"
+  - D5: "rel03.0-uc002-link-management (links table and belongs_to semantics work)"
+  - D6: "rel03.0-uc004-trail-crumb-lifecycle (trail-crumb container semantics work)"
+  - D7: "prd-trails-interface must be implemented"
+  - D8: "prd-links-interface must be implemented"
+risks:
+  - K1: "Orphan crumbs if abandon fails mid-transaction | Backend uses transaction; rollback on failure"
+  - K2: "belongs_to cardinality violation | Uniqueness constraint prevents crumb from belonging to multiple trails"
+  - K3: "Script integration complexity | Test scripts independently; add trail support incrementally"
+  - K4: "JSONL merge conflicts on belongs_to links | Links append at end; most merges auto-resolve"
+demo: |
+  # Initialize cupboard
+  cupboard --data-dir=/tmp/epic-demo init
+
+  # Create an epic trail
+  TRAIL=$(cupboard --data-dir=/tmp/epic-demo set trails "" '{"State":"draft"}' | jq -r '.TrailID')
+  echo "Created epic trail: $TRAIL"
+
+  # Activate the trail
+  cupboard --data-dir=/tmp/epic-demo set trails $TRAIL '{"TrailID":"'$TRAIL'","State":"active"}'
+
+  # Create tasks for the epic
+  TASK1=$(cupboard --data-dir=/tmp/epic-demo set crumbs "" '{"Name":"Task 1","State":"draft"}' | jq -r '.CrumbID')
+  TASK2=$(cupboard --data-dir=/tmp/epic-demo set crumbs "" '{"Name":"Task 2","State":"draft"}' | jq -r '.CrumbID')
+  echo "Created tasks: $TASK1, $TASK2"
+
+  # Link tasks to the epic trail
+  cupboard --data-dir=/tmp/epic-demo set links "" '{"LinkType":"belongs_to","FromID":"'$TASK1'","ToID":"'$TRAIL'"}'
+  cupboard --data-dir=/tmp/epic-demo set links "" '{"LinkType":"belongs_to","FromID":"'$TASK2'","ToID":"'$TRAIL'"}'
+
+  # Query tasks in the epic
+  cupboard --data-dir=/tmp/epic-demo list links LinkType=belongs_to ToID=$TRAIL
+  # Output: [{...belongs_to link for TASK1...}, {...belongs_to link for TASK2...}]
+
+  # Complete tasks
+  cupboard --data-dir=/tmp/epic-demo set crumbs $TASK1 '{"CrumbID":"'$TASK1'","Name":"Task 1","State":"pebble"}'
+  cupboard --data-dir=/tmp/epic-demo set crumbs $TASK2 '{"CrumbID":"'$TASK2'","Name":"Task 2","State":"pebble"}'
+
+  # Complete the epic
+  cupboard --data-dir=/tmp/epic-demo set trails $TRAIL '{"TrailID":"'$TRAIL'","State":"completed"}'
+  echo "Completed epic trail"
+
+  # Verify crumbs are permanent (no belongs_to links)
+  cupboard --data-dir=/tmp/epic-demo list links LinkType=belongs_to ToID=$TRAIL
+  # Output: [] (empty)
+
+  # Crumbs still exist
+  cupboard --data-dir=/tmp/epic-demo get crumbs $TASK1
+  # Output: {"CrumbID":"...", "Name":"Task 1", "State":"pebble", ...}
+references:
+  - prd-trails-interface
+  - prd-links-interface
+  - prd-cupboard-core
+  - rel03.0-uc001-trail-exploration
+  - rel03.0-uc004-trail-crumb-lifecycle
+  - rel01.1-uc005-flat-self-hosting
+  - rel02.1-uc003-self-hosting
+  - eng01-git-integration
+  - eng03-cupboard-cli
+  - docs/ARCHITECTURE.md
