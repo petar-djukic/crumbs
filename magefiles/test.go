@@ -10,7 +10,7 @@ import (
 
 // Test runs all tests (unit and integration).
 func Test() error {
-	return sh.RunV("go", "test", "./...")
+	return sh.RunV("go", "test", "-v", "./...")
 }
 
 // TestUnit runs only unit tests, excluding the tests/ directory.
@@ -29,12 +29,12 @@ func TestUnit() error {
 		fmt.Println("No unit test packages found.")
 		return nil
 	}
-	args := append([]string{"test"}, unitPkgs...)
+	args := append([]string{"test", "-v"}, unitPkgs...)
 	return sh.RunV("go", args...)
 }
 
 // TestIntegration builds first, then runs only integration tests.
 func TestIntegration() error {
 	mg.Deps(Build)
-	return sh.RunV("go", "test", "./tests/...")
+	return sh.RunV("go", "test", "-v", "./tests/...")
 }
