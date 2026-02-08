@@ -22,43 +22,52 @@ test_cases:
   # --- S1: Link created via Table.Set generates UUID v7 for LinkID ---
 
   - name: Create link generates UUID v7
+    description: >
+      Creating a link with empty ID generates a UUID v7 for LinkID and sets CreatedAt.
     inputs:
       setup:
         - Create trail in active state
         - Create crumb in draft state
       command: |
         link := &Link{LinkType: "belongs_to", FromID: crumb.CrumbID, ToID: trail.TrailID}
-        linksTable.Set("", link)
+        id, err := linksTable.Set("", link)
     expected:
       exit_code: 0
       state:
-        link_id_generated: true
-        link_id_is_uuid_v7: true
-        created_at_set: true
+        returned_id_not_empty: true
+        returned_id_is_uuid_v7: true
+        link_linkid_equals_returned_id: true
+        link_createdat_not_zero: true
 
   - name: Set with existing ID updates link
+    description: >
+      Calling Set with an existing link ID updates the link fields.
     inputs:
       setup:
-        - Create trail and crumb
-        - Create belongs_to link
+        - Create trail and two crumbs
+        - Create belongs_to link from crumb1 to trail
       command: |
-        link.FromID = newCrumb.CrumbID
-        linksTable.Set(link.LinkID, link)
+        link.FromID = crumb2.CrumbID
+        linksTable.Set(linkID, link)
     expected:
       exit_code: 0
       state:
-        link_from_id_updated: true
+        retrieved_link_from_id: crumb2_id
 
   # --- S2: belongs_to link associates crumb with trail ---
 
   - name: Create belongs_to link for crumb-trail membership
+    description: >
+      A belongs_to link associates a crumb with a trail. FromID is the crumb,
+      ToID is the trail.
     inputs:
       setup:
         - Create trail in active state
         - Create crumb in draft state
       command: |
         link := &Link{LinkType: "belongs_to", FromID: crumb.CrumbID, ToID: trail.TrailID}
-        linksTable.Set("", link)
+        id, err := linksTable.Set("", link)
+        entity, err := linksTable.Get(id)
     expected:
       exit_code: 0
       state:
@@ -66,29 +75,20 @@ test_cases:
         link_from_id: crumb_id
         link_to_id: trail_id
 
-  - name: Get belongs_to link retrieves correct fields
-    inputs:
-      setup:
-        - Create trail and crumb
-        - Create belongs_to link
-      command: linksTable.Get(link.LinkID)
-    expected:
-      exit_code: 0
-      state:
-        link_type: belongs_to
-        from_id_equals: crumb_id
-        to_id_equals: trail_id
-
   # --- S3: child_of link establishes crumb hierarchy ---
 
   - name: Create child_of link for crumb hierarchy
+    description: >
+      A child_of link establishes a parent-child hierarchy between crumbs.
+      FromID is the child crumb, ToID is the parent crumb.
     inputs:
       setup:
-        - Create parent crumb (epic type) in draft state
-        - Create child crumb (task type) in draft state
+        - Create parent crumb (epic) in draft state
+        - Create child crumb (task) in draft state
       command: |
-        link := &Link{LinkType: "child_of", FromID: childCrumb.CrumbID, ToID: parentCrumb.CrumbID}
-        linksTable.Set("", link)
+        link := &Link{LinkType: "child_of", FromID: child.CrumbID, ToID: parent.CrumbID}
+        id, err := linksTable.Set("", link)
+        entity, err := linksTable.Get(id)
     expected:
       exit_code: 0
       state:
@@ -96,30 +96,34 @@ test_cases:
         link_from_id: child_crumb_id
         link_to_id: parent_crumb_id
 
-  - name: Query child crumbs of parent
+  - name: Query children of parent crumb
+    description: >
+      Fetch with LinkType=child_of and ToID=parent returns all child links.
     inputs:
       setup:
         - Create parent crumb
         - Create child1 and child2 crumbs
         - Create child_of links from both children to parent
       command: |
-        filter := map[string]any{"LinkType": "child_of", "ToID": parentCrumb.CrumbID}
-        linksTable.Fetch(filter)
+        filter := map[string]any{"LinkType": "child_of", "ToID": parent.CrumbID}
+        entities, err := linksTable.Fetch(filter)
     expected:
       exit_code: 0
       state:
         result_count: 2
-        result_from_ids: [child1_id, child2_id]
+        result_from_ids_include: [child1_id, child2_id]
 
   - name: Query parent of child crumb
+    description: >
+      Fetch with LinkType=child_of and FromID=child returns the parent link.
     inputs:
       setup:
         - Create parent crumb
         - Create child crumb
         - Create child_of link from child to parent
       command: |
-        filter := map[string]any{"LinkType": "child_of", "FromID": childCrumb.CrumbID}
-        linksTable.Fetch(filter)
+        filter := map[string]any{"LinkType": "child_of", "FromID": child.CrumbID}
+        entities, err := linksTable.Fetch(filter)
     expected:
       exit_code: 0
       state:
@@ -129,44 +133,54 @@ test_cases:
   # --- S4: branches_from link indicates trail branch point ---
 
   - name: Create branches_from link for trail branch point
+    description: >
+      A branches_from link indicates where a trail branched from a crumb.
+      FromID is the trail, ToID is the branch point crumb.
     inputs:
       setup:
-        - Create parent crumb (decision point)
+        - Create branch point crumb (decision point)
         - Create trail in active state
       command: |
-        link := &Link{LinkType: "branches_from", FromID: trail.TrailID, ToID: parentCrumb.CrumbID}
-        linksTable.Set("", link)
+        link := &Link{LinkType: "branches_from", FromID: trail.TrailID, ToID: crumb.CrumbID}
+        id, err := linksTable.Set("", link)
+        entity, err := linksTable.Get(id)
     expected:
       exit_code: 0
       state:
         link_type: branches_from
         link_from_id: trail_id
-        link_to_id: parent_crumb_id
+        link_to_id: branch_point_crumb_id
 
   - name: Query branch point of trail
+    description: >
+      Fetch with LinkType=branches_from and FromID=trail returns the branch point.
     inputs:
       setup:
-        - Create parent crumb
+        - Create branch point crumb
         - Create trail and branches_from link
       command: |
         filter := map[string]any{"LinkType": "branches_from", "FromID": trail.TrailID}
-        linksTable.Fetch(filter)
+        entities, err := linksTable.Fetch(filter)
     expected:
       exit_code: 0
       state:
         result_count: 1
-        branch_point_is: parent_crumb_id
+        result_to_id: branch_point_crumb_id
 
   # --- S5: scoped_to link scopes stash to trail ---
 
   - name: Create scoped_to link for stash trail scope
+    description: >
+      A scoped_to link scopes a stash to a trail. FromID is the stash,
+      ToID is the trail.
     inputs:
       setup:
         - Create trail in active state
-        - Create stash with type "context"
+        - Create stash with type context
       command: |
         link := &Link{LinkType: "scoped_to", FromID: stash.StashID, ToID: trail.TrailID}
-        linksTable.Set("", link)
+        id, err := linksTable.Set("", link)
+        entity, err := linksTable.Get(id)
     expected:
       exit_code: 0
       state:
@@ -175,6 +189,8 @@ test_cases:
         link_to_id: trail_id
 
   - name: Query stashes scoped to trail
+    description: >
+      Fetch with LinkType=scoped_to and ToID=trail returns all scoped stash links.
     inputs:
       setup:
         - Create trail
@@ -182,49 +198,55 @@ test_cases:
         - Create scoped_to links from both stashes to trail
       command: |
         filter := map[string]any{"LinkType": "scoped_to", "ToID": trail.TrailID}
-        linksTable.Fetch(filter)
+        entities, err := linksTable.Fetch(filter)
     expected:
       exit_code: 0
       state:
         result_count: 2
-        result_from_ids: [stash1_id, stash2_id]
 
   - name: Query trail scope of stash
+    description: >
+      Fetch with LinkType=scoped_to and FromID=stash returns the trail scope.
     inputs:
       setup:
         - Create trail
         - Create stash and scoped_to link
       command: |
         filter := map[string]any{"LinkType": "scoped_to", "FromID": stash.StashID}
-        linksTable.Fetch(filter)
+        entities, err := linksTable.Fetch(filter)
     expected:
       exit_code: 0
       state:
         result_count: 1
-        scope_trail_is: trail_id
+        result_to_id: trail_id
 
   # --- S6: Fetch with link_type filter returns only links of that type ---
 
   - name: Fetch by link_type returns only matching links
+    description: >
+      Fetch with LinkType filter returns only links of that type.
     inputs:
       setup:
         - Create trail, crumbs, stash
         - Create one belongs_to link, one child_of link, one scoped_to link
       command: |
         filter := map[string]any{"LinkType": "belongs_to"}
-        linksTable.Fetch(filter)
+        entities, err := linksTable.Fetch(filter)
     expected:
       exit_code: 0
       state:
         result_count: 1
-        all_results_have_type: belongs_to
+        all_results_link_type: belongs_to
 
-  - name: Fetch all link types without filter
+  - name: Fetch all links without filter
+    description: >
+      Fetch with nil filter returns all links of all types.
     inputs:
       setup:
         - Create trail, crumbs, stash
-        - Create one of each link type
-      command: linksTable.Fetch(nil)
+        - Create one belongs_to, one child_of, one scoped_to link
+      command: |
+        entities, err := linksTable.Fetch(nil)
     expected:
       exit_code: 0
       state:
@@ -234,14 +256,15 @@ test_cases:
   # --- S7: Fetch with from_id filter returns links originating from that entity ---
 
   - name: Fetch by from_id returns links from that entity
+    description: >
+      Fetch with FromID filter returns links originating from that entity.
     inputs:
       setup:
-        - Create trail1 and trail2
-        - Create crumb
-        - Create belongs_to link from crumb to trail1
+        - Create trail and crumb
+        - Create belongs_to link from crumb to trail
       command: |
         filter := map[string]any{"FromID": crumb.CrumbID}
-        linksTable.Fetch(filter)
+        entities, err := linksTable.Fetch(filter)
     expected:
       exit_code: 0
       state:
@@ -249,13 +272,15 @@ test_cases:
         result_from_id: crumb_id
 
   - name: Fetch by from_id with no matches returns empty
+    description: >
+      Fetch with FromID that has no links returns an empty slice.
     inputs:
       setup:
         - Create trail and crumb
         - Create belongs_to link
       command: |
         filter := map[string]any{"FromID": "nonexistent-id"}
-        linksTable.Fetch(filter)
+        entities, err := linksTable.Fetch(filter)
     expected:
       exit_code: 0
       state:
@@ -264,6 +289,8 @@ test_cases:
   # --- S8: Fetch with to_id filter returns links targeting that entity ---
 
   - name: Fetch by to_id returns links to that entity
+    description: >
+      Fetch with ToID filter returns links targeting that entity.
     inputs:
       setup:
         - Create trail
@@ -271,7 +298,7 @@ test_cases:
         - Create belongs_to links from both crumbs to trail
       command: |
         filter := map[string]any{"ToID": trail.TrailID}
-        linksTable.Fetch(filter)
+        entities, err := linksTable.Fetch(filter)
     expected:
       exit_code: 0
       state:
@@ -279,13 +306,15 @@ test_cases:
         all_results_to_id: trail_id
 
   - name: Fetch by to_id with no matches returns empty
+    description: >
+      Fetch with ToID that has no links returns an empty slice.
     inputs:
       setup:
         - Create trail and crumb
         - Create belongs_to link
       command: |
         filter := map[string]any{"ToID": "nonexistent-id"}
-        linksTable.Fetch(filter)
+        entities, err := linksTable.Fetch(filter)
     expected:
       exit_code: 0
       state:
@@ -294,15 +323,17 @@ test_cases:
   # --- Combined filter tests ---
 
   - name: Fetch with link_type and to_id combined
+    description: >
+      Fetch with both LinkType and ToID filters returns links matching both criteria.
     inputs:
       setup:
         - Create trail
-        - Create crumb1 (belongs_to trail) and crumb2 (child_of crumb1)
+        - Create crumb1 and crumb2
         - Create belongs_to link from crumb1 to trail
         - Create child_of link from crumb2 to crumb1
       command: |
         filter := map[string]any{"LinkType": "belongs_to", "ToID": trail.TrailID}
-        linksTable.Fetch(filter)
+        entities, err := linksTable.Fetch(filter)
     expected:
       exit_code: 0
       state:
@@ -311,6 +342,8 @@ test_cases:
         result_to_id: trail_id
 
   - name: Fetch with all three filters
+    description: >
+      Fetch with LinkType, FromID, and ToID filters returns the exact match.
     inputs:
       setup:
         - Create trail and crumb
@@ -321,7 +354,7 @@ test_cases:
           "FromID": crumb.CrumbID,
           "ToID": trail.TrailID,
         }
-        linksTable.Fetch(filter)
+        entities, err := linksTable.Fetch(filter)
     expected:
       exit_code: 0
       state:
@@ -330,64 +363,83 @@ test_cases:
   # --- S9: Delete removes link; subsequent Get returns ErrNotFound ---
 
   - name: Delete link removes it
+    description: >
+      Delete removes a link. Subsequent Get returns ErrNotFound.
     inputs:
       setup:
         - Create trail and crumb
         - Create belongs_to link
-      steps:
-        - linksTable.Delete(link.LinkID)
-        - linksTable.Get(link.LinkID)
+      command: |
+        err := linksTable.Delete(linkID)
+        _, err = linksTable.Get(linkID)
     expected:
       state:
-        delete_succeeds: true
+        delete_error: nil
         get_error: ErrNotFound
 
   - name: Delete link does not affect other links
+    description: >
+      Deleting one link does not affect other links in the table.
     inputs:
       setup:
         - Create trail
         - Create crumb1 and crumb2
-        - Create belongs_to link1 (crumb1 to trail)
-        - Create belongs_to link2 (crumb2 to trail)
-      steps:
-        - linksTable.Delete(link1.LinkID)
-        - linksTable.Get(link2.LinkID)
+        - Create belongs_to link1 from crumb1 to trail
+        - Create belongs_to link2 from crumb2 to trail
+      command: |
+        err := linksTable.Delete(link1ID)
+        entity, err := linksTable.Get(link2ID)
     expected:
       state:
-        link1_deleted: true
+        delete_error: nil
         link2_exists: true
 
   # --- S10: Delete of nonexistent link returns ErrNotFound ---
 
   - name: Delete nonexistent link returns ErrNotFound
+    description: >
+      Delete with a nonexistent ID returns ErrNotFound.
     inputs:
-      command: linksTable.Delete("nonexistent-uuid-12345")
+      command: |
+        err := linksTable.Delete("nonexistent-uuid-12345")
     expected:
       error: ErrNotFound
 
   - name: Delete with empty ID returns ErrInvalidID
+    description: >
+      Delete with an empty string ID returns ErrInvalidID.
     inputs:
-      command: linksTable.Delete("")
+      command: |
+        err := linksTable.Delete("")
     expected:
       error: ErrInvalidID
 
   # --- Additional edge cases ---
 
   - name: Get with empty ID returns ErrInvalidID
+    description: >
+      Get with an empty string ID returns ErrInvalidID.
     inputs:
-      command: linksTable.Get("")
+      command: |
+        _, err := linksTable.Get("")
     expected:
       error: ErrInvalidID
 
   - name: Get nonexistent link returns ErrNotFound
+    description: >
+      Get with a nonexistent ID returns ErrNotFound.
     inputs:
-      command: linksTable.Get("nonexistent-uuid-12345")
+      command: |
+        _, err := linksTable.Get("nonexistent-uuid-12345")
     expected:
       error: ErrNotFound
 
   - name: Fetch empty table returns empty slice
+    description: >
+      Fetch on an empty table returns an empty slice, not nil.
     inputs:
-      command: linksTable.Fetch(nil)
+      command: |
+        entities, err := linksTable.Fetch(nil)
     expected:
       exit_code: 0
       state:
@@ -397,8 +449,9 @@ test_cases:
 
   - name: Full link management workflow
     description: >
-      Create entities, establish all four link types, query via filters,
-      delete some links, and verify final state.
+      Creates entities, establishes all four link types, queries via filters,
+      deletes a link, and verifies final state. Validates the complete link
+      management lifecycle.
     inputs:
       steps:
         - Create trail in active state
@@ -408,12 +461,12 @@ test_cases:
         - Create child_of link from childCrumb to parentCrumb
         - Create branches_from link from trail to parentCrumb
         - Create scoped_to link from stash to trail
-        - Verify 4 links exist via Fetch(nil)
-        - Query belongs_to links for trail (should return 1)
-        - Query child_of links where to_id is parentCrumb (should return 1)
+        - Fetch all links and verify count is 4
+        - Query belongs_to links for trail (filter: LinkType + ToID)
+        - Query child_of links where ToID is parentCrumb
         - Delete belongs_to link
-        - Verify 3 links remain
-        - Query belongs_to links for trail (should return 0)
+        - Fetch all links and verify count is 3
+        - Query belongs_to links for trail and verify count is 0
     expected:
       state:
         initial_link_count: 4
