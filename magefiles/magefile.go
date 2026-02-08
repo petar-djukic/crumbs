@@ -131,16 +131,26 @@ func Stats() error {
 		return err
 	}
 
-	docWords, err := countDocWords()
+	prdWords, err := countWordsInGlob("docs/product-requirements/*.yaml")
+	if err != nil {
+		return err
+	}
+	ucWords, err := countWordsInGlob("docs/use-cases/*.yaml")
+	if err != nil {
+		return err
+	}
+	testWords, err := countWordsInGlob("docs/test-suites/*.yaml")
 	if err != nil {
 		return err
 	}
 
 	record := map[string]int{
-		"go_production_loc":  prodLines,
-		"go_test_loc":        testLines,
-		"go_total_loc":       prodLines + testLines,
-		"documentation_words": docWords,
+		"go_loc_prod":   prodLines,
+		"go_loc_test":   testLines,
+		"go_loc":        prodLines + testLines,
+		"spec_wc_prd":   prdWords,
+		"spec_wc_uc":    ucWords,
+		"spec_wc_test":  testWords,
 	}
 	line, err := json.Marshal(record)
 	if err != nil {
@@ -165,29 +175,18 @@ func countLines(path string) (int, error) {
 	return count, scanner.Err()
 }
 
-func countDocWords() (int, error) {
+func countWordsInGlob(pattern string) (int, error) {
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return 0, nil
+	}
 	total := 0
-
-	// Match the same files as stats.sh: README.md, docs/*.md, docs/**/*.md
-	patterns := []string{"README.md", "docs/*.md", "docs/**/*.md"}
-	seen := map[string]bool{}
-
-	for _, pattern := range patterns {
-		matches, err := filepath.Glob(pattern)
-		if err != nil {
+	for _, path := range matches {
+		words, wordErr := countWordsInFile(path)
+		if wordErr != nil {
 			continue
 		}
-		for _, path := range matches {
-			if seen[path] {
-				continue
-			}
-			seen[path] = true
-			words, err := countWordsInFile(path)
-			if err != nil {
-				continue
-			}
-			total += words
-		}
+		total += words
 	}
 	return total, nil
 }
