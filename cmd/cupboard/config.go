@@ -8,7 +8,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/viper"
 
@@ -88,60 +87,4 @@ func loadConfig(configDirFlag, dataDirFlag string) (types.Config, error) {
 	}
 
 	return cfg, nil
-}
-
-// defaultConfig returns the default configuration using SQLite backend
-// with platform-appropriate data directory.
-func defaultConfig() types.Config {
-	dataDir, err := paths.DefaultDataDir()
-	if err != nil {
-		// Fallback to current directory
-		dataDir = ".crumbs"
-	}
-	return types.Config{
-		Backend: types.BackendSQLite,
-		DataDir: dataDir,
-	}
-}
-
-// getConfigDir returns the resolved configuration directory.
-// This is useful for commands that need to write config.yaml.
-func getConfigDir(configDirFlag string) (string, error) {
-	return paths.ResolveConfigDir(configDirFlag, envConfigDir)
-}
-
-// writeDefaultConfig writes a default config.yaml to the config directory.
-// Per R7.3, this is called on first write operations.
-func writeDefaultConfig(configDir string) error {
-	configPath := filepath.Join(configDir, "config.yaml")
-
-	// Don't overwrite existing config
-	if _, err := os.Stat(configPath); err == nil {
-		return nil
-	}
-
-	dataDir, err := paths.DefaultDataDir()
-	if err != nil {
-		return err
-	}
-
-	defaultContent := fmt.Sprintf(`# Crumbs CLI Configuration
-# See prd010-configuration-directories for full specification
-
-# Backend selection
-backend: sqlite
-
-# Data directory (where backend stores data)
-data_dir: %s
-
-# Optional backend-specific settings
-# sqlite:
-#   # SQLite-specific options (reserved for future use)
-`, dataDir)
-
-	if err := paths.EnsureDir(configDir); err != nil {
-		return err
-	}
-
-	return os.WriteFile(configPath, []byte(defaultContent), 0644)
 }

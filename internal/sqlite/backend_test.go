@@ -1566,7 +1566,7 @@ func TestSyncStrategy_Delete_RespectsStrategy(t *testing.T) {
 	}
 	b.Attach(config)
 
-	crumbTbl, _ := b.GetTable(types.CrumbsTable)
+	_, _ = b.GetTable(types.CrumbsTable)
 
 	// Create a crumb with immediate strategy to have something in JSONL
 	b.Detach()
@@ -1576,7 +1576,7 @@ func TestSyncStrategy_Delete_RespectsStrategy(t *testing.T) {
 		DataDir: tmpDir,
 	}
 	b.Attach(immediateConfig)
-	crumbTbl, _ = b.GetTable(types.CrumbsTable)
+	crumbTbl, _ := b.GetTable(types.CrumbsTable)
 	crumb := &types.Crumb{Name: "To Delete", State: types.StateDraft}
 	crumbID, _ := crumbTbl.Set("", crumb)
 	b.Detach()

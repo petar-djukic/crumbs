@@ -1,7 +1,8 @@
 // CLI integration tests for cupboard lifecycle operations.
 // Validates test-rel01.0-uc001-cupboard-lifecycle.yaml test cases.
 // Implements: docs/specs/test-suites/test-rel01.0-uc001-cupboard-lifecycle.yaml;
-//             docs/specs/use-cases/rel01.0-uc001-cupboard-lifecycle.yaml.
+//
+//	docs/specs/use-cases/rel01.0-uc001-cupboard-lifecycle.yaml.
 package integration
 
 import (

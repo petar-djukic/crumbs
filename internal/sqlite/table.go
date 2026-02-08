@@ -368,7 +368,7 @@ func buildCrumbQuery(filter map[string]any) (string, []any) {
 			if v, ok := value.(int); ok && v > 0 {
 				offset = v
 			}
-		// Unknown keys ignored per R9.5
+			// Unknown keys ignored per R9.5
 		}
 	}
 
@@ -493,7 +493,7 @@ func (t *Table) setTrail(id string, trail *types.Trail) (string, error) {
 	}
 	defer func() {
 		if err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 		}
 	}()
 
@@ -775,7 +775,7 @@ func (t *Table) setProperty(id string, prop *types.Property) (string, error) {
 	}
 	defer func() {
 		if err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 		}
 	}()
 

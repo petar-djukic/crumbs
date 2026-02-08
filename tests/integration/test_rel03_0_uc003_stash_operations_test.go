@@ -1,8 +1,9 @@
 // Go API integration tests for stash operations.
 // Validates test-rel03.0-uc003-stash-operations.yaml test cases.
 // Implements: docs/specs/test-suites/test-rel03.0-uc003-stash-operations.yaml;
-//             docs/specs/use-cases/rel03.0-uc003-stash-operations.yaml;
-//             prd008-stash-interface R1-R12.
+//
+//	docs/specs/use-cases/rel03.0-uc003-stash-operations.yaml;
+//	prd008-stash-interface R1-R12.
 package integration
 
 import (
@@ -1063,13 +1064,11 @@ func TestStashOperations_FullWorkflow(t *testing.T) {
 	lockStash := &types.Stash{Name: "mutex", StashType: types.StashTypeLock, Value: nil, Version: 1}
 
 	stashes := []*types.Stash{resourceStash, artifactStash, contextStash, counterStash, lockStash}
-	var stashIDs []string
 	for _, s := range stashes {
-		id, err := stashesTable.Set("", s)
+		_, err := stashesTable.Set("", s)
 		if err != nil {
 			t.Fatalf("Create stash failed: %v", err)
 		}
-		stashIDs = append(stashIDs, id)
 	}
 
 	// Verify 5 stashes exist

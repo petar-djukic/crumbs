@@ -41,7 +41,10 @@ func runCrumbGet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("get crumb: %w", err)
 	}
 
-	crumb := entity.(*types.Crumb)
+	crumb, ok := entity.(*types.Crumb)
+	if !ok {
+		return fmt.Errorf("unexpected entity type")
+	}
 
 	if jsonOutput {
 		output, err := json.MarshalIndent(crumb, "", "  ")

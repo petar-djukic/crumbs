@@ -61,7 +61,11 @@ func runCrumbList(cmd *cobra.Command, args []string) error {
 	// Convert to crumbs
 	crumbs := make([]*types.Crumb, len(entities))
 	for i, entity := range entities {
-		crumbs[i] = entity.(*types.Crumb)
+		crumb, ok := entity.(*types.Crumb)
+		if !ok {
+			return fmt.Errorf("unexpected entity type at index %d", i)
+		}
+		crumbs[i] = crumb
 	}
 
 	if jsonOutput {

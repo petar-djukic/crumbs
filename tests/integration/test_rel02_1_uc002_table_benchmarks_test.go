@@ -1,9 +1,10 @@
 // Table interface performance benchmarks.
 // Validates test-rel02.1-uc002-table-benchmarks.yaml test cases.
 // Implements: docs/specs/test-suites/test-rel02.1-uc002-table-benchmarks.yaml;
-//             docs/specs/use-cases/rel02.1-uc002-table-benchmarks.yaml;
-//             prd001-cupboard-core R3 (Table interface);
-//             prd002-sqlite-backend.
+//
+//	docs/specs/use-cases/rel02.1-uc002-table-benchmarks.yaml;
+//	prd001-cupboard-core R3 (Table interface);
+//	prd002-sqlite-backend.
 package integration
 
 import (

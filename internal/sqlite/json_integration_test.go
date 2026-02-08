@@ -555,14 +555,12 @@ func TestJSON_AtomicWritePreventsCorruption(t *testing.T) {
 	table, _ := backend.GetTable(types.CrumbsTable)
 
 	// Create many crumbs to increase file size
-	var ids []string
 	for i := 0; i < 100; i++ {
 		crumb := &types.Crumb{
 			Name:  "Crumb for atomic test",
 			State: types.StateDraft,
 		}
-		id, _ := table.Set("", crumb)
-		ids = append(ids, id)
+		_, _ = table.Set("", crumb)
 	}
 
 	backend.Detach()

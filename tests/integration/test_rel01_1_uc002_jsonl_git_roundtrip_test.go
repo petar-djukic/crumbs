@@ -1,8 +1,9 @@
 // CLI integration tests for JSONL git roundtrip persistence.
 // Validates test-rel01.1-uc002-jsonl-git-roundtrip.yaml test cases.
 // Implements: docs/specs/test-suites/test-rel01.1-uc002-jsonl-git-roundtrip.yaml;
-//             docs/specs/use-cases/rel01.1-uc002-jsonl-git-roundtrip.yaml;
-//             prd002-sqlite-backend R1, R4, R5.
+//
+//	docs/specs/use-cases/rel01.1-uc002-jsonl-git-roundtrip.yaml;
+//	prd002-sqlite-backend R1, R4, R5.
 package integration
 
 import (
@@ -83,9 +84,9 @@ func TestJSONLFileCreation(t *testing.T) {
 // TestJSONLContentCorrectness validates JSONL content format (cases 4-6).
 func TestJSONLContentCorrectness(t *testing.T) {
 	tests := []struct {
-		name       string
-		setup      func(env *TestEnv)
-		checkFunc  func(t *testing.T, jsonlContent string)
+		name      string
+		setup     func(env *TestEnv)
+		checkFunc func(t *testing.T, jsonlContent string)
 	}{
 		{
 			name: "JSONL contains correct crumb data",
@@ -336,10 +337,10 @@ func TestStateChangesPersistence(t *testing.T) {
 // TestQueriesAfterRebuild validates filters work after database rebuild (cases 16-17).
 func TestQueriesAfterRebuild(t *testing.T) {
 	tests := []struct {
-		name        string
-		setup       func(env *TestEnv)
-		filter      string
-		wantCount   int
+		name      string
+		setup     func(env *TestEnv)
+		filter    string
+		wantCount int
 	}{
 		{
 			name: "Ready filter works after rebuild",
@@ -398,9 +399,9 @@ func TestQueriesAfterRebuild(t *testing.T) {
 // TestEmptyCupboardRebuild validates empty/fresh cupboard scenarios (cases 18-20).
 func TestEmptyCupboardRebuild(t *testing.T) {
 	tests := []struct {
-		name           string
-		setup          func(env *TestEnv)
-		wantCrumbCount int
+		name            string
+		setup           func(env *TestEnv)
+		wantCrumbCount  int
 		checkFileExists string
 	}{
 		{

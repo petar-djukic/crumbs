@@ -1,8 +1,9 @@
 // CLI integration tests for cupboard self-hosting workflow.
 // Validates test-rel02.1-uc003-self-hosting.yaml test cases.
 // Implements: docs/specs/test-suites/test-rel02.1-uc003-self-hosting.yaml;
-//             docs/specs/use-cases/rel02.1-uc003-self-hosting.yaml;
-//             docs/ARCHITECTURE § CLI.
+//
+//	docs/specs/use-cases/rel02.1-uc003-self-hosting.yaml;
+//	docs/ARCHITECTURE § CLI.
 package integration
 
 import (
@@ -53,24 +54,24 @@ func TestMain(m *testing.M) {
 // TestCreate validates crumb creation operations (test001 cases 1-6).
 func TestCreate(t *testing.T) {
 	tests := []struct {
-		name           string
-		setup          func(env *TestEnv) string // returns ID if needed
-		args           []string
-		wantExitCode   int
-		wantStdout     string // substring to find in stdout
-		wantStderr     string // substring to find in stderr
-		wantJSON       bool   // expect JSON output
-		checkState     func(t *testing.T, env *TestEnv, setupID string)
+		name         string
+		setup        func(env *TestEnv) string // returns ID if needed
+		args         []string
+		wantExitCode int
+		wantStdout   string // substring to find in stdout
+		wantStderr   string // substring to find in stderr
+		wantJSON     bool   // expect JSON output
+		checkState   func(t *testing.T, env *TestEnv, setupID string)
 	}{
 		{
-			name: "Create task with required fields",
-			args: []string{"set", "crumbs", "", `{"Name":"Implement feature","State":"draft"}`},
+			name:         "Create task with required fields",
+			args:         []string{"set", "crumbs", "", `{"Name":"Implement feature","State":"draft"}`},
 			wantExitCode: 0,
 			wantStdout:   "CrumbID",
 		},
 		{
-			name: "Create task with JSON output",
-			args: []string{"set", "crumbs", "", `{"Name":"Write tests","State":"draft"}`},
+			name:         "Create task with JSON output",
+			args:         []string{"set", "crumbs", "", `{"Name":"Write tests","State":"draft"}`},
 			wantExitCode: 0,
 			wantJSON:     true,
 			checkState: func(t *testing.T, env *TestEnv, _ string) {
@@ -83,8 +84,8 @@ func TestCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "Create epic with labels",
-			args: []string{"set", "crumbs", "", `{"Name":"Storage layer","State":"draft"}`},
+			name:         "Create epic with labels",
+			args:         []string{"set", "crumbs", "", `{"Name":"Storage layer","State":"draft"}`},
 			wantExitCode: 0,
 			wantStdout:   "CrumbID",
 		},
@@ -262,11 +263,11 @@ func TestShow(t *testing.T) {
 // TestUpdate validates update operations (test001 cases 11-13).
 func TestUpdate(t *testing.T) {
 	tests := []struct {
-		name          string
-		setup         func(env *TestEnv) string // returns crumb ID
-		updateState   string
-		wantExitCode  int
-		verifyState   string // expected state after update
+		name         string
+		setup        func(env *TestEnv) string // returns crumb ID
+		updateState  string
+		wantExitCode int
+		verifyState  string // expected state after update
 	}{
 		{
 			name: "Update status to taken (in_progress)",

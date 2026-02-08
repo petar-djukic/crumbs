@@ -35,7 +35,7 @@ Example:
 func init() {
 	crumbAddCmd.Flags().StringVar(&crumbName, "name", "", "name for the crumb (required)")
 	crumbAddCmd.Flags().StringVar(&crumbState, "state", "", "initial state (default: draft)")
-	crumbAddCmd.MarkFlagRequired("name")
+	_ = crumbAddCmd.MarkFlagRequired("name")
 }
 
 func runCrumbAdd(cmd *cobra.Command, args []string) error {
@@ -73,7 +73,10 @@ func runCrumbAdd(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	savedCrumb := entity.(*types.Crumb)
+	savedCrumb, ok := entity.(*types.Crumb)
+	if !ok {
+		return fmt.Errorf("unexpected entity type")
+	}
 
 	if jsonOutput {
 		output, err := json.MarshalIndent(savedCrumb, "", "  ")

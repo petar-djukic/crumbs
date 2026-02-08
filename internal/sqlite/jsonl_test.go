@@ -453,11 +453,7 @@ func TestJSONLPersistenceAcrossRestarts(t *testing.T) {
 
 	b1.Detach()
 
-	// Verify cupboard.db is deleted on startup (ephemeral cache per R5.1)
-	dbPath := filepath.Join(tmpDir, "cupboard.db")
-	if _, err := os.Stat(dbPath); !os.IsNotExist(err) {
-		// DB exists after detach, which is fine - just verify it gets deleted on re-attach
-	}
+	// DB may exist after detach; it gets deleted on re-attach (ephemeral cache per R5.1)
 
 	// Session 2: Verify all data is loaded from JSONL
 	b2 := NewBackend()

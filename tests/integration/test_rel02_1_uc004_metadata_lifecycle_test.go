@@ -1,8 +1,9 @@
 // Go API integration tests for metadata lifecycle operations.
 // Validates test-rel02.1-uc004-metadata-lifecycle.yaml test cases.
 // Implements: docs/specs/test-suites/test-rel02.1-uc004-metadata-lifecycle.yaml;
-//             docs/specs/use-cases/rel02.1-uc004-metadata-lifecycle.yaml;
-//             prd005-metadata-interface R1-R10.
+//
+//	docs/specs/use-cases/rel02.1-uc004-metadata-lifecycle.yaml;
+//	prd005-metadata-interface R1-R10.
 package integration
 
 import (

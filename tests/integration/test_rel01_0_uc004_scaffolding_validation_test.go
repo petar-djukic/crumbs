@@ -1,7 +1,8 @@
 // CLI integration tests for scaffolding validation.
 // Validates test-rel01.0-uc004-scaffolding-validation.yaml test cases.
 // Implements: docs/specs/test-suites/test-rel01.0-uc004-scaffolding-validation.yaml;
-//             docs/specs/use-cases/rel01.0-uc004-scaffolding-validation.yaml.
+//
+//	docs/specs/use-cases/rel01.0-uc004-scaffolding-validation.yaml.
 package integration
 
 import (
@@ -133,8 +134,9 @@ func TestUC004_VersionWorksWithoutBackend(t *testing.T) {
 // TestUC004_CrumbStructHasRequiredFields validates that the Crumb struct has
 // all documented fields.
 func TestUC004_CrumbStructHasRequiredFields(t *testing.T) {
-	// Compile-time test: instantiate Crumb with all documented fields
-	c := &types.Crumb{
+	// Compile-time test: instantiate Crumb with all documented fields.
+	// Using value type (not pointer) to avoid unusedwrite warnings.
+	_ = types.Crumb{
 		CrumbID:    "test",
 		Name:       "test",
 		State:      "draft",
@@ -142,7 +144,6 @@ func TestUC004_CrumbStructHasRequiredFields(t *testing.T) {
 		UpdatedAt:  time.Now(),
 		Properties: map[string]any{},
 	}
-	_ = c
 
 	// If this compiles, the struct has the required fields
 	t.Log("Crumb struct has required fields: CrumbID, Name, State, CreatedAt, UpdatedAt, Properties")
@@ -151,13 +152,11 @@ func TestUC004_CrumbStructHasRequiredFields(t *testing.T) {
 // TestUC004_TrailStructHasRequiredFields validates that the Trail struct has
 // all documented fields.
 func TestUC004_TrailStructHasRequiredFields(t *testing.T) {
-	// Compile-time test: instantiate Trail with all documented fields
-	tr := &types.Trail{
+	_ = types.Trail{
 		TrailID:   "test",
 		State:     "active",
 		CreatedAt: time.Now(),
 	}
-	_ = tr
 
 	t.Log("Trail struct has required fields: TrailID, State, CreatedAt")
 }
@@ -165,15 +164,13 @@ func TestUC004_TrailStructHasRequiredFields(t *testing.T) {
 // TestUC004_PropertyStructHasRequiredFields validates that the Property struct
 // has all documented fields.
 func TestUC004_PropertyStructHasRequiredFields(t *testing.T) {
-	// Compile-time test: instantiate Property with all documented fields
-	p := &types.Property{
+	_ = types.Property{
 		PropertyID:  "test",
 		Name:        "priority",
 		Description: "Task priority",
 		ValueType:   "categorical",
 		CreatedAt:   time.Now(),
 	}
-	_ = p
 
 	t.Log("Property struct has required fields: PropertyID, Name, Description, ValueType, CreatedAt")
 }
@@ -181,14 +178,12 @@ func TestUC004_PropertyStructHasRequiredFields(t *testing.T) {
 // TestUC004_CategoryStructHasRequiredFields validates that the Category struct
 // has all documented fields.
 func TestUC004_CategoryStructHasRequiredFields(t *testing.T) {
-	// Compile-time test: instantiate Category with all documented fields
-	c := &types.Category{
+	_ = types.Category{
 		CategoryID: "test",
 		PropertyID: "test",
 		Name:       "high",
 		Ordinal:    1,
 	}
-	_ = c
 
 	t.Log("Category struct has required fields: CategoryID, PropertyID, Name, Ordinal")
 }
@@ -196,8 +191,7 @@ func TestUC004_CategoryStructHasRequiredFields(t *testing.T) {
 // TestUC004_StashStructHasRequiredFields validates that the Stash struct has
 // all documented fields.
 func TestUC004_StashStructHasRequiredFields(t *testing.T) {
-	// Compile-time test: instantiate Stash with all documented fields
-	s := &types.Stash{
+	_ = types.Stash{
 		StashID:   "test",
 		Name:      "shared-config",
 		StashType: "context",
@@ -205,7 +199,6 @@ func TestUC004_StashStructHasRequiredFields(t *testing.T) {
 		Version:   0,
 		CreatedAt: time.Now(),
 	}
-	_ = s
 
 	t.Log("Stash struct has required fields: StashID, Name, StashType, Value, Version, CreatedAt")
 }
@@ -213,15 +206,13 @@ func TestUC004_StashStructHasRequiredFields(t *testing.T) {
 // TestUC004_MetadataStructHasRequiredFields validates that the Metadata struct
 // has all documented fields.
 func TestUC004_MetadataStructHasRequiredFields(t *testing.T) {
-	// Compile-time test: instantiate Metadata with all documented fields
-	m := &types.Metadata{
+	_ = types.Metadata{
 		MetadataID: "test",
 		CrumbID:    "test",
 		TableName:  "comments",
 		Content:    "{}",
 		CreatedAt:  time.Now(),
 	}
-	_ = m
 
 	t.Log("Metadata struct has required fields: MetadataID, CrumbID, TableName, Content, CreatedAt")
 }
@@ -229,15 +220,13 @@ func TestUC004_MetadataStructHasRequiredFields(t *testing.T) {
 // TestUC004_LinkStructHasRequiredFields validates that the Link struct has
 // all documented fields.
 func TestUC004_LinkStructHasRequiredFields(t *testing.T) {
-	// Compile-time test: instantiate Link with all documented fields
-	l := &types.Link{
+	_ = types.Link{
 		LinkID:    "test",
 		LinkType:  "belongs_to",
 		FromID:    "crumb-1",
 		ToID:      "trail-1",
 		CreatedAt: time.Now(),
 	}
-	_ = l
 
 	t.Log("Link struct has required fields: LinkID, LinkType, FromID, ToID, CreatedAt")
 }

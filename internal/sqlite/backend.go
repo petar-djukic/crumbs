@@ -34,20 +34,20 @@ type Backend struct {
 	tables   map[string]*Table
 
 	// Sync strategy state (prd002-sqlite-backend R16)
-	syncStrategy  string          // effective sync strategy: immediate, on_close, batch
-	batchSize     int             // number of writes before batch flush
-	batchInterval time.Duration   // time between batch flushes
-	pendingWrites []pendingWrite  // queue of writes pending JSONL persist
-	batchTimer    *time.Timer     // timer for interval-based batch flush
-	batchMu       sync.Mutex      // protects pendingWrites and batchTimer
+	syncStrategy  string         // effective sync strategy: immediate, on_close, batch
+	batchSize     int            // number of writes before batch flush
+	batchInterval time.Duration  // time between batch flushes
+	pendingWrites []pendingWrite // queue of writes pending JSONL persist
+	batchTimer    *time.Timer    // timer for interval-based batch flush
+	batchMu       sync.Mutex     // protects pendingWrites and batchTimer
 }
 
 // pendingWrite represents a deferred JSONL write operation.
 // Used by on_close and batch sync strategies.
 type pendingWrite struct {
-	tableName string          // entity table name (crumbs, trails, etc.)
-	operation string          // "save" or "delete"
-	persist   func() error    // function to execute the JSONL write
+	tableName string       // entity table name (crumbs, trails, etc.)
+	operation string       // "save" or "delete"
+	persist   func() error // function to execute the JSONL write
 }
 
 // NewBackend creates a new SQLite backend instance.

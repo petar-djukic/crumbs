@@ -112,10 +112,10 @@ func testSetCommand(t *testing.T) {
 		checkResult  func(t *testing.T, env *TestEnv, result CmdResult, setupID string)
 	}{
 		{
-			name:  "Set crumb with empty ID creates new entity",
-			table: "crumbs",
-			id:    func(_ string) string { return "" },
-			json:  func(_ string) string { return `{"Name":"New task","State":"draft"}` },
+			name:         "Set crumb with empty ID creates new entity",
+			table:        "crumbs",
+			id:           func(_ string) string { return "" },
+			json:         func(_ string) string { return `{"Name":"New task","State":"draft"}` },
 			wantExitCode: 0,
 			wantStdout:   "CrumbID",
 			checkResult: func(t *testing.T, env *TestEnv, result CmdResult, _ string) {
