@@ -9,15 +9,18 @@
 #
 # Options:
 #   --silence-claude       Suppress Claude's output
-#   --make-work-limit N    Number of issues to create when no tasks (default: 1)
-#   --cycles N             Number of make-work cycles (default: 1)
-#   --regenerate           Tag repo, delete Go files, reinitialize module, then loop
+#   --make-work-limit N    Number of issues to create when no tasks (default: 5)
+#   --cycles N             Number of make-work cycles (default: 0)
+#   --generate             Start a new generation: tag main, create branch, delete Go files
+#   --reset                Close current generation: tag, merge to main, delete branch
+#
+# See docs/engineering/eng02-generation-workflow.md for the full workflow.
 #
 # Workflow:
 # 1. Pick and claim a task from beads
 # 2. Create a git worktree with a branch for the task
 # 3. Run Claude in the worktree
-# 4. Merge the branch back to main
+# 4. Merge the branch back to the current branch
 # 5. Clean up the worktree
 # 6. When no tasks left, call make-work.sh to create more
 # 7. Repeat for specified number of cycles
@@ -29,7 +32,8 @@ set -e
 SILENCE_CLAUDE=false
 MAKE_WORK_LIMIT=5
 CYCLES=0
-REGENERATE=false
+GENERATE=false
+RESET=false
 REPO_ARG=""
 
 while [[ $# -gt 0 ]]; do
@@ -46,8 +50,12 @@ while [[ $# -gt 0 ]]; do
       CYCLES="$2"
       shift 2
       ;;
-    --regenerate)
-      REGENERATE=true
+    --generate)
+      GENERATE=true
+      shift
+      ;;
+    --reset)
+      RESET=true
       shift
       ;;
     *)
@@ -64,6 +72,18 @@ REPO_ROOT=$(pwd)
 SCRIPT_DIR="$REPO_ROOT/scripts"
 PROJECT_NAME=$(basename "$REPO_ROOT")
 WORKTREE_BASE="/tmp/${PROJECT_NAME}-worktrees"
+
+# Returns the current git branch name.
+current_branch() {
+  git rev-parse --abbrev-ref HEAD
+}
+
+# Returns 0 if on a generation branch, 1 otherwise.
+on_generation_branch() {
+  local branch
+  branch=$(current_branch)
+  [[ "$branch" == generation-* ]]
+}
 
 # Globals set by pick_task
 ISSUE_JSON=""
@@ -164,11 +184,11 @@ run_claude() {
 
 merge_branch() {
   echo ""
-  echo "Merging $BRANCH_NAME into main..."
+  echo "Merging $BRANCH_NAME into $(current_branch)..."
 
   cd "$REPO_ROOT"
 
-  # Merge the branch
+  # Merge the task branch into the current branch (main or generation)
   git merge "$BRANCH_NAME" --no-edit
 
   echo "Branch merged."
@@ -220,24 +240,50 @@ call_make_work() {
   "$SCRIPT_DIR/make-work.sh" $make_work_args
 }
 
-regenerate() {
+# Start a new generation (per eng02-generation-workflow).
+# Tags main, creates a generation branch, deletes Go files, reinitializes module.
+start_generation() {
+  local branch
+  branch=$(current_branch)
+
+  if [ "$branch" != "main" ]; then
+    echo "Error: --generate must be run from main (currently on $branch)."
+    exit 1
+  fi
+
+  # Check no existing generation branch
+  if git branch --list 'generation-*' | grep -q .; then
+    echo "Error: a generation branch already exists. Reset it first or delete it."
+    git branch --list 'generation-*'
+    exit 1
+  fi
+
+  local gen_name="generation-$(date +%Y-%m-%d-%H-%M)"
+
   echo ""
   echo "========================================"
-  echo "Regenerating from documentation"
+  echo "Starting generation: $gen_name"
   echo "========================================"
   echo ""
 
-  # Tag current state
-  local tag="generation-$(date +%Y-%m-%d-%H-%M)"
-  echo "Tagging current state as $tag..."
-  git tag "$tag"
+  # Tag current main
+  echo "Tagging current state as $gen_name..."
+  git tag "$gen_name"
+
+  # Create and switch to generation branch
+  echo "Creating branch $gen_name..."
+  git checkout -b "$gen_name"
 
   # Delete Go source files
   echo "Deleting Go source files..."
   find . -name '*.go' -not -path './.git/*' -delete 2>/dev/null || true
 
   # Remove empty directories left behind in Go source dirs
-  find cmd/ pkg/ internal/ -type d -empty -delete 2>/dev/null || true
+  for dir in cmd/ pkg/ internal/ tests/; do
+    if [ -d "$dir" ]; then
+      find "$dir" -type d -empty -delete 2>/dev/null || true
+    fi
+  done
 
   # Remove build artifacts and dependency lock
   rm -rf bin/ go.sum
@@ -250,12 +296,52 @@ regenerate() {
   # Commit the clean state
   echo "Committing clean state..."
   git add -A
-  git commit -m "Regenerate: delete Go files, reinitialize module
+  git commit -m "Start generation: $gen_name
 
-Tagged previous state as $tag"
+Delete Go files, reinitialize module.
+Tagged previous state as $gen_name."
 
   echo ""
-  echo "Regeneration complete. Starting make-work/do-work loop."
+  echo "Generation started. Proceeding to make-work/do-work loop."
+  echo ""
+}
+
+# Close the current generation (per eng02-generation-workflow).
+# Tags the branch, merges to main, deletes the branch.
+reset_generation() {
+  local branch
+  branch=$(current_branch)
+
+  if ! on_generation_branch; then
+    echo "Error: --reset must be run from a generation branch (currently on $branch)."
+    exit 1
+  fi
+
+  local closed_tag="${branch}-closed"
+
+  echo ""
+  echo "========================================"
+  echo "Resetting generation: $branch"
+  echo "========================================"
+  echo ""
+
+  # Tag the final state
+  echo "Tagging final state as $closed_tag..."
+  git tag "$closed_tag"
+
+  # Switch to main and merge
+  echo "Switching to main..."
+  git checkout main
+
+  echo "Merging $branch into main..."
+  git merge "$branch" --no-edit
+
+  # Delete the generation branch
+  echo "Deleting branch $branch..."
+  git branch -d "$branch"
+
+  echo ""
+  echo "Generation reset complete. Work is on main."
   echo ""
 }
 
@@ -295,8 +381,21 @@ main() {
   echo "========================================"
 }
 
-if [ "$REGENERATE" = true ]; then
-  regenerate
+# Handle generation lifecycle flags
+if [ "$GENERATE" = true ] && [ "$RESET" = true ]; then
+  echo "Error: cannot use --generate and --reset together."
+  exit 1
+fi
+
+if [ "$GENERATE" = true ]; then
+  start_generation
+  main
+  exit 0
+fi
+
+if [ "$RESET" = true ]; then
+  reset_generation
+  exit 0
 fi
 
 main
