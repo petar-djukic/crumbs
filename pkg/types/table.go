@@ -29,6 +29,9 @@ var (
 	ErrInvalidHolder     = errors.New("holder cannot be empty")
 	ErrAlreadyInTrail    = errors.New("crumb already belongs to a trail")
 	ErrNotInTrail        = errors.New("crumb does not belong to the trail")
+	ErrSchemaNotFound    = errors.New("schema not found")
+	ErrInvalidContent    = errors.New("content must not be empty")
+	ErrInvalidFilter     = errors.New("invalid filter value type")
 )
 
 // Table provides uniform CRUD operations for all entity types.

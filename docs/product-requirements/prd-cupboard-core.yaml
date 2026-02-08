@@ -23,6 +23,15 @@ requirements:
           | DataDir | string | Directory for the SQLite backend |
       - R1.2: Config validation must fail if Backend is empty or unrecognized
       - R1.3: Config validation must fail if DataDir is empty when Backend is "sqlite"
+      - R1.4: Config validation errors must be defined in config.go
+        detail: |
+          ```go
+          var ErrBackendEmpty = errors.New("backend must not be empty")
+          var ErrBackendUnknown = errors.New("unknown backend")
+          var ErrSyncStrategyUnknown = errors.New("unknown sync strategy")
+          var ErrBatchSizeInvalid = errors.New("batch size must be positive")
+          var ErrBatchIntervalInvalid = errors.New("batch interval must be positive")
+          ```
   R2:
     title: Cupboard Interface
     items:
@@ -131,6 +140,9 @@ requirements:
           var ErrInvalidHolder = errors.New("holder cannot be empty")
           var ErrAlreadyInTrail = errors.New("crumb already belongs to a trail")
           var ErrNotInTrail = errors.New("crumb does not belong to the trail")
+          var ErrSchemaNotFound = errors.New("schema not found")
+          var ErrInvalidContent = errors.New("content must not be empty")
+          var ErrInvalidFilter = errors.New("invalid filter value type")
           ```
       - R7.4: Backends may define additional backend-specific errors but must use these standard errors where applicable
   R8:

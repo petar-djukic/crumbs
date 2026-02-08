@@ -476,7 +476,7 @@ Attach is idempotent (returns ErrAlreadyAttached if called twice). Detach blocks
 
 ## Implementation Status
 
-We are currently in release 01.0 (core storage with SQLite backend). See road-map.yaml for the full release schedule, use case status, and prioritization rules.
+Release 01.0 (core storage with SQLite backend) is complete. Releases 01.1, 02.1, and 03.0 are in progress with several use cases done. See road-map.yaml for the full release schedule, use case status, and prioritization rules.
 
 Success criteria (from VISION): operations complete with low latency, agents integrate the library quickly, trail workflows feel natural for coding agents exploring implementation approaches.
 

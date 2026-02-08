@@ -86,6 +86,15 @@ var versionCmd = &cobra.Command{
 		fmt.Println("  rel01.0-uc002  table-crud")
 		fmt.Println("  rel01.0-uc003  crumb-lifecycle")
 		fmt.Println("  rel01.0-uc004  scaffolding-validation")
+		fmt.Println("  rel01.0-uc005  crumbs-table-benchmarks")
+		fmt.Println("  rel01.1-uc002  jsonl-git-roundtrip")
+		fmt.Println("  rel01.1-uc003  configuration-loading")
+		fmt.Println("  rel01.1-uc004  generic-table-cli")
+		fmt.Println("  rel02.1-uc002  table-benchmarks")
+		fmt.Println("  rel02.1-uc003  self-hosting")
+		fmt.Println("  rel02.1-uc004  metadata-lifecycle")
+		fmt.Println("  rel03.0-uc002  link-management")
+		fmt.Println("  rel03.0-uc003  stash-operations")
 	},
 }
 
