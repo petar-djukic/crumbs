@@ -21,6 +21,7 @@ type measureConfig struct {
 	issuesFile   string
 	appendPrompt string
 	promptArg    string
+	branch       string
 }
 
 func parseMeasureFlags() measureConfig {
@@ -37,8 +38,12 @@ func parseMeasureFlags() measureConfig {
 	fs.StringVar(&cfg.issuesFile, "issues-file", "", "path to existing issues JSON")
 	fs.StringVar(&cfg.appendPrompt, "append-prompt", "", "path to additional prompt file")
 	fs.StringVar(&cfg.promptArg, "prompt", "", "user prompt text")
+	fs.StringVar(&cfg.branch, "branch", "", "generation branch to work on")
 	parseTargetFlags(fs)
 	cfg.autoImport = !*noAutoImport
+	if cfg.branch == "" && fs.NArg() > 0 {
+		cfg.branch = fs.Arg(0)
+	}
 	return cfg
 }
 
@@ -54,11 +59,20 @@ func parseMeasureFlags() measureConfig {
 //	--issues-file F    path to existing issues JSON
 //	--append-prompt F  path to additional prompt file
 //	--prompt TEXT      user prompt text
+//	--branch NAME     generation branch to work on
 func (Cobbler) Measure() error {
 	return measure(parseMeasureFlags())
 }
 
 func measure(cfg measureConfig) error {
+	branch, err := resolveBranch(cfg.branch)
+	if err != nil {
+		return err
+	}
+	if err := ensureOnBranch(branch); err != nil {
+		return fmt.Errorf("switching to branch: %w", err)
+	}
+
 	timestamp := time.Now().Format("20060102-150405")
 	outputFile := filepath.Join("docs", fmt.Sprintf("proposed-issues-%s.json", timestamp))
 	outputFilename := filepath.Base(outputFile)

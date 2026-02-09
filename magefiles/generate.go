@@ -37,6 +37,11 @@ func parseConstructFlags() constructConfig {
 func (Generation) Construct() error {
 	cfg := parseConstructFlags()
 
+	currentBranch, err := gitCurrentBranch()
+	if err != nil {
+		return fmt.Errorf("getting current branch: %w", err)
+	}
+
 	fmt.Println()
 	fmt.Println("========================================")
 	fmt.Printf("Generation construct: %d cycle(s), %d issues per cycle\n", cfg.cycles, cfg.measureLimit)
@@ -47,9 +52,11 @@ func (Generation) Construct() error {
 		silence:    cfg.silence,
 		limit:      cfg.measureLimit,
 		autoImport: true,
+		branch:     currentBranch,
 	}
 	sCfg := stitchConfig{
 		silence: cfg.silence,
+		branch:  currentBranch,
 	}
 
 	for cycle := 1; cycle <= cfg.cycles; cycle++ {
@@ -84,17 +91,12 @@ func (Generation) Construct() error {
 // reinitializes the Go module, and commits the clean state.
 // Must be run from main with no existing generation branches.
 func (Generation) Start() error {
-	branch, err := gitCurrentBranch()
-	if err != nil {
-		return fmt.Errorf("getting current branch: %w", err)
-	}
-	if branch != "main" {
-		return fmt.Errorf("must be on main (currently on %s)", branch)
+	if err := ensureOnBranch("main"); err != nil {
+		return fmt.Errorf("switching to main: %w", err)
 	}
 
 	// Check no existing generation branch.
-	out, _ := exec.Command("git", "branch", "--list", "generation-*").Output()
-	if branches := parseBranchList(string(out)); len(branches) > 0 {
+	if branches := listGenerationBranches(); len(branches) > 0 {
 		return fmt.Errorf("a generation branch already exists: %s. Finish it first or delete it", branches[0])
 	}
 
@@ -231,6 +233,67 @@ func (Generation) Finish() error {
 	fmt.Println()
 	fmt.Println("Generation finished. Work is on main.")
 	fmt.Println()
+	return nil
+}
+
+// listGenerationBranches returns all generation-* branch names.
+func listGenerationBranches() []string {
+	out, _ := exec.Command("git", "branch", "--list", "generation-*").Output()
+	return parseBranchList(string(out))
+}
+
+// resolveBranch determines which branch to work on.
+// If explicit is non-empty, it verifies the branch exists.
+// Otherwise: 0 generation branches → current branch, 1 → that branch, 2+ → error.
+func resolveBranch(explicit string) (string, error) {
+	if explicit != "" {
+		ref := "refs/heads/" + explicit
+		if exec.Command("git", "show-ref", "--verify", "--quiet", ref).Run() != nil {
+			return "", fmt.Errorf("branch does not exist: %s", explicit)
+		}
+		return explicit, nil
+	}
+
+	branches := listGenerationBranches()
+	switch len(branches) {
+	case 0:
+		return gitCurrentBranch()
+	case 1:
+		return branches[0], nil
+	default:
+		return "", fmt.Errorf("multiple generation branches; specify with --branch:\n  %s",
+			strings.Join(branches, "\n  "))
+	}
+}
+
+// ensureOnBranch switches to the given branch if not already on it.
+func ensureOnBranch(branch string) error {
+	current, err := gitCurrentBranch()
+	if err != nil {
+		return err
+	}
+	if current == branch {
+		return nil
+	}
+	fmt.Printf("Switching to branch %s...\n", branch)
+	return exec.Command("git", "checkout", branch).Run()
+}
+
+// List shows all generation branches.
+func (Generation) List() error {
+	branches := listGenerationBranches()
+	if len(branches) == 0 {
+		fmt.Println("No generation branches.")
+		return nil
+	}
+	current, _ := gitCurrentBranch()
+	for _, b := range branches {
+		if b == current {
+			fmt.Printf("* %s\n", b)
+		} else {
+			fmt.Printf("  %s\n", b)
+		}
+	}
 	return nil
 }
 

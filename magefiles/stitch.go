@@ -13,13 +13,18 @@ import (
 // stitchConfig holds options for the Stitch target.
 type stitchConfig struct {
 	silence bool
+	branch  string
 }
 
 func parseStitchFlags() stitchConfig {
 	var cfg stitchConfig
 	fs := flag.NewFlagSet("cobbler:stitch", flag.ContinueOnError)
 	fs.BoolVar(&cfg.silence, "silence", false, "suppress Claude output")
+	fs.StringVar(&cfg.branch, "branch", "", "generation branch to work on")
 	parseTargetFlags(fs)
+	if cfg.branch == "" && fs.NArg() > 0 {
+		cfg.branch = fs.Arg(0)
+	}
 	return cfg
 }
 
@@ -27,12 +32,21 @@ func parseStitchFlags() stitchConfig {
 //
 // Flags:
 //
-//	--silence   suppress Claude output
+//	--silence       suppress Claude output
+//	--branch NAME   generation branch to work on
 func (Cobbler) Stitch() error {
 	return stitch(parseStitchFlags())
 }
 
 func stitch(cfg stitchConfig) error {
+	branch, err := resolveBranch(cfg.branch)
+	if err != nil {
+		return err
+	}
+	if err := ensureOnBranch(branch); err != nil {
+		return fmt.Errorf("switching to branch: %w", err)
+	}
+
 	repoRoot, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("getting working directory: %w", err)
