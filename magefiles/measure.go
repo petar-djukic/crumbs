@@ -19,19 +19,17 @@ var measurePromptTmpl string
 
 // measureConfig holds options for the Measure target.
 type measureConfig struct {
-	silence      bool
-	limit        int
-	appendPrompt string
-	promptArg    string
-	branch       string
+	silenceAgent bool
+	limit     int
+	promptArg string
+	branch    string
 }
 
 func parseMeasureFlags() measureConfig {
 	cfg := measureConfig{limit: 10}
 	fs := flag.NewFlagSet("cobbler:measure", flag.ContinueOnError)
-	fs.BoolVar(&cfg.silence, "silence", false, "suppress Claude output")
+	fs.BoolVar(&cfg.silenceAgent, "silence-agent", false, "suppress Claude output")
 	fs.IntVar(&cfg.limit, "limit", 10, "max issues to propose")
-	fs.StringVar(&cfg.appendPrompt, "append-prompt", "", "path to additional prompt file")
 	fs.StringVar(&cfg.promptArg, "prompt", "", "user prompt text")
 	fs.StringVar(&cfg.branch, "branch", "", "generation branch to work on")
 	parseTargetFlags(fs)
@@ -47,11 +45,10 @@ func parseMeasureFlags() measureConfig {
 //
 // Flags:
 //
-//	--silence          suppress Claude output
-//	--limit N          max issues to propose (default 10)
-//	--append-prompt F  path to additional prompt file
-//	--prompt TEXT      user prompt text
-//	--branch NAME      generation branch to work on
+//	--silence-agent  suppress Claude output
+//	--limit N      max issues to propose (default 10)
+//	--prompt TEXT  user prompt text
+//	--branch NAME  generation branch to work on
 func (Cobbler) Measure() error {
 	return measure(parseMeasureFlags())
 }
@@ -84,22 +81,10 @@ func measure(cfg measureConfig) error {
 	fmt.Printf("Output file: %s\n", outputFile)
 	fmt.Println()
 
-	// Read append prompt file if specified.
-	var appendContent string
-	if cfg.appendPrompt != "" {
-		data, readErr := os.ReadFile(cfg.appendPrompt)
-		if readErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: Append prompt file not found: %s\n", cfg.appendPrompt)
-		} else {
-			appendContent = string(data)
-			fmt.Printf("Appending prompt from: %s\n", cfg.appendPrompt)
-		}
-	}
-
 	// Build and run prompt.
-	prompt := buildMeasurePrompt(cfg.promptArg, existingIssues, cfg.limit, "docs/"+filepath.Base(outputFile), appendContent)
+	prompt := buildMeasurePrompt(cfg.promptArg, existingIssues, cfg.limit, "docs/"+filepath.Base(outputFile))
 
-	if err := runClaude(prompt, cfg.silence); err != nil {
+	if err := runClaude(prompt, cfg.silenceAgent); err != nil {
 		return fmt.Errorf("running Claude: %w", err)
 	}
 
@@ -144,17 +129,15 @@ type measurePromptData struct {
 	Limit          int
 	OutputPath     string
 	UserInput      string
-	AppendContent  string
 }
 
-func buildMeasurePrompt(userInput, existingIssues string, limit int, outputPath, appendContent string) string {
+func buildMeasurePrompt(userInput, existingIssues string, limit int, outputPath string) string {
 	tmpl := template.Must(template.New("measure").Parse(measurePromptTmpl))
 	data := measurePromptData{
 		ExistingIssues: existingIssues,
 		Limit:          limit,
 		OutputPath:     outputPath,
 		UserInput:      userInput,
-		AppendContent:  appendContent,
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {

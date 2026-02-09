@@ -119,6 +119,16 @@ func (Generation) Start() error {
 		return fmt.Errorf("creating branch: %w", err)
 	}
 
+	// Reset beads database and reinitialize with branch prefix.
+	fmt.Println("Resetting beads database...")
+	if err := exec.Command("bd", "admin", "reset").Run(); err != nil {
+		return fmt.Errorf("resetting beads: %w", err)
+	}
+	fmt.Printf("Reinitializing beads with prefix %s...\n", genName)
+	if err := exec.Command("bd", "init", "--prefix", genName, "--force").Run(); err != nil {
+		return fmt.Errorf("reinitializing beads: %w", err)
+	}
+
 	// Delete Go source files.
 	fmt.Println("Deleting Go source files...")
 	deleteGoFiles(".")
