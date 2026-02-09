@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	_ "embed"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -8,7 +10,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"text/template"
 )
+
+//go:embed prompts/stitch.tmpl
+var stitchPromptTmpl string
 
 // stitchConfig holds options for the Stitch target.
 type stitchConfig struct {
@@ -267,27 +273,26 @@ func createWorktree(task stitchTask) error {
 	return nil
 }
 
+type stitchPromptData struct {
+	Title       string
+	ID          string
+	IssueType   string
+	Description string
+}
+
 func buildStitchPrompt(task stitchTask) string {
-	return fmt.Sprintf(`## Task: %s
-
-**Task ID:** %s
-**Type:** %s
-
-### Description
-
-%s
-
----
-
-### Instructions
-
-1. Read VISION.md and ARCHITECTURE.md for context
-2. Read any PRDs, use cases, test suites, or engineering guidelines referenced in the description
-3. Complete the task according to the description and acceptance criteria
-4. Commit your changes with a message that includes the task ID (%s)
-
-Do not use beads (bd) commands - task tracking is handled externally.
-`, task.title, task.id, task.issueType, task.description, task.id)
+	tmpl := template.Must(template.New("stitch").Parse(stitchPromptTmpl))
+	data := stitchPromptData{
+		Title:       task.title,
+		ID:          task.id,
+		IssueType:   task.issueType,
+		Description: task.description,
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		panic(fmt.Sprintf("stitch prompt template: %v", err))
+	}
+	return buf.String()
 }
 
 func runClaudeInWorktree(prompt, worktreeDir, repoRoot string, silence bool) error {
