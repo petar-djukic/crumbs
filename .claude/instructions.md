@@ -11,6 +11,10 @@ See [rules/beads-workflow.md](rules/beads-workflow.md) for the complete workflow
 - Session completion checklist
 - Git commit requirements
 
+## Commit After Every Edit
+
+After creating or editing any file, commit immediately. Do not accumulate uncommitted changes across multiple turns. Each round of edits gets its own commit before responding to the user. This applies to all file types: code, docs, rules, config.
+
 ## Code Implementation
 
 When implementing code, follow [rules/code-prd-architecture-linking.md](rules/code-prd-architecture-linking.md):
