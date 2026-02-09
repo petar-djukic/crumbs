@@ -81,7 +81,8 @@ Centralize all string literals that name external binaries, file paths, URLs, or
 | Binary names | `const` (e.g., `binGit`, `binGo`) |
 | Paths, prefixes, module names | `const` |
 | Shared CLI arg slices | `var` |
-| Text with variable interpolation | Embedded `.tmpl` templates |
+| Large prompts with variable interpolation | Embedded `.tmpl` templates |
+| Short messages with interpolation | `fmt.Sprintf` at the call site |
 | Static messages or labels | `const` |
 
 When adding a new external command or path, define the constant first, then use it. Never scatter raw string literals across files.

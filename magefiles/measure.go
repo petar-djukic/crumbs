@@ -100,7 +100,7 @@ func getExistingIssues() string {
 	if _, err := exec.LookPath(binBd); err != nil {
 		return "[]"
 	}
-	out, err := exec.Command(binBd, "list", "--json").Output()
+	out, err := bdListJSON()
 	if err != nil {
 		return "[]"
 	}
@@ -161,8 +161,7 @@ func importIssues(jsonFile string) error {
 	createdIDs := make(map[int]string)
 	for _, issue := range issues {
 		fmt.Printf("  Creating: %s\n", issue.Title)
-		args := []string{"create", "--type", "task", "--json", issue.Title, "--description", issue.Description}
-		out, err := exec.Command(binBd, args...).Output()
+		out, err := bdCreateTask(issue.Title, issue.Description)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "    Warning: Failed to create task\n")
 			continue
@@ -187,12 +186,12 @@ func importIssues(jsonFile string) error {
 			continue
 		}
 		fmt.Printf("  Linking: %s depends on %s\n", childID, parentID)
-		if err := exec.Command(binBd, "dep", "add", childID, parentID).Run(); err != nil {
+		if err := bdAddDep(childID, parentID); err != nil {
 			fmt.Fprintf(os.Stderr, "    Warning: Failed to add dependency\n")
 		}
 	}
 
-	beadsCommit("measure-import", nil)
+	beadsCommit("Add issues from measure")
 	fmt.Println("Issues imported.")
 
 	return nil

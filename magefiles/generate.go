@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -12,8 +11,8 @@ import (
 
 // constructConfig holds options for the generation:construct target.
 type constructConfig struct {
-	silence      bool
-	cycles       int
+	silence   bool
+	cycles    int
 	maxIssues int
 }
 
@@ -107,23 +106,23 @@ func (Generation) Start() error {
 
 	// Tag current main.
 	fmt.Printf("Tagging current state as %s...\n", genName)
-	if err := exec.Command(binGit, "tag", genName).Run(); err != nil {
+	if err := gitTag(genName); err != nil {
 		return fmt.Errorf("tagging main: %w", err)
 	}
 
 	// Create and switch to generation branch.
 	fmt.Printf("Creating branch %s...\n", genName)
-	if err := exec.Command(binGit, "checkout", "-b", genName).Run(); err != nil {
+	if err := gitCheckoutNew(genName); err != nil {
 		return fmt.Errorf("creating branch: %w", err)
 	}
 
 	// Reset beads database and reinitialize with branch prefix.
 	fmt.Println("Resetting beads database...")
-	if err := exec.Command(binBd, "admin", "reset").Run(); err != nil {
+	if err := bdAdminReset(); err != nil {
 		return fmt.Errorf("resetting beads: %w", err)
 	}
 	fmt.Printf("Reinitializing beads with prefix %s...\n", genName)
-	if err := exec.Command(binBd, "init", "--prefix", genName, "--force").Run(); err != nil {
+	if err := bdInit(genName); err != nil {
 		return fmt.Errorf("reinitializing beads: %w", err)
 	}
 
@@ -135,9 +134,9 @@ func (Generation) Start() error {
 
 	// Commit the clean state.
 	fmt.Println("Committing clean state...")
-	_ = exec.Command(binGit, "add", "-A").Run()
-	msg := commitMsg("gen-start", genName)
-	if err := exec.Command(binGit, "commit", "-m", msg).Run(); err != nil {
+	_ = gitStageAll()
+	msg := fmt.Sprintf("Start generation: %s\n\nDelete Go files, reinitialize module.\nTagged previous state as %s.", genName, genName)
+	if err := gitCommit(msg); err != nil {
 		return fmt.Errorf("committing clean state: %w", err)
 	}
 
@@ -172,13 +171,13 @@ func (Generation) Finish() error {
 
 	// Tag the final state of the generation branch.
 	fmt.Printf("Tagging generation as %s...\n", closedTag)
-	if err := exec.Command(binGit, "tag", closedTag).Run(); err != nil {
+	if err := gitTag(closedTag); err != nil {
 		return fmt.Errorf("tagging generation: %w", err)
 	}
 
 	// Switch to main.
 	fmt.Println("Switching to main...")
-	if err := exec.Command(binGit, "checkout", "main").Run(); err != nil {
+	if err := gitCheckout("main"); err != nil {
 		return fmt.Errorf("checking out main: %w", err)
 	}
 
@@ -198,14 +197,14 @@ func mergeGenerationIntoMain(branch string) error {
 	fmt.Println("Resetting Go sources on main...")
 	_ = resetGoSources()
 
-	_ = exec.Command(binGit, "add", "-A").Run()
-	prepareMsg := commitMsg("gen-prepare", branch)
-	if err := exec.Command(binGit, "commit", "-m", prepareMsg).Run(); err != nil {
+	_ = gitStageAll()
+	prepareMsg := fmt.Sprintf("Prepare main for generation merge: delete Go code\n\nDocumentation preserved for merge. Code will be replaced by %s.", branch)
+	if err := gitCommit(prepareMsg); err != nil {
 		return fmt.Errorf("committing prepare step: %w", err)
 	}
 
 	fmt.Printf("Merging %s into main...\n", branch)
-	cmd := exec.Command(binGit, "merge", branch, "--no-edit")
+	cmd := gitMergeCmd(branch)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -214,28 +213,26 @@ func mergeGenerationIntoMain(branch string) error {
 
 	mainTag := branch + "-merged"
 	fmt.Printf("Tagging main as %s...\n", mainTag)
-	if err := exec.Command(binGit, "tag", mainTag).Run(); err != nil {
+	if err := gitTag(mainTag); err != nil {
 		return fmt.Errorf("tagging merge: %w", err)
 	}
 
 	fmt.Printf("Deleting branch %s...\n", branch)
-	_ = exec.Command(binGit, "branch", "-d", branch).Run()
+	_ = gitDeleteBranch(branch)
 	return nil
 }
 
 // listGenerationBranches returns all generation-* branch names.
 func listGenerationBranches() []string {
-	out, _ := exec.Command(binGit, "branch", "--list", genPrefix+"*").Output()
-	return parseBranchList(string(out))
+	return gitListBranches(genPrefix + "*")
 }
 
 // resolveBranch determines which branch to work on.
 // If explicit is non-empty, it verifies the branch exists.
-// Otherwise: 0 generation branches → current branch, 1 → that branch, 2+ → error.
+// Otherwise: 0 generation branches -> current branch, 1 -> that branch, 2+ -> error.
 func resolveBranch(explicit string) (string, error) {
 	if explicit != "" {
-		ref := "refs/heads/" + explicit
-		if exec.Command(binGit, "show-ref", "--verify", "--quiet", ref).Run() != nil {
+		if !gitBranchExists(explicit) {
 			return "", fmt.Errorf("branch does not exist: %s", explicit)
 		}
 		return explicit, nil
@@ -263,7 +260,7 @@ func ensureOnBranch(branch string) error {
 		return nil
 	}
 	fmt.Printf("Switching to branch %s...\n", branch)
-	return exec.Command(binGit, "checkout", branch).Run()
+	return gitCheckout(branch)
 }
 
 // List shows all generation branches.
@@ -302,7 +299,7 @@ func resetGoSources() error {
 func reinitGoModule() error {
 	os.Remove("go.sum")
 	os.Remove("go.mod")
-	return exec.Command(binGo, "mod", "init", modulePath).Run()
+	return goModInit()
 }
 
 // deleteGoFiles removes all .go files except those in .git/.

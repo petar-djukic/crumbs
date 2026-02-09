@@ -1,30 +1,13 @@
 package main
 
 import (
-	"bytes"
-	_ "embed"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"text/template"
 )
-
-//go:embed prompts/commits.tmpl
-var commitsTmplSrc string
-
-var commitTemplates = template.Must(template.New("commits").Parse(commitsTmplSrc))
-
-// commitMsg renders a named commit message template with optional data.
-func commitMsg(name string, data any) string {
-	var buf bytes.Buffer
-	if err := commitTemplates.ExecuteTemplate(&buf, name, data); err != nil {
-		panic(fmt.Sprintf("commit template %s: %v", name, err))
-	}
-	return buf.String()
-}
 
 // cobblerConfig holds options shared by measure and stitch targets.
 type cobblerConfig struct {
@@ -120,7 +103,7 @@ func (Cobbler) Cleanup() error {
 	}
 
 	// Clean orphaned worktree references.
-	_ = exec.Command(binGit, "worktree", "prune").Run()
+	_ = gitWorktreePrune()
 
 	// Remove worktree temp directory.
 	if _, err := os.Stat(wtBase); err == nil {
@@ -133,7 +116,7 @@ func (Cobbler) Cleanup() error {
 		fmt.Println("Removing generation branches...")
 		for _, gb := range genBranches {
 			fmt.Printf("  Deleting branch: %s\n", gb)
-			_ = exec.Command(binGit, "branch", "-D", gb).Run()
+			_ = gitForceDeleteBranch(gb)
 		}
 	}
 
@@ -143,7 +126,7 @@ func (Cobbler) Cleanup() error {
 
 	// Reset beads.
 	fmt.Println("Resetting beads...")
-	if err := exec.Command(binBd, "admin", "reset").Run(); err != nil {
+	if err := bdAdminReset(); err != nil {
 		return fmt.Errorf("resetting beads: %w", err)
 	}
 
@@ -169,16 +152,15 @@ func (Cobbler) Cleanup() error {
 
 // removeGenerationTags deletes all tags with the generation prefix.
 func removeGenerationTags() {
-	out, _ := exec.Command(binGit, "tag", "--list", genPrefix+"*").Output()
-	for _, tag := range parseBranchList(string(out)) {
+	for _, tag := range gitListTags(genPrefix + "*") {
 		fmt.Printf("  Deleting tag: %s\n", tag)
-		_ = exec.Command(binGit, "tag", "-d", tag).Run()
+		_ = gitDeleteTag(tag)
 	}
 }
 
 // beadsCommit syncs beads state and commits the .beads/ directory.
-func beadsCommit(templateName string, data any) {
-	_ = exec.Command(binBd, "sync").Run()
-	_ = exec.Command(binGit, "add", beadsDir).Run()
-	_ = exec.Command(binGit, "commit", "-m", commitMsg(templateName, data), "--allow-empty").Run()
+func beadsCommit(msg string) {
+	_ = bdSync()
+	_ = gitStageDir(beadsDir)
+	_ = gitCommitAllowEmpty(msg)
 }
