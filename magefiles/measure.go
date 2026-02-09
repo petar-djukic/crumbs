@@ -26,9 +26,9 @@ type measureConfig struct {
 }
 
 func parseMeasureFlags() measureConfig {
-	cfg := measureConfig{limit: 10}
+	cfg := measureConfig{limit: 10, silenceAgent: true}
 	fs := flag.NewFlagSet("cobbler:measure", flag.ContinueOnError)
-	fs.BoolVar(&cfg.silenceAgent, "silence-agent", false, "suppress Claude output")
+	fs.BoolVar(&cfg.silenceAgent, "silence-agent", true, "suppress Claude output")
 	fs.IntVar(&cfg.limit, "limit", 10, "max issues to propose")
 	fs.StringVar(&cfg.promptArg, "prompt", "", "user prompt text")
 	fs.StringVar(&cfg.branch, "branch", "", "generation branch to work on")
@@ -176,8 +176,10 @@ func runClaude(prompt string, silence bool) error {
 }
 
 type proposedIssue struct {
+	Index       int    `json:"index"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
+	Dependency  int    `json:"dependency"`
 }
 
 func importIssues(jsonFile string) error {
@@ -193,11 +195,38 @@ func importIssues(jsonFile string) error {
 
 	fmt.Printf("Importing %d task(s)...\n", len(issues))
 
+	// Pass 1: create all issues and collect their beads IDs.
+	createdIDs := make(map[int]string)
 	for _, issue := range issues {
 		fmt.Printf("  Creating: %s\n", issue.Title)
-		args := []string{"create", "--type", "task", issue.Title, "--description", issue.Description}
-		if err := exec.Command("bd", args...).Run(); err != nil {
+		args := []string{"create", "--type", "task", "--json", issue.Title, "--description", issue.Description}
+		out, err := exec.Command("bd", args...).Output()
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "    Warning: Failed to create task\n")
+			continue
+		}
+		var created struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(out, &created); err == nil && created.ID != "" {
+			createdIDs[issue.Index] = created.ID
+		}
+	}
+
+	// Pass 2: wire up dependencies.
+	for _, issue := range issues {
+		if issue.Dependency < 0 {
+			continue
+		}
+		childID, hasChild := createdIDs[issue.Index]
+		parentID, hasParent := createdIDs[issue.Dependency]
+		if !hasChild || !hasParent {
+			fmt.Fprintf(os.Stderr, "  Warning: skipping dependency %d -> %d (missing ID)\n", issue.Index, issue.Dependency)
+			continue
+		}
+		fmt.Printf("  Linking: %s depends on %s\n", childID, parentID)
+		if err := exec.Command("bd", "dep", "add", childID, parentID).Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "    Warning: Failed to add dependency\n")
 		}
 	}
 

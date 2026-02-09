@@ -49,9 +49,9 @@ func (Generation) Construct() error {
 	fmt.Println()
 
 	mCfg := measureConfig{
-		silence: cfg.silence,
-		limit:   cfg.measureLimit,
-		branch:  currentBranch,
+		silenceAgent: cfg.silence,
+		limit:        cfg.measureLimit,
+		branch:       currentBranch,
 	}
 	sCfg := stitchConfig{
 		silence: cfg.silence,

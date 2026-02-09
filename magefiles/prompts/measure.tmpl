@@ -52,11 +52,21 @@ The JSON format is an array of task objects:
 ```json
 [
   {
+    "index": 0,
     "title": "Task title",
-    "description": "Full description with Required Reading, Files to Create/Modify, Requirements, Design Decisions, Acceptance Criteria"
+    "description": "Full description with Required Reading, Files to Create/Modify, Requirements, Design Decisions, Acceptance Criteria",
+    "dependency": -1
+  },
+  {
+    "index": 1,
+    "title": "Task that depends on task 0",
+    "description": "...",
+    "dependency": 0
   }
 ]
 ```
+
+Each task has a sequential `index` (starting at 0) and a `dependency` field. Set `dependency` to the index of the task that must be completed first, or `-1` if the task has no dependencies.
 
 The tasks will be automatically imported into the issue tracker.
 {{- if .UserInput}}
