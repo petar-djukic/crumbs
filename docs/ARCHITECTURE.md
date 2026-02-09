@@ -464,6 +464,8 @@ Attach is idempotent (returns ErrAlreadyAttached if called twice). Detach blocks
 
 **Decision 10: Links table for all relationships**. All entity relationships use the links table with typed edges. Link types: `belongs_to` (crumb→trail membership), `child_of` (crumb→crumb dependencies), `branches_from` (trail→crumb branch point), `scoped_to` (stash→trail scope). Benefits: one consistent pattern for all relationships, enables graph queries and traversal, no special cases. Alternative: direct fields (e.g., `Trail.ParentCrumbID`, `Stash.TrailID`) are simpler for 1:optional relationships but create inconsistency and require different query patterns.
 
+**Decision 11: OpenTelemetry for observability, not plain logs**. We use OpenTelemetry (traces, metrics, logs) as the observability layer. We do not use plain structured logging (e.g., `log/slog`) for application telemetry. OpenTelemetry provides correlated traces and spans across operations, making it possible to follow a request through Cupboard attach, table access, and backend I/O. Metrics (operation counts, latencies) and structured log records flow through the same pipeline. In development, an exporter writes to the console; in production, exporters send to any OTel-compatible backend. Alternative: plain `slog` logging is simpler to start but loses trace correlation, cannot produce metrics, and requires a separate system for distributed tracing.
+
 ## Technology Choices
 
 | Component | Technology | Purpose |
@@ -473,6 +475,7 @@ Attach is idempotent (returns ErrAlreadyAttached if called twice). Detach blocks
 | CLI | cobra + viper | Command parsing and config management |
 | SQLite backend | modernc.org/sqlite | JSONL files as source of truth, SQLite as query engine |
 | Testing | Go testing + testify | Unit and integration tests |
+| Observability | OpenTelemetry (go.opentelemetry.io/otel) | Traces, metrics, and structured logs |
 
 ## Implementation Status
 
