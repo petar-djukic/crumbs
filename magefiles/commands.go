@@ -153,8 +153,10 @@ func bdCreateTask(title, description string) ([]byte, error) {
 	return exec.Command(binBd, "create", "--type", "task", "--json", title, "--description", description).Output()
 }
 
-// Go helpers.
+//TODO: add bdShow to get description of an issue
 
+// Go helpers.
+//TODO: what about pointig the project to github.com/mesh-intelligence/crumbs
 func goModInit() error {
 	return exec.Command(binGo, "mod", "init", modulePath).Run()
 }

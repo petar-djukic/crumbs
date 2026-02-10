@@ -13,7 +13,7 @@ import (
 type cobblerConfig struct {
 	silenceAgent bool
 	maxIssues    int
-	promptArg    string
+	promptArg    string //TODO: rename to userPrompt
 	branch       string
 }
 
