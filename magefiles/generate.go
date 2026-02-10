@@ -127,7 +127,7 @@ func (Generation) Start() error {
 
 	// Reset Go sources and reinitialize module.
 	fmt.Println("Resetting Go sources...")
-	if err := resetGoSources(); err != nil {
+	if err := resetGoSources(genName); err != nil {
 		return fmt.Errorf("resetting Go sources: %w", err)
 	}
 
@@ -194,7 +194,7 @@ func (Generation) Finish() error {
 // merges the generation branch, tags the result, and deletes the branch.
 func mergeGenerationIntoMain(branch string) error {
 	fmt.Println("Resetting Go sources on main...")
-	_ = resetGoSources()
+	_ = resetGoSources(branch)
 
 	_ = gitStageAll()
 	prepareMsg := fmt.Sprintf("Prepare main for generation merge: delete Go code\n\nDocumentation preserved for merge. Code will be replaced by %s.", branch)
@@ -291,27 +291,29 @@ var goSourceDirs = []string{"cmd/", "pkg/", "internal/", "tests/"}
 
 // resetGoSources deletes Go files, removes empty source dirs,
 // clears build artifacts, reinitializes the Go module, and seeds
-// the source tree with a version file.
-func resetGoSources() error {
+// the source tree with a version file. The version parameter is
+// written into the Version constant (typically the generation name).
+func resetGoSources(version string) error {
 	deleteGoFiles(".")
 	for _, dir := range goSourceDirs {
 		removeEmptyDirs(dir)
 	}
 	os.RemoveAll("bin/")
-	if err := seedVersionFile(); err != nil {
+	if err := seedVersionFile(version); err != nil {
 		return fmt.Errorf("seeding version file: %w", err)
 	}
 	return reinitGoModule()
 }
 
-// seedVersionFile creates pkg/crumbs/version.go with a Version constant.
-// This ensures the Go source tree has at least one package after a reset.
-func seedVersionFile() error {
+// seedVersionFile creates pkg/crumbs/version.go with a Version constant
+// set to the given value. This ensures the Go source tree has at least
+// one package after a reset.
+func seedVersionFile(version string) error {
 	dir := filepath.Dir(versionFile)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	content := "package crumbs\n\nconst Version = \"0.0.0-dev\"\n"
+	content := fmt.Sprintf("package crumbs\n\nconst Version = %q\n", version)
 	return os.WriteFile(versionFile, []byte(content), 0o644)
 }
 

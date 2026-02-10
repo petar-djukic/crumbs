@@ -120,8 +120,11 @@ func (Cobbler) Cleanup() error {
 	}
 	os.RemoveAll("bin/")
 
-	// Reinitialize go.mod.
-	fmt.Println("Reinitializing go.mod...")
+	// Seed version file and reinitialize go.mod.
+	fmt.Println("Seeding version file and reinitializing go.mod...")
+	if err := seedVersionFile("dev"); err != nil {
+		return fmt.Errorf("seeding version file: %w", err)
+	}
 	if err := reinitGoModule(); err != nil {
 		return fmt.Errorf("reinitializing go module: %w", err)
 	}
