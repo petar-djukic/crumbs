@@ -45,3 +45,5 @@ cupboard.db
 
 # Proposed issues from make-work.sh (temporary, review before import)
 docs/proposed-issues-*.json
+
+.claude-tokens/
