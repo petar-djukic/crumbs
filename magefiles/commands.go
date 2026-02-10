@@ -170,3 +170,11 @@ func bdShow(id string) ([]byte, error) {
 func goModInit() error {
 	return exec.Command(binGo, "mod", "init", modulePath).Run()
 }
+
+func goModEditReplace(old, new string) error {
+	return exec.Command(binGo, "mod", "edit", "-replace", old+"="+new).Run()
+}
+
+func goModTidy() error {
+	return exec.Command(binGo, "mod", "tidy").Run()
+}

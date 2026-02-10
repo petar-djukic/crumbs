@@ -300,11 +300,21 @@ func resetGoSources() error {
 	return reinitGoModule()
 }
 
-// reinitGoModule removes go.sum and go.mod, then runs go mod init.
+// reinitGoModule removes go.sum and go.mod, then creates a fresh module
+// with a local replace directive and resolves mage dependencies.
 func reinitGoModule() error {
 	os.Remove("go.sum")
 	os.Remove("go.mod")
-	return goModInit()
+	if err := goModInit(); err != nil {
+		return fmt.Errorf("go mod init: %w", err)
+	}
+	if err := goModEditReplace(modulePath, "./"); err != nil {
+		return fmt.Errorf("go mod edit -replace: %w", err)
+	}
+	if err := goModTidy(); err != nil {
+		return fmt.Errorf("go mod tidy: %w", err)
+	}
+	return nil
 }
 
 // deleteGoFiles removes all .go files except those in .git/.
