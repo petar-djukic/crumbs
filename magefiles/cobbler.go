@@ -11,24 +11,26 @@ import (
 
 // cobblerConfig holds options shared by measure and stitch targets.
 type cobblerConfig struct {
-	silenceAgent bool
-	maxIssues    int
-	promptArg    string //TODO: rename to userPrompt
-	branch       string
+	silenceAgent     bool
+	maxIssues        int
+	userPrompt       string
+	generationBranch string
 }
 
 // registerCobblerFlags adds the shared flags to fs.
 func registerCobblerFlags(fs *flag.FlagSet, cfg *cobblerConfig) {
-	fs.BoolVar(&cfg.silenceAgent, "silence-agent", true, "suppress Claude output")
-	fs.IntVar(&cfg.maxIssues, "max-issues", 10, "max issues to process")
-	fs.StringVar(&cfg.promptArg, "prompt", "", "user prompt text")
-	fs.StringVar(&cfg.branch, "branch", "", "generation branch to work on")
+	fs.BoolVar(&cfg.silenceAgent, flagSilenceAgent, true, "suppress Claude output")
+	fs.IntVar(&cfg.maxIssues, flagMaxIssues, 10, "max issues to process")
+	fs.StringVar(&cfg.userPrompt, flagUserPrompt, "", "user prompt text")
+	fs.StringVar(&cfg.generationBranch, flagGenerationBranch, "", "generation branch to work on")
 }
 
-// resolveCobblerBranch sets cfg.branch from the first positional arg if unset.
+// resolveCobblerBranch sets cfg.generationBranch from the first positional arg
+// if the flag was not provided. Only the first positional arg is used because
+// a single branch name is the only expected positional argument.
 func resolveCobblerBranch(cfg *cobblerConfig, fs *flag.FlagSet) {
-	if cfg.branch == "" && fs.NArg() > 0 {
-		cfg.branch = fs.Arg(0)
+	if cfg.generationBranch == "" && fs.NArg() > 0 {
+		cfg.generationBranch = fs.Arg(0)
 	}
 }
 
@@ -42,30 +44,10 @@ func runClaude(prompt, dir string, silence bool) error {
 	if dir != "" {
 		cmd.Dir = dir
 	}
-
-	if silence {
-		return cmd.Run()
-	}
-
-	jq := exec.Command(binJq)
-	jq.Stdout = os.Stdout
-	jq.Stderr = os.Stderr
-
-	pipe, err := cmd.StdoutPipe()
-	if err != nil {
+	if !silence {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		return cmd.Run()
 	}
-	jq.Stdin = pipe
-
-	if err := jq.Start(); err != nil {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
-	}
-	defer func() { _ = jq.Wait() }()
-
 	return cmd.Run()
 }
 

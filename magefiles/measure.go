@@ -36,16 +36,16 @@ func parseMeasureFlags() measureConfig {
 //
 // Flags:
 //
-//	--silence-agent    suppress Claude output
-//	--max-issues N    max issues to propose (default 10)
-//	--prompt TEXT  user prompt text
-//	--branch NAME  generation branch to work on
+//	--silence-agent          suppress Claude output (default true)
+//	--max-issues N           max issues to propose (default 10)
+//	--user-prompt TEXT       user prompt text
+//	--generation-branch NAME generation branch to work on
 func (Cobbler) Measure() error {
 	return measure(parseMeasureFlags())
 }
 
 func measure(cfg measureConfig) error {
-	branch, err := resolveBranch(cfg.branch)
+	branch, err := resolveBranch(cfg.generationBranch)
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func measure(cfg measureConfig) error {
 	fmt.Println()
 
 	// Build and run prompt.
-	prompt := buildMeasurePrompt(cfg.promptArg, existingIssues, cfg.maxIssues, "docs/"+filepath.Base(outputFile))
+	prompt := buildMeasurePrompt(cfg.userPrompt, existingIssues, cfg.maxIssues, "docs/"+filepath.Base(outputFile))
 
 	if err := runClaude(prompt, "", cfg.silenceAgent); err != nil {
 		return fmt.Errorf("running Claude: %w", err)

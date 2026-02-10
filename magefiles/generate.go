@@ -5,23 +5,23 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
 
 // constructConfig holds options for the generation:construct target.
 type constructConfig struct {
-	silence   bool
-	cycles    int
-	maxIssues int
+	cobblerConfig
+	cycles int
 }
 
 func parseConstructFlags() constructConfig {
-	cfg := constructConfig{cycles: 1, maxIssues: 5}
+	var cfg constructConfig
+	cfg.cycles = 1
 	fs := flag.NewFlagSet("generation:construct", flag.ContinueOnError)
-	fs.BoolVar(&cfg.silence, "silence", false, "suppress Claude output")
-	fs.IntVar(&cfg.cycles, "cycles", 1, "number of measure+stitch cycles")
-	fs.IntVar(&cfg.maxIssues, "max-issues", 5, "issues per measure cycle")
+	registerCobblerFlags(fs, &cfg.cobblerConfig)
+	fs.IntVar(&cfg.cycles, flagCycles, 1, "number of measure+stitch cycles")
 	parseTargetFlags(fs)
 	return cfg
 }
@@ -30,9 +30,11 @@ func parseConstructFlags() constructConfig {
 //
 // Flags:
 //
-//	--silence    suppress Claude output
-//	--cycles N   number of measure+stitch cycles (default 1)
-//	--limit N    issues per measure cycle (default 5)
+//	--silence-agent        suppress Claude output (default true)
+//	--cycles N             number of measure+stitch cycles (default 1)
+//	--max-issues N         issues per measure cycle (default 10)
+//	--user-prompt TEXT     user prompt text
+//	--generation-branch    generation branch to work on
 func (Generation) Construct() error {
 	cfg := parseConstructFlags()
 
@@ -47,13 +49,9 @@ func (Generation) Construct() error {
 	fmt.Println("========================================")
 	fmt.Println()
 
-	shared := cobblerConfig{
-		silenceAgent: cfg.silence,
-		maxIssues:    cfg.maxIssues,
-		branch:       currentBranch,
-	}
-	mCfg := measureConfig{cobblerConfig: shared}
-	sCfg := stitchConfig{cobblerConfig: shared}
+	cfg.generationBranch = currentBranch
+	mCfg := measureConfig{cobblerConfig: cfg.cobblerConfig}
+	sCfg := stitchConfig{cobblerConfig: cfg.cobblerConfig}
 
 	for cycle := 1; cycle <= cfg.cycles; cycle++ {
 		fmt.Println()
@@ -97,6 +95,7 @@ func (Generation) Start() error {
 	}
 
 	genName := genPrefix + time.Now().Format("2006-01-02-15-04")
+	startTag := genName + "-start"
 
 	fmt.Println()
 	fmt.Println("========================================")
@@ -104,9 +103,9 @@ func (Generation) Start() error {
 	fmt.Println("========================================")
 	fmt.Println()
 
-	// Tag current main.
-	fmt.Printf("Tagging current state as %s...\n", genName)
-	if err := gitTag(genName); err != nil {
+	// Tag current main state before the generation begins.
+	fmt.Printf("Tagging current state as %s...\n", startTag)
+	if err := gitTag(startTag); err != nil {
 		return fmt.Errorf("tagging main: %w", err)
 	}
 
@@ -161,7 +160,7 @@ func (Generation) Finish() error {
 		return fmt.Errorf("must be on a generation branch (currently on %s)", branch)
 	}
 
-	closedTag := branch + "-closed"
+	finishedTag := branch + "-finished"
 
 	fmt.Println()
 	fmt.Println("========================================")
@@ -170,8 +169,8 @@ func (Generation) Finish() error {
 	fmt.Println()
 
 	// Tag the final state of the generation branch.
-	fmt.Printf("Tagging generation as %s...\n", closedTag)
-	if err := gitTag(closedTag); err != nil {
+	fmt.Printf("Tagging generation as %s...\n", finishedTag)
+	if err := gitTag(finishedTag); err != nil {
 		return fmt.Errorf("tagging generation: %w", err)
 	}
 
@@ -229,7 +228,8 @@ func listGenerationBranches() []string {
 
 // resolveBranch determines which branch to work on.
 // If explicit is non-empty, it verifies the branch exists.
-// Otherwise: 0 generation branches -> current branch, 1 -> that branch, 2+ -> error.
+// Otherwise: 0 generation branches -> current branch, 1 -> that branch,
+// 2+ -> keep the latest (by name, which embeds a timestamp) and delete the rest.
 func resolveBranch(explicit string) (string, error) {
 	if explicit != "" {
 		if !gitBranchExists(explicit) {
@@ -245,8 +245,13 @@ func resolveBranch(explicit string) (string, error) {
 	case 1:
 		return branches[0], nil
 	default:
-		return "", fmt.Errorf("multiple generation branches; specify with --branch:\n  %s",
-			strings.Join(branches, "\n  "))
+		sort.Strings(branches)
+		latest := branches[len(branches)-1]
+		for _, b := range branches[:len(branches)-1] {
+			fmt.Printf("Cleaning up stale generation branch: %s\n", b)
+			_ = gitForceDeleteBranch(b)
+		}
+		return latest, nil
 	}
 }
 

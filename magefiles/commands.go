@@ -7,7 +7,6 @@ const (
 	binGit    = "git"
 	binBd     = "bd"
 	binClaude = "claude"
-	binJq     = "jq"
 	binGo     = "go"
 	binLint   = "golangci-lint"
 )
@@ -17,6 +16,15 @@ const (
 	beadsDir   = ".beads/"
 	modulePath = "github.com/mesh-intelligence/crumbs"
 	genPrefix  = "generation-"
+)
+
+// Flag names for cobbler targets.
+const (
+	flagSilenceAgent     = "silence-agent"
+	flagMaxIssues        = "max-issues"
+	flagUserPrompt       = "user-prompt"
+	flagGenerationBranch = "generation-branch"
+	flagCycles           = "cycles"
 )
 
 // claudeArgs are the CLI arguments for automated Claude execution.
@@ -153,10 +161,12 @@ func bdCreateTask(title, description string) ([]byte, error) {
 	return exec.Command(binBd, "create", "--type", "task", "--json", title, "--description", description).Output()
 }
 
-//TODO: add bdShow to get description of an issue
+func bdShow(id string) ([]byte, error) {
+	return exec.Command(binBd, "show", id, "--json").Output()
+}
 
 // Go helpers.
-//TODO: what about pointig the project to github.com/mesh-intelligence/crumbs
+
 func goModInit() error {
 	return exec.Command(binGo, "mod", "init", modulePath).Run()
 }

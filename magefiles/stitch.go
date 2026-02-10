@@ -33,14 +33,16 @@ func parseStitchFlags() stitchConfig {
 //
 // Flags:
 //
-//	--silence-agent  suppress Claude output (default true)
-//	--branch NAME    generation branch to work on
+//	--silence-agent          suppress Claude output (default true)
+//	--max-issues N           max issues to process (default 10)
+//	--user-prompt TEXT       user prompt text
+//	--generation-branch NAME generation branch to work on
 func (Cobbler) Stitch() error {
 	return stitch(parseStitchFlags())
 }
 
 func stitch(cfg stitchConfig) error {
-	branch, err := resolveBranch(cfg.branch)
+	branch, err := resolveBranch(cfg.generationBranch)
 	if err != nil {
 		return err
 	}
