@@ -24,7 +24,7 @@ Table 2 Build stages
 
 | Stage | Base image | Purpose |
 |-------|-----------|---------|
-| go-tools | golang:1.25.6-alpine | Compile mage, bd, and golangci-lint as static binaries (CGO disabled) |
+| go-tools | golang:1.25.6-alpine | Compile mage and golangci-lint as static binaries (CGO disabled) |
 | final | node:20-alpine | Runtime with Node (for Claude Code npm package), Go, git, and bash |
 
 The final image copies the Go runtime from the official Go image and the compiled tool binaries from the go-tools stage. Claude Code is installed globally via npm. Node provides the JavaScript runtime that Claude Code requires.
