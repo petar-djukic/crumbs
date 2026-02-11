@@ -50,23 +50,28 @@ func Clean() error {
 	return nil
 }
 
-// Reset runs cobbler:reset, beads:reset, and generator:reset in order.
+// Init initializes project state. Currently calls beads:init.
+func Init() error {
+	return (Beads{}).Init()
+}
+
+// Reset runs cobbler:reset, generator:reset, and beads:reset in order.
 // Each tool only cleans its own artifacts; this target orchestrates them.
 func Reset() error {
 	fmt.Println()
 	fmt.Println("========================================")
-	fmt.Println("Full reset: cobbler, beads, generator")
+	fmt.Println("Full reset: cobbler, generator, beads")
 	fmt.Println("========================================")
 	fmt.Println()
 
 	if err := (Cobbler{}).Reset(); err != nil {
 		return fmt.Errorf("cobbler reset: %w", err)
 	}
-	if err := (Beads{}).Reset(); err != nil {
-		return fmt.Errorf("beads reset: %w", err)
-	}
 	if err := (Generator{}).Reset(); err != nil {
 		return fmt.Errorf("generator reset: %w", err)
+	}
+	if err := (Beads{}).Reset(); err != nil {
+		return fmt.Errorf("beads reset: %w", err)
 	}
 
 	fmt.Println("Full reset complete.")
