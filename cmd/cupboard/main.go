@@ -1,7 +1,11 @@
 package main
 
-import "github.com/mesh-intelligence/crumbs/internal/cli"
+import (
+	"fmt"
+
+	"github.com/mesh-intelligence/crumbs/pkg/crumbs"
+)
 
 func main() {
-	cli.Execute()
+	fmt.Println("cupboard", crumbs.Version)
 }
