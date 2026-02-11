@@ -9,7 +9,6 @@ ARG GOLANGCI_LINT_VERSION=2.1.6
 # System dependencies.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
-    jq \
     sudo \
     less \
     procps \
