@@ -314,8 +314,8 @@ func (Generation) List() error {
 		tagSet[t] = true
 		name := t
 		for _, suffix := range []string{"-start", "-finished", "-merged"} {
-			if strings.HasSuffix(name, suffix) {
-				name = strings.TrimSuffix(name, suffix)
+			if cut, ok := strings.CutSuffix(name, suffix); ok {
+				name = cut
 				break
 			}
 		}
@@ -402,8 +402,14 @@ func (Generation) Switch() error {
 	}
 
 	// Commit any uncommitted work on the current branch.
-	_ = gitStageAll()
-	_ = gitCommit(fmt.Sprintf("WIP: save state before switching to %s", target))
+	if err := gitStageAll(); err != nil {
+		return fmt.Errorf("staging changes: %w", err)
+	}
+	if err := gitCommit(fmt.Sprintf("WIP: save state before switching to %s", target)); err != nil {
+		// Commit fails when there is nothing to commit; that is fine.
+		// But if staged changes remain, checkout will fail, so unstage.
+		_ = gitUnstageAll()
+	}
 
 	fmt.Printf("Switching from %s to %s...\n", current, target)
 	if err := gitCheckout(target); err != nil {
