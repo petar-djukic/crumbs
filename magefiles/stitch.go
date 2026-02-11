@@ -42,6 +42,10 @@ func (Cobbler) Stitch() error {
 }
 
 func stitch(cfg stitchConfig) error {
+	if err := requireBeads(); err != nil {
+		return err
+	}
+
 	branch, err := resolveBranch(cfg.generationBranch)
 	if err != nil {
 		return err
@@ -74,7 +78,7 @@ func stitch(cfg stitchConfig) error {
 			break // No tasks available.
 		}
 
-		if err := doOneTask(task, baseBranch, repoRoot, cfg.silenceAgent, cfg.tokenFile); err != nil {
+		if err := doOneTask(task, baseBranch, repoRoot, cfg.silenceAgent, cfg.tokenFile, cfg.noContainer); err != nil {
 			return fmt.Errorf("executing task %s: %w", task.id, err)
 		}
 
@@ -220,7 +224,7 @@ func pickTask(baseBranch, worktreeBase string) (stitchTask, error) {
 	return task, nil
 }
 
-func doOneTask(task stitchTask, baseBranch, repoRoot string, silence bool, tokenFile string) error {
+func doOneTask(task stitchTask, baseBranch, repoRoot string, silence bool, tokenFile string, noContainer bool) error {
 	// Claim.
 	fmt.Println("Task claimed.")
 	_ = bdUpdateStatus(task.id, "in_progress")
@@ -232,7 +236,7 @@ func doOneTask(task stitchTask, baseBranch, repoRoot string, silence bool, token
 
 	// Build and run prompt.
 	prompt := buildStitchPrompt(task)
-	if err := runClaude(prompt, task.worktreeDir, silence, tokenFile); err != nil {
+	if err := runClaude(prompt, task.worktreeDir, silence, tokenFile, noContainer); err != nil {
 		return fmt.Errorf("running Claude: %w", err)
 	}
 

@@ -16,6 +16,7 @@ type cobblerConfig struct {
 	userPrompt       string
 	generationBranch string
 	tokenFile        string
+	noContainer      bool
 }
 
 // registerCobblerFlags adds the shared flags to fs.
@@ -25,6 +26,7 @@ func registerCobblerFlags(fs *flag.FlagSet, cfg *cobblerConfig) {
 	fs.StringVar(&cfg.userPrompt, flagUserPrompt, "", "user prompt text")
 	fs.StringVar(&cfg.generationBranch, flagGenerationBranch, "", "generation branch to work on")
 	fs.StringVar(&cfg.tokenFile, flagTokenFile, defaultTokenFile, "token file name in .secrets/")
+	fs.BoolVar(&cfg.noContainer, flagNoContainer, false, "skip container runtime, use local claude binary")
 }
 
 // resolveCobblerBranch sets cfg.generationBranch from the first positional arg
@@ -41,10 +43,12 @@ func resolveCobblerBranch(cfg *cobblerConfig, fs *flag.FlagSet) {
 // If dir is non-empty, the command runs in that directory (or it
 // becomes the container's /workspace mount). tokenFile selects
 // which credential file from .secrets/ to use (container mode only).
-func runClaude(prompt, dir string, silence bool, tokenFile string) error {
-	if rt := containerRuntime(); rt != "" {
-		fmt.Fprintf(os.Stderr, "Running Claude (%s)...\n", rt)
-		return runClaudeContainer(rt, prompt, dir, tokenFile, silence)
+func runClaude(prompt, dir string, silence bool, tokenFile string, noContainer bool) error {
+	if !noContainer {
+		if rt := containerRuntime(); rt != "" {
+			fmt.Fprintf(os.Stderr, "Running Claude (%s)...\n", rt)
+			return runClaudeContainer(rt, prompt, dir, tokenFile, silence)
+		}
 	}
 
 	fmt.Fprintln(os.Stderr, "Running Claude (direct)...")

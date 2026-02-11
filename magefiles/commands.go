@@ -31,6 +31,7 @@ const (
 	flagGenerationBranch = "generation-branch"
 	flagCycles           = "cycles"
 	flagTokenFile        = "token-file"
+	flagNoContainer      = "no-container"
 )
 
 // claudeArgs are the CLI arguments for automated Claude execution.

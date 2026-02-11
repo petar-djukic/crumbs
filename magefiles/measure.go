@@ -45,6 +45,10 @@ func (Cobbler) Measure() error {
 }
 
 func measure(cfg measureConfig) error {
+	if err := requireBeads(); err != nil {
+		return err
+	}
+
 	branch, err := resolveBranch(cfg.generationBranch)
 	if err != nil {
 		return err
@@ -75,7 +79,7 @@ func measure(cfg measureConfig) error {
 	// Build and run prompt.
 	prompt := buildMeasurePrompt(cfg.userPrompt, existingIssues, cfg.maxIssues, "docs/"+filepath.Base(outputFile))
 
-	if err := runClaude(prompt, "", cfg.silenceAgent, cfg.tokenFile); err != nil {
+	if err := runClaude(prompt, "", cfg.silenceAgent, cfg.tokenFile, cfg.noContainer); err != nil {
 		return fmt.Errorf("running Claude: %w", err)
 	}
 
@@ -86,10 +90,15 @@ func measure(cfg measureConfig) error {
 		return nil
 	}
 
-	if err := importIssues(outputFile); err != nil {
+	imported, err := importIssues(outputFile)
+	if err != nil {
 		return fmt.Errorf("importing issues: %w", err)
 	}
-	os.Remove(outputFile)
+	if imported == 0 {
+		fmt.Printf("No issues imported. Keeping %s for inspection.\n", outputFile)
+	} else {
+		os.Remove(outputFile)
+	}
 
 	fmt.Println()
 	fmt.Println("Done.")
@@ -144,15 +153,15 @@ type proposedIssue struct {
 	Dependency  int    `json:"dependency"`
 }
 
-func importIssues(jsonFile string) error {
+func importIssues(jsonFile string) (int, error) {
 	data, err := os.ReadFile(jsonFile)
 	if err != nil {
-		return fmt.Errorf("reading JSON file: %w", err)
+		return 0, fmt.Errorf("reading JSON file: %w", err)
 	}
 
 	var issues []proposedIssue
 	if err := json.Unmarshal(data, &issues); err != nil {
-		return fmt.Errorf("parsing JSON: %w", err)
+		return 0, fmt.Errorf("parsing JSON: %w", err)
 	}
 
 	fmt.Printf("Importing %d task(s)...\n", len(issues))
@@ -163,7 +172,7 @@ func importIssues(jsonFile string) error {
 		fmt.Printf("  Creating: %s\n", issue.Title)
 		out, err := bdCreateTask(issue.Title, issue.Description)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "    Warning: Failed to create task\n")
+			fmt.Fprintf(os.Stderr, "    Warning: Failed to create task: %v\n", err)
 			continue
 		}
 		var created struct {
@@ -191,8 +200,10 @@ func importIssues(jsonFile string) error {
 		}
 	}
 
-	beadsCommit("Add issues from measure")
-	fmt.Println("Issues imported.")
+	if len(createdIDs) > 0 {
+		beadsCommit("Add issues from measure")
+	}
+	fmt.Printf("%d of %d issue(s) imported.\n", len(createdIDs), len(issues))
 
-	return nil
+	return len(createdIDs), nil
 }

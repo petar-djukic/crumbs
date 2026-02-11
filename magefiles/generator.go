@@ -110,14 +110,12 @@ func (Generator) Start() error {
 		return fmt.Errorf("creating branch: %w", err)
 	}
 
-	// Reset beads database and reinitialize with branch prefix.
-	fmt.Println("Resetting beads database...")
-	if err := bdAdminReset(); err != nil {
+	// Reset beads database and reinitialize with generation prefix.
+	if err := beadsReset(); err != nil {
 		return fmt.Errorf("resetting beads: %w", err)
 	}
-	fmt.Printf("Reinitializing beads with prefix %s...\n", genName)
-	if err := bdInit(genName); err != nil {
-		return fmt.Errorf("reinitializing beads: %w", err)
+	if err := beadsInit(genName); err != nil {
+		return fmt.Errorf("initializing beads: %w", err)
 	}
 
 	// Reset Go sources and reinitialize module.
@@ -530,8 +528,7 @@ func (Generator) Reset() error {
 	// remains discoverable via generator:list.
 	cleanupUnmergedTags()
 
-	fmt.Println("Resetting beads...")
-	if err := bdAdminReset(); err != nil {
+	if err := beadsReset(); err != nil {
 		return fmt.Errorf("resetting beads: %w", err)
 	}
 
