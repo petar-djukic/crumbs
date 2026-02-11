@@ -1,36 +1,37 @@
 # Generation Workflow
 
-We use a branch-based workflow to regenerate code from documentation. A generation is an isolated branch where agents delete existing Go source, rebuild from specs, and accumulate work through the make-work/do-work loop. When the generation is complete, we merge it to main. Tags preserve the state before and after each generation so any prior version can be retrieved.
+We use a branch-based workflow to regenerate code from documentation. A generation is an isolated branch where agents delete existing Go source, rebuild from specs, and accumulate work through the measure/stitch loop. When the generation is complete, we merge it to main. Tags preserve the state before and after each generation so any prior version can be retrieved.
 
-This guideline describes the generation lifecycle. For task-level branching within a generation, see eng01-git-integration.
+This guideline describes the generation lifecycle. For task-level branching within a generation, see eng01-git-integration. For container execution during generation, see eng04-container-execution.
 
 ## Lifecycle
 
-A generation moves through three phases: open, generate, and close.
+A generation moves through three phases: start, run, and stop. We model these as a trail of code generation. Starting opens an exploratory path. Running adds crumbs (generated code) through measure/stitch cycles. Stopping makes the exploration permanent by merging to main. Resetting abandons the trail.
 
 Table 1 Generation lifecycle
 
-| Phase | What happens | Git state after |
-|-------|-------------|----------------|
-| Open | Tag main, create generation branch, delete Go files, reinitialize module | On generation branch with clean slate committed |
-| Generate | make-work creates tasks, do-work executes them in worktrees off the generation branch | Generation branch accumulates task merges |
-| Close | Tag generation, delete code from main, merge generation, tag main, delete branch | On main with generation's code and merged docs |
+| Phase | Mage target | What happens | Git state after |
+|-------|-------------|-------------|----------------|
+| Start | `mage generator:start` | Tag main, create generation branch, delete Go files, reinitialize module | On generation branch with clean slate committed |
+| Run | `mage generator:run` | measure creates tasks, stitch executes them in worktrees off the generation branch | Generation branch accumulates task merges |
+| Stop | `mage generator:stop` | Tag generation, delete code from main, merge generation, tag main, delete branch | On main with generation's code and merged docs |
 
-## Open
+## Start
 
-Opening a generation preserves the current state and creates a clean branch for agents to rebuild on.
+Starting a generation preserves the current state and creates a clean branch for agents to rebuild on.
 
-1. Tag the current main commit as `generation-YYYY-MM-DD-HH-mm`. This tag captures the pre-generation state so it can be retrieved later.
+1. Tag the current main commit as `generation-YYYY-MM-DD-HH-mm-start`. This tag captures the pre-generation state so it can be retrieved later.
 2. Create and check out a branch named `generation-YYYY-MM-DD-HH-mm` from main.
-3. Delete all Go source files (`*.go`), empty source directories, build artifacts, and `go.sum`.
-4. Reinitialize `go.mod`.
-5. Commit the clean state on the generation branch.
+3. Reset the beads database and reinitialize with the generation branch name as prefix.
+4. Delete all Go source files (`*.go`), empty source directories, build artifacts, and `go.sum`.
+5. Reinitialize `go.mod` and seed minimal source files.
+6. Commit the clean state on the generation branch.
 
-After open, the generation branch has documentation and configuration but no Go code. Agents rebuild everything from the specs.
+After start, the generation branch has documentation and configuration but no Go code. Agents rebuild everything from the specs.
 
-## Generate
+## Run
 
-Generation happens on the generation branch through the make-work/do-work loop. `do-work.sh` records the current branch as the base branch at startup. Each task gets a branch namespaced under the base branch and a corresponding worktree.
+Running happens on the generation branch through the measure/stitch loop. Each cycle runs `cobbler:measure` to create tasks, then `cobbler:stitch` to execute them. Each task gets a branch namespaced under the generation branch and a corresponding worktree.
 
 Table 2 Task branch naming
 
@@ -43,21 +44,20 @@ When a task completes, its branch merges back into the base branch (not main) an
 
 The generation branch accumulates all task merges. At any point you can see the full diff of the generation with `git diff main...HEAD` (from the generation branch) or `git log main..HEAD` for the commit history.
 
-If the process is interrupted, the generation branch persists. Unfinished task branches remain under the `<base>/task/` namespace. Resume by checking out the generation branch and running do-work again.
+If the process is interrupted, the generation branch persists. Unfinished task branches remain under the `<base>/task/` namespace. Resume by checking out the generation branch and running again.
 
-## Close
+## Stop
 
-Closing finishes the current generation and lands the work on main. We delete Go code from main before merging so the generation's code replaces it cleanly. Documentation is preserved on main so that doc changes from the generation merge normally.
+Stopping finishes the current generation and lands the work on main. We delete Go code from main before merging so the generation's code replaces it cleanly. Documentation is preserved on main so that doc changes from the generation merge normally.
 
-1. Verify we are on a `generation-*` branch. Refuse to close if on main or any other branch.
-2. Tag the current commit as `generation-YYYY-MM-DD-HH-mm-closed`. This marks the final state of the generation before merging.
-3. Switch to main.
-4. Delete all Go source files, empty source directories, build artifacts, and `go.sum` from main. Reinitialize `go.mod`. Commit this preparation step.
-5. Merge the generation branch into main. The generation's code arrives without conflicts because main no longer has competing Go files. Documentation merges normally.
-6. Tag main as `generation-YYYY-MM-DD-HH-mm-merged`.
-7. Delete the generation branch.
+1. Tag the current commit as `generation-YYYY-MM-DD-HH-mm-finished`. This marks the final state of the generation before merging.
+2. Switch to main.
+3. Delete all Go source files, empty source directories, build artifacts, and `go.sum` from main. Reinitialize `go.mod`. Commit this preparation step.
+4. Merge the generation branch into main. The generation's code arrives without conflicts because main no longer has competing Go files. Documentation merges normally.
+5. Tag main as `generation-YYYY-MM-DD-HH-mm-merged`.
+6. Delete the generation branch.
 
-After close, main contains the generation's code, merged documentation, and three tags are preserved: the pre-generation baseline, the closed generation, and the merged result on main.
+After stop, main contains the generation's code, merged documentation, and three tags are preserved: the pre-generation baseline (start), the completed generation (finished), and the merged result on main (merged).
 
 ## Tags
 
@@ -67,39 +67,39 @@ Table 3 Tag conventions
 
 | Tag | Points to | Purpose |
 |-----|-----------|---------|
-| `generation-YYYY-MM-DD-HH-mm` | Main commit before generation started | Retrieve the pre-generation state |
-| `generation-YYYY-MM-DD-HH-mm-closed` | Final commit on the generation branch | Retrieve the completed generation before merge |
+| `generation-YYYY-MM-DD-HH-mm-start` | Main commit before generation started | Retrieve the pre-generation state |
+| `generation-YYYY-MM-DD-HH-mm-finished` | Final commit on the generation branch | Retrieve the completed generation before merge |
 | `generation-YYYY-MM-DD-HH-mm-merged` | Main commit after merge | Retrieve the post-merge state |
 
-To retrieve a previous generation's pre-state: `git checkout generation-2026-02-08-09-30`. To see what a generation produced: `git diff generation-2026-02-08-09-30...generation-2026-02-08-09-30-closed`. To see main after the merge: `git checkout generation-2026-02-08-09-30-merged`.
+To see what a generation produced: `git diff generation-2026-02-08-09-30-start...generation-2026-02-08-09-30-finished`. To see main after the merge: `git checkout generation-2026-02-08-09-30-merged`. Use `mage generator:list` to see all generations (active branches and past generations discoverable through tags).
 
-## Script Interface
+## Mage Interface
 
-The generation lifecycle is handled by separate scripts.
+The generation lifecycle is handled by mage targets in the `generator` namespace.
 
-Table 4 Generation scripts
+Table 4 Generator targets
 
-| Script | Operation | Precondition |
+| Target | Operation | Precondition |
 |--------|-----------|-------------|
-| `open-generation.sh` | Open a new generation | Must be on main |
-| `generate.sh` | Run make-work/do-work cycles | Works on any branch |
-| `close-generation.sh` | Close the current generation | Must be on a `generation-*` branch |
-| `do-work.sh` | Drain the task queue | Works on any branch |
-| `make-work.sh` | Create new tasks | Works on any branch |
+| `mage generator:start` | Start a new generation | Must be on main |
+| `mage generator:run` | Run measure/stitch cycles | Must be on a generation branch |
+| `mage generator:stop` | Stop the generation and merge to main | Generation branch must exist |
+| `mage generator:list` | Show active and past generations | None |
+| `mage generator:switch` | Switch between generation branches | Target branch must exist |
+| `mage generator:reset` | Abandon all generations, return to clean main | None (switches to main) |
 
-`open-generation.sh` tags main, creates the generation branch, deletes Go files, and commits the clean slate. `generate.sh` runs the generation loop: it calls `make-work.sh` to create tasks then `do-work.sh` to execute them, repeating for the requested number of cycles. `close-generation.sh` tags the generation branch, deletes Go code from main, merges the generation (code replaces cleanly, docs merge normally), tags main, and deletes the branch. `do-work.sh` and `make-work.sh` can also be called independently outside of a generation.
+The `generator:run` target accepts `--cycles N` to control how many measure/stitch cycles to execute. Each cycle creates tasks with `cobbler:measure` and executes them with `cobbler:stitch`.
 
-## Constraints
+## Multiple Generations
 
-We run one generation at a time. Opening a new generation while another is in progress is not supported. If a generation branch exists, either close it or delete it before opening a new one.
+Multiple generations can be active simultaneously. Each generation gets its own branch and beads prefix. Use `mage generator:switch` to commit current work and move between generation branches. When multiple generation branches exist, targets that need a specific branch require `--generation-branch` to disambiguate.
 
 Main must not receive direct commits while a generation is in progress. All work flows through the generation branch.
 
 ## References
 
 - eng01-git-integration (task-level branching, JSONL merge behavior, commit conventions)
-- open-generation.sh (open a generation)
-- generate.sh (make-work/do-work loop)
-- close-generation.sh (close a generation)
-- do-work.sh (drain task queue)
-- make-work.sh (create tasks)
+- eng04-container-execution (container runtime, credential handling)
+- magefiles/generator.go (generator lifecycle implementation)
+- magefiles/measure.go (task creation)
+- magefiles/stitch.go (task execution in worktrees)

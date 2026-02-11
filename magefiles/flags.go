@@ -12,8 +12,8 @@ import (
 // Cobbler groups the measure and stitch targets.
 type Cobbler mg.Namespace
 
-// Generation groups the generation session lifecycle targets.
-type Generation mg.Namespace
+// Generator groups the code-generation trail lifecycle targets.
+type Generator mg.Namespace
 
 // targetArgs holds command-line arguments that follow the mage target name.
 // Mage only supports positional parameters, not named flags. The init()

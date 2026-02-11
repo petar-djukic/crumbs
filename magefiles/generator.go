@@ -10,23 +10,23 @@ import (
 	"time"
 )
 
-// constructConfig holds options for the generation:construct target.
-type constructConfig struct {
+// runConfig holds options for the generator:run target.
+type runConfig struct {
 	cobblerConfig
 	cycles int
 }
 
-func parseConstructFlags() constructConfig {
-	var cfg constructConfig
+func parseRunFlags() runConfig {
+	var cfg runConfig
 	cfg.cycles = 1
-	fs := flag.NewFlagSet("generation:construct", flag.ContinueOnError)
+	fs := flag.NewFlagSet("generator:run", flag.ContinueOnError)
 	registerCobblerFlags(fs, &cfg.cobblerConfig)
 	fs.IntVar(&cfg.cycles, flagCycles, 1, "number of measure+stitch cycles")
 	parseTargetFlags(fs)
 	return cfg
 }
 
-// Construct executes N cycles of Measure + Stitch within the current generation.
+// Run executes N cycles of Measure + Stitch within the current generation.
 //
 // Flags:
 //
@@ -35,8 +35,8 @@ func parseConstructFlags() constructConfig {
 //	--max-issues N         issues per measure cycle (default 10)
 //	--user-prompt TEXT     user prompt text
 //	--generation-branch    generation branch to work on
-func (Generation) Construct() error {
-	cfg := parseConstructFlags()
+func (Generator) Run() error {
+	cfg := parseRunFlags()
 
 	currentBranch, err := gitCurrentBranch()
 	if err != nil {
@@ -45,7 +45,7 @@ func (Generation) Construct() error {
 
 	fmt.Println()
 	fmt.Println("========================================")
-	fmt.Printf("Generation construct: %d cycle(s), %d issues per cycle\n", cfg.cycles, cfg.maxIssues)
+	fmt.Printf("Generator run: %d cycle(s), %d issues per cycle\n", cfg.cycles, cfg.maxIssues)
 	fmt.Println("========================================")
 	fmt.Println()
 
@@ -74,17 +74,17 @@ func (Generation) Construct() error {
 
 	fmt.Println()
 	fmt.Println("========================================")
-	fmt.Printf("Generation construct complete. Ran %d cycle(s).\n", cfg.cycles)
+	fmt.Printf("Generator run complete. Ran %d cycle(s).\n", cfg.cycles)
 	fmt.Println("========================================")
 	return nil
 }
 
-// Create begins a new generation session.
+// Start begins a new generation trail.
 //
 // Tags current main state, creates a generation branch, deletes Go files,
 // reinitializes the Go module, and commits the clean state.
 // Must be run from main.
-func (Generation) Create() error {
+func (Generator) Start() error {
 	if err := ensureOnBranch("main"); err != nil {
 		return fmt.Errorf("switching to main: %w", err)
 	}
@@ -94,7 +94,7 @@ func (Generation) Create() error {
 
 	fmt.Println()
 	fmt.Println("========================================")
-	fmt.Printf("Starting generation: %s\n", genName)
+	fmt.Printf("Starting generator: %s\n", genName)
 	fmt.Println("========================================")
 	fmt.Println()
 
@@ -135,26 +135,26 @@ func (Generation) Create() error {
 	}
 
 	fmt.Println()
-	fmt.Printf("Generation started on branch %s.\n", genName)
-	fmt.Println("Run mage generation:construct to begin building.")
+	fmt.Printf("Generator started on branch %s.\n", genName)
+	fmt.Println("Run mage generator:run to begin building.")
 	fmt.Println()
 	return nil
 }
 
-// Finish completes a generation session and merges it into main.
+// Stop completes a generation trail and merges it into main.
 //
 // Pass the generation name as a positional argument, or omit it to
-// auto-detect. Without an argument, Finish checks the current branch
-// first: if it is a generation branch, that branch is finished. If on
+// auto-detect. Without an argument, Stop checks the current branch
+// first: if it is a generation branch, that branch is stopped. If on
 // main with no generation branches, it exits with an error.
 //
-//	mage generation:finish                              # auto-detect
-//	mage generation:finish generation-2026-02-10-15-04  # explicit
+//	mage generator:stop                              # auto-detect
+//	mage generator:stop generation-2026-02-10-15-04  # explicit
 //
 // Tags the generation branch, switches to main, deletes Go code from main,
 // merges the generation branch, tags the merge, and deletes the generation branch.
-func (Generation) Finish() error {
-	fs := flag.NewFlagSet("generation:finish", flag.ContinueOnError)
+func (Generator) Stop() error {
+	fs := flag.NewFlagSet("generator:stop", flag.ContinueOnError)
 	parseTargetFlags(fs)
 
 	var branch string
@@ -172,7 +172,7 @@ func (Generation) Finish() error {
 		}
 		if strings.HasPrefix(current, genPrefix) {
 			branch = current
-			fmt.Printf("Warning: finishing current branch %s\n", branch)
+			fmt.Printf("Warning: stopping current branch %s\n", branch)
 		} else {
 			resolved, err := resolveBranch("")
 			if err != nil {
@@ -183,14 +183,14 @@ func (Generation) Finish() error {
 	}
 
 	if !strings.HasPrefix(branch, genPrefix) {
-		return fmt.Errorf("not a generation branch: %s\nUsage: mage generation:finish [generation-name]", branch)
+		return fmt.Errorf("not a generation branch: %s\nUsage: mage generator:stop [generation-name]", branch)
 	}
 
 	finishedTag := branch + "-finished"
 
 	fmt.Println()
 	fmt.Println("========================================")
-	fmt.Printf("Finishing generation: %s\n", branch)
+	fmt.Printf("Stopping generator: %s\n", branch)
 	fmt.Println("========================================")
 	fmt.Println()
 
@@ -214,7 +214,7 @@ func (Generation) Finish() error {
 	}
 
 	fmt.Println()
-	fmt.Println("Generation finished. Work is on main.")
+	fmt.Println("Generator stopped. Work is on main.")
 	fmt.Println()
 	return nil
 }
@@ -292,9 +292,9 @@ func ensureOnBranch(branch string) error {
 	return gitCheckout(branch)
 }
 
-// List shows active branches and past generations
+// List shows active generation branches and past generations
 // discoverable through tags.
-func (Generation) List() error {
+func (Generator) List() error {
 	branches := listGenerationBranches()
 	tags := gitListTags(genPrefix + "*")
 	current, _ := gitCurrentBranch()
@@ -371,17 +371,17 @@ func (Generation) List() error {
 //
 // Usage:
 //
-//	mage generation:switch generation-2026-02-10-15-04
+//	mage generator:switch generation-2026-02-10-15-04
 //
 // The target must be a generation branch or "main". Any uncommitted
 // changes on the current branch are staged and committed before
 // switching.
-func (Generation) Switch() error {
-	fs := flag.NewFlagSet("generation:switch", flag.ContinueOnError)
+func (Generator) Switch() error {
+	fs := flag.NewFlagSet("generator:switch", flag.ContinueOnError)
 	parseTargetFlags(fs)
 
 	if fs.NArg() == 0 {
-		return fmt.Errorf("usage: mage generation:switch <branch>\nAvailable branches: %s, main", strings.Join(listGenerationBranches(), ", "))
+		return fmt.Errorf("usage: mage generator:switch <branch>\nAvailable branches: %s, main", strings.Join(listGenerationBranches(), ", "))
 	}
 	target := fs.Arg(0)
 
@@ -423,10 +423,10 @@ func (Generation) Switch() error {
 // Reset destroys all generation branches, worktrees, beads, and Go
 // source directories, returning the project to a bare main branch.
 // Generation tags are preserved so past generations remain discoverable.
-func (Generation) Reset() error {
+func (Generator) Reset() error {
 	fmt.Println()
 	fmt.Println("========================================")
-	fmt.Println("Generation cleanup: resetting to clean state")
+	fmt.Println("Generator reset: returning to clean state")
 	fmt.Println("========================================")
 	fmt.Println()
 
@@ -461,7 +461,7 @@ func (Generation) Reset() error {
 	}
 
 	// Generation tags are preserved so past generations remain
-	// discoverable via generation:list and can be checked out.
+	// discoverable via generator:list and can be checked out.
 
 	fmt.Println("Resetting beads...")
 	if err := bdAdminReset(); err != nil {
@@ -488,12 +488,12 @@ func (Generation) Reset() error {
 
 	fmt.Println("Committing clean state...")
 	_ = gitStageAll()
-	if err := gitCommit("Generation cleanup: reset to clean state"); err != nil {
+	if err := gitCommit("Generator reset: return to clean state"); err != nil {
 		return fmt.Errorf("committing cleanup: %w", err)
 	}
 
 	fmt.Println()
-	fmt.Println("Cleanup complete. Only main branch remains.")
+	fmt.Println("Reset complete. Only main branch remains.")
 	fmt.Println()
 	return nil
 }

@@ -129,7 +129,7 @@ Token files use the `claudeAiOauth` format that Claude Code writes during `claud
 ### Running a generation
 
 ```bash
-mage generation:construct -- --cycles 3 --token-file claude.json
+mage generator:run -- --cycles 3 --token-file claude.json
 ```
 
 ### Smoke test

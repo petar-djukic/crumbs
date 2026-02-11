@@ -103,7 +103,7 @@ Claude Code outputs stream-json to stdout when invoked with `--output-format str
 ## References
 
 - eng01-git-integration (worktree lifecycle and task branch naming)
-- eng02-generation-workflow (generation lifecycle: open, generate, close)
+- eng02-generation-workflow (generation lifecycle: start, run, stop)
 - magefiles/docker.go (runtime detection, container execution)
 - magefiles/Dockerfile.claude (image definition)
 - magefiles/cobbler.go (runClaude entry point)
