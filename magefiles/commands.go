@@ -86,6 +86,10 @@ func gitStageAll() error {
 	return exec.Command(binGit, "add", "-A").Run()
 }
 
+func gitUnstageAll() error {
+	return exec.Command(binGit, "reset", "HEAD").Run()
+}
+
 func gitStageDir(dir string) error {
 	return exec.Command(binGit, "add", dir).Run()
 }
