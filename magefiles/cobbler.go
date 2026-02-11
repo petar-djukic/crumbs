@@ -7,7 +7,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
+
+// logf prints a timestamped log line to stderr.
+func logf(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	fmt.Fprintf(os.Stderr, "[%s] %s\n", time.Now().Format(time.RFC3339), msg)
+}
 
 // cobblerConfig holds options shared by measure and stitch targets.
 type cobblerConfig struct {
@@ -17,6 +24,15 @@ type cobblerConfig struct {
 	generationBranch string
 	tokenFile        string
 	noContainer      bool
+}
+
+// logConfig prints the resolved configuration for debugging.
+func (c *cobblerConfig) logConfig(target string) {
+	logf("%s config: silenceAgent=%v maxIssues=%d noContainer=%v tokenFile=%s generationBranch=%q",
+		target, c.silenceAgent, c.maxIssues, c.noContainer, c.tokenFile, c.generationBranch)
+	if c.userPrompt != "" {
+		logf("%s config: userPrompt=%q", target, c.userPrompt)
+	}
 }
 
 // registerCobblerFlags adds the shared flags to fs.
@@ -44,14 +60,22 @@ func resolveCobblerBranch(cfg *cobblerConfig, fs *flag.FlagSet) {
 // becomes the container's /workspace mount). tokenFile selects
 // which credential file from .secrets/ to use (container mode only).
 func runClaude(prompt, dir string, silence bool, tokenFile string, noContainer bool) error {
+	logf("runClaude: promptLen=%d dir=%q silence=%v noContainer=%v", len(prompt), dir, silence, noContainer)
+
 	if !noContainer {
 		if rt := containerRuntime(); rt != "" {
+			logf("runClaude: using container runtime %s", rt)
 			fmt.Fprintf(os.Stderr, "Running Claude (%s)...\n", rt)
-			return runClaudeContainer(rt, prompt, dir, tokenFile, silence)
+			start := time.Now()
+			err := runClaudeContainer(rt, prompt, dir, tokenFile, silence)
+			logf("runClaude: container finished in %s (err=%v)", time.Since(start).Round(time.Second), err)
+			return err
 		}
+		logf("runClaude: no container runtime available, falling back to direct")
 	}
 
 	fmt.Fprintln(os.Stderr, "Running Claude (direct)...")
+	logf("runClaude: exec %s %v", binClaude, claudeArgs)
 	cmd := exec.Command(binClaude, claudeArgs...)
 	cmd.Stdin = strings.NewReader(prompt)
 	if dir != "" {
@@ -61,7 +85,10 @@ func runClaude(prompt, dir string, silence bool, tokenFile string, noContainer b
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	}
-	return cmd.Run()
+	start := time.Now()
+	err := cmd.Run()
+	logf("runClaude: direct finished in %s (err=%v)", time.Since(start).Round(time.Second), err)
+	return err
 }
 
 // worktreeBasePath returns the directory used for stitch worktrees.
@@ -77,15 +104,23 @@ func (Cobbler) Reset() error {
 
 // cobblerReset removes the cobbler scratch directory.
 func cobblerReset() error {
-	fmt.Println("Resetting cobbler...")
+	logf("cobblerReset: removing %s", cobblerDir)
 	os.RemoveAll(cobblerDir)
-	fmt.Println("Cobbler reset complete.")
+	logf("cobblerReset: done")
 	return nil
 }
 
 // beadsCommit syncs beads state and commits the .beads/ directory.
 func beadsCommit(msg string) {
-	_ = bdSync()
-	_ = gitStageDir(beadsDir)
-	_ = gitCommitAllowEmpty(msg)
+	logf("beadsCommit: %s", msg)
+	if err := bdSync(); err != nil {
+		logf("beadsCommit: bdSync warning: %v", err)
+	}
+	if err := gitStageDir(beadsDir); err != nil {
+		logf("beadsCommit: gitStageDir warning: %v", err)
+	}
+	if err := gitCommitAllowEmpty(msg); err != nil {
+		logf("beadsCommit: gitCommit warning: %v", err)
+	}
+	logf("beadsCommit: done")
 }

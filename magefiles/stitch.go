@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+	"time"
 )
 
 //go:embed prompts/stitch.tmpl
@@ -42,15 +43,24 @@ func (Cobbler) Stitch() error {
 }
 
 func stitch(cfg stitchConfig) error {
+	stitchStart := time.Now()
+	logf("stitch: starting")
+	cfg.logConfig("stitch")
+
 	if err := requireBeads(); err != nil {
+		logf("stitch: beads not initialized: %v", err)
 		return err
 	}
 
 	branch, err := resolveBranch(cfg.generationBranch)
 	if err != nil {
+		logf("stitch: resolveBranch failed: %v", err)
 		return err
 	}
+	logf("stitch: resolved branch=%s", branch)
+
 	if err := ensureOnBranch(branch); err != nil {
+		logf("stitch: ensureOnBranch failed: %v", err)
 		return fmt.Errorf("switching to branch: %w", err)
 	}
 
@@ -58,36 +68,44 @@ func stitch(cfg stitchConfig) error {
 	if err != nil {
 		return fmt.Errorf("getting working directory: %w", err)
 	}
+	logf("stitch: repoRoot=%s", repoRoot)
 
 	worktreeBase := worktreeBasePath()
+	logf("stitch: worktreeBase=%s", worktreeBase)
 
 	baseBranch, err := gitCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("getting current branch: %w", err)
 	}
-	fmt.Printf("Base branch: %s\n", baseBranch)
+	logf("stitch: baseBranch=%s", baseBranch)
 
+	logf("stitch: recovering stale tasks")
 	if err := recoverStaleTasks(baseBranch, worktreeBase); err != nil {
+		logf("stitch: recovery failed: %v", err)
 		return fmt.Errorf("recovery: %w", err)
 	}
 
 	totalTasks := 0
 	for {
+		logf("stitch: looking for next ready task (completed %d so far)", totalTasks)
 		task, err := pickTask(baseBranch, worktreeBase)
 		if err != nil {
-			break // No tasks available.
+			logf("stitch: no more tasks: %v", err)
+			break
 		}
 
+		taskStart := time.Now()
+		logf("stitch: executing task %d: id=%s title=%q", totalTasks+1, task.id, task.title)
 		if err := doOneTask(task, baseBranch, repoRoot, cfg.silenceAgent, cfg.tokenFile, cfg.noContainer); err != nil {
+			logf("stitch: task %s failed after %s: %v", task.id, time.Since(taskStart).Round(time.Second), err)
 			return fmt.Errorf("executing task %s: %w", task.id, err)
 		}
+		logf("stitch: task %s completed in %s", task.id, time.Since(taskStart).Round(time.Second))
 
 		totalTasks++
-		fmt.Println()
-		fmt.Println("----------------------------------------")
-		fmt.Println()
 	}
 
+	logf("stitch: completed %d task(s) in %s", totalTasks, time.Since(stitchStart).Round(time.Second))
 	fmt.Println()
 	fmt.Println("========================================")
 	fmt.Printf("Done. Completed %d task(s).\n", totalTasks)
@@ -120,15 +138,22 @@ type stitchTask struct {
 // recoverStaleTasks cleans up task branches and orphaned in_progress issues
 // from a previous interrupted run.
 func recoverStaleTasks(baseBranch, worktreeBase string) error {
+	logf("recoverStaleTasks: checking for stale branches with pattern %s", taskBranchPattern(baseBranch))
 	staleBranches := recoverStaleBranches(baseBranch, worktreeBase)
+
+	logf("recoverStaleTasks: checking for orphaned in_progress issues")
 	orphanedIssues := resetOrphanedIssues(baseBranch)
 
-	_ = gitWorktreePrune()
+	logf("recoverStaleTasks: pruning worktrees")
+	if err := gitWorktreePrune(); err != nil {
+		logf("recoverStaleTasks: worktree prune warning: %v", err)
+	}
 
 	if staleBranches || orphanedIssues {
+		logf("recoverStaleTasks: recovered stale state (branches=%v orphans=%v), committing", staleBranches, orphanedIssues)
 		beadsCommit("Recover stale tasks from interrupted run")
-		fmt.Println("Recovery complete.")
-		fmt.Println()
+	} else {
+		logf("recoverStaleTasks: no stale state found")
 	}
 
 	return nil
@@ -139,26 +164,36 @@ func recoverStaleTasks(baseBranch, worktreeBase string) error {
 func recoverStaleBranches(baseBranch, worktreeBase string) bool {
 	branches := gitListBranches(taskBranchPattern(baseBranch))
 	if len(branches) == 0 {
+		logf("recoverStaleBranches: no stale branches found")
 		return false
 	}
 
+	logf("recoverStaleBranches: found %d stale branch(es): %v", len(branches), branches)
 	for _, branch := range branches {
-		fmt.Printf("Recovering stale branch: %s\n", branch)
+		logf("recoverStaleBranches: recovering %s", branch)
 
 		issueID := strings.TrimPrefix(branch, "task/"+baseBranch+"-")
 		worktreeDir := filepath.Join(worktreeBase, issueID)
 
 		if _, err := os.Stat(worktreeDir); err == nil {
-			fmt.Printf("  Removing worktree: %s\n", worktreeDir)
-			_ = gitWorktreeRemove(worktreeDir)
+			logf("recoverStaleBranches: removing worktree %s", worktreeDir)
+			if err := gitWorktreeRemove(worktreeDir); err != nil {
+				logf("recoverStaleBranches: worktree remove warning: %v", err)
+			}
+		} else {
+			logf("recoverStaleBranches: no worktree at %s", worktreeDir)
 		}
 
-		fmt.Printf("  Deleting branch: %s\n", branch)
-		_ = gitForceDeleteBranch(branch)
+		logf("recoverStaleBranches: deleting branch %s", branch)
+		if err := gitForceDeleteBranch(branch); err != nil {
+			logf("recoverStaleBranches: branch delete warning: %v", err)
+		}
 
 		if issueID != "" {
-			fmt.Printf("  Resetting issue to ready: %s\n", issueID)
-			_ = bdUpdateStatus(issueID, "ready")
+			logf("recoverStaleBranches: resetting issue %s to ready", issueID)
+			if err := bdUpdateStatus(issueID, "ready"); err != nil {
+				logf("recoverStaleBranches: status update warning: %v", err)
+			}
 		}
 	}
 	return true
@@ -167,8 +202,13 @@ func recoverStaleBranches(baseBranch, worktreeBase string) bool {
 // resetOrphanedIssues finds in_progress issues with no corresponding task
 // branch and resets them to ready. Returns true if any were reset.
 func resetOrphanedIssues(baseBranch string) bool {
-	out, _ := bdListInProgressTasks()
+	out, err := bdListInProgressTasks()
+	if err != nil {
+		logf("resetOrphanedIssues: bd list in_progress failed: %v", err)
+		return false
+	}
 	if len(out) == 0 || string(out) == "[]" {
+		logf("resetOrphanedIssues: no in_progress tasks")
 		return false
 	}
 
@@ -176,16 +216,22 @@ func resetOrphanedIssues(baseBranch string) bool {
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(out, &issues); err != nil {
+		logf("resetOrphanedIssues: JSON parse failed: %v", err)
 		return false
 	}
+	logf("resetOrphanedIssues: found %d in_progress task(s)", len(issues))
 
 	recovered := false
 	for _, issue := range issues {
 		taskBranch := taskBranchName(baseBranch, issue.ID)
 		if !gitBranchExists(taskBranch) {
 			recovered = true
-			fmt.Printf("Resetting orphaned in_progress issue: %s\n", issue.ID)
-			_ = bdUpdateStatus(issue.ID, "ready")
+			logf("resetOrphanedIssues: orphaned issue %s (no branch %s), resetting to ready", issue.ID, taskBranch)
+			if err := bdUpdateStatus(issue.ID, "ready"); err != nil {
+				logf("resetOrphanedIssues: status update warning for %s: %v", issue.ID, err)
+			}
+		} else {
+			logf("resetOrphanedIssues: issue %s has branch %s, skipping", issue.ID, taskBranch)
 		}
 	}
 	return recovered
@@ -204,10 +250,17 @@ func parseBranchList(output string) []string {
 }
 
 func pickTask(baseBranch, worktreeBase string) (stitchTask, error) {
+	logf("pickTask: calling bd ready -n 1 --type task")
 	out, err := bdNextReadyTask()
-	if err != nil || len(out) == 0 || string(out) == "[]" {
+	if err != nil {
+		logf("pickTask: bd ready failed: %v", err)
 		return stitchTask{}, fmt.Errorf("no tasks available")
 	}
+	if len(out) == 0 || string(out) == "[]" {
+		logf("pickTask: bd ready returned empty list")
+		return stitchTask{}, fmt.Errorf("no tasks available")
+	}
+	logf("pickTask: bd ready returned %d bytes", len(out))
 
 	var issues []struct {
 		ID          string `json:"id"`
@@ -216,6 +269,7 @@ func pickTask(baseBranch, worktreeBase string) (stitchTask, error) {
 		Type        string `json:"type"`
 	}
 	if err := json.Unmarshal(out, &issues); err != nil || len(issues) == 0 {
+		logf("pickTask: JSON parse failed or empty: err=%v len=%d raw=%s", err, len(issues), string(out))
 		return stitchTask{}, fmt.Errorf("failed to parse issue")
 	}
 
@@ -233,59 +287,92 @@ func pickTask(baseBranch, worktreeBase string) (stitchTask, error) {
 		task.issueType = "task"
 	}
 
-	fmt.Printf("Picking up task: %s - %s\n", task.id, task.title)
+	logf("pickTask: picked id=%s type=%s branch=%s worktree=%s", task.id, task.issueType, task.branchName, task.worktreeDir)
+	logf("pickTask: title=%q", task.title)
+	logf("pickTask: descriptionLen=%d", len(task.description))
 	return task, nil
 }
 
 func doOneTask(task stitchTask, baseBranch, repoRoot string, silence bool, tokenFile string, noContainer bool) error {
+	taskStart := time.Now()
+	logf("doOneTask: starting task %s (%s)", task.id, task.title)
+
 	// Claim.
-	fmt.Println("Task claimed.")
-	_ = bdUpdateStatus(task.id, "in_progress")
+	logf("doOneTask: claiming task %s (setting status=in_progress)", task.id)
+	if err := bdUpdateStatus(task.id, "in_progress"); err != nil {
+		logf("doOneTask: status update warning for %s: %v", task.id, err)
+	}
 
 	// Create worktree.
+	logf("doOneTask: creating worktree for %s", task.id)
+	wtStart := time.Now()
 	if err := createWorktree(task); err != nil {
+		logf("doOneTask: createWorktree failed after %s: %v", time.Since(wtStart).Round(time.Second), err)
 		return fmt.Errorf("creating worktree: %w", err)
 	}
+	logf("doOneTask: worktree created in %s", time.Since(wtStart).Round(time.Second))
 
 	// Build and run prompt.
 	prompt := buildStitchPrompt(task)
+	logf("doOneTask: prompt built, length=%d bytes", len(prompt))
+
+	logf("doOneTask: invoking Claude for task %s", task.id)
+	claudeStart := time.Now()
 	if err := runClaude(prompt, task.worktreeDir, silence, tokenFile, noContainer); err != nil {
+		logf("doOneTask: Claude failed for %s after %s: %v", task.id, time.Since(claudeStart).Round(time.Second), err)
 		return fmt.Errorf("running Claude: %w", err)
 	}
+	logf("doOneTask: Claude completed for %s in %s", task.id, time.Since(claudeStart).Round(time.Second))
 
 	// Merge branch back.
+	logf("doOneTask: merging %s into %s", task.branchName, baseBranch)
+	mergeStart := time.Now()
 	if err := mergeBranch(task.branchName, baseBranch, repoRoot); err != nil {
+		logf("doOneTask: merge failed after %s: %v", time.Since(mergeStart).Round(time.Second), err)
 		return fmt.Errorf("merging branch: %w", err)
 	}
+	logf("doOneTask: merge completed in %s", time.Since(mergeStart).Round(time.Second))
 
 	// Cleanup worktree.
+	logf("doOneTask: cleaning up worktree for %s", task.id)
 	cleanupWorktree(task)
 
 	// Close task.
+	logf("doOneTask: closing task %s", task.id)
 	closeStitchTask(task)
 
+	logf("doOneTask: task %s finished in %s", task.id, time.Since(taskStart).Round(time.Second))
 	return nil
 }
 
 func createWorktree(task stitchTask) error {
-	fmt.Printf("Creating worktree at %s...\n", task.worktreeDir)
+	logf("createWorktree: dir=%s branch=%s", task.worktreeDir, task.branchName)
 
-	_ = os.MkdirAll(filepath.Dir(task.worktreeDir), 0o755)
-
-	if !gitBranchExists(task.branchName) {
-		if err := gitCreateBranch(task.branchName); err != nil {
-			return fmt.Errorf("creating branch %s: %w", task.branchName, err)
-		}
+	if err := os.MkdirAll(filepath.Dir(task.worktreeDir), 0o755); err != nil {
+		logf("createWorktree: MkdirAll failed: %v", err)
 	}
 
+	if !gitBranchExists(task.branchName) {
+		logf("createWorktree: branch %s does not exist, creating", task.branchName)
+		if err := gitCreateBranch(task.branchName); err != nil {
+			logf("createWorktree: gitCreateBranch failed: %v", err)
+			return fmt.Errorf("creating branch %s: %w", task.branchName, err)
+		}
+		logf("createWorktree: branch %s created", task.branchName)
+	} else {
+		logf("createWorktree: branch %s already exists", task.branchName)
+	}
+
+	logf("createWorktree: adding worktree")
 	cmd := gitWorktreeAdd(task.worktreeDir, task.branchName)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
+		logf("createWorktree: worktree add failed: %v", err)
 		return fmt.Errorf("adding worktree: %w", err)
 	}
 
-	fmt.Printf("Worktree created on branch %s\n\n", task.branchName)
+	logf("createWorktree: worktree ready at %s on branch %s", task.worktreeDir, task.branchName)
 	return nil
 }
 
@@ -312,37 +399,48 @@ func buildStitchPrompt(task stitchTask) string {
 }
 
 func mergeBranch(branchName, baseBranch, repoRoot string) error {
-	fmt.Println()
-	fmt.Printf("Merging %s into %s...\n", branchName, baseBranch)
+	logf("mergeBranch: %s into %s (repoRoot=%s)", branchName, baseBranch, repoRoot)
 
+	logf("mergeBranch: checking out %s", baseBranch)
 	if err := gitCheckout(baseBranch); err != nil {
+		logf("mergeBranch: checkout failed: %v", err)
 		return fmt.Errorf("checking out %s: %w", baseBranch, err)
 	}
+	logf("mergeBranch: checked out %s", baseBranch)
 
+	logf("mergeBranch: merging %s", branchName)
 	cmd := gitMergeCmd(branchName)
 	cmd.Dir = repoRoot
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
+		logf("mergeBranch: merge failed: %v", err)
 		return fmt.Errorf("merging %s: %w", branchName, err)
 	}
 
-	fmt.Println("Branch merged.")
+	logf("mergeBranch: merge successful")
 	return nil
 }
 
 func cleanupWorktree(task stitchTask) {
-	fmt.Println("Cleaning up worktree...")
-	_ = gitWorktreeRemove(task.worktreeDir)
-	_ = gitDeleteBranch(task.branchName)
-	fmt.Println("Worktree removed.")
+	logf("cleanupWorktree: removing worktree %s", task.worktreeDir)
+	if err := gitWorktreeRemove(task.worktreeDir); err != nil {
+		logf("cleanupWorktree: worktree remove warning: %v", err)
+	}
+
+	logf("cleanupWorktree: deleting branch %s", task.branchName)
+	if err := gitDeleteBranch(task.branchName); err != nil {
+		logf("cleanupWorktree: branch delete warning: %v", err)
+	}
+
+	logf("cleanupWorktree: done for task %s", task.id)
 }
 
 func closeStitchTask(task stitchTask) {
-	fmt.Println()
-	fmt.Printf("Closing task: %s\n", task.id)
-	_ = bdClose(task.id)
+	logf("closeStitchTask: closing %s", task.id)
+	if err := bdClose(task.id); err != nil {
+		logf("closeStitchTask: bd close warning for %s: %v", task.id, err)
+	}
 	beadsCommit(fmt.Sprintf("Close %s", task.id))
-
-	fmt.Println("Done.")
+	logf("closeStitchTask: %s closed", task.id)
 }

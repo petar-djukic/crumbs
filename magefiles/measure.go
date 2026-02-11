@@ -45,15 +45,24 @@ func (Cobbler) Measure() error {
 }
 
 func measure(cfg measureConfig) error {
+	measureStart := time.Now()
+	logf("measure: starting")
+	cfg.logConfig("measure")
+
 	if err := requireBeads(); err != nil {
+		logf("measure: beads not initialized: %v", err)
 		return err
 	}
 
 	branch, err := resolveBranch(cfg.generationBranch)
 	if err != nil {
+		logf("measure: resolveBranch failed: %v", err)
 		return err
 	}
+	logf("measure: resolved branch=%s", branch)
+
 	if err := ensureOnBranch(branch); err != nil {
+		logf("measure: ensureOnBranch failed: %v", err)
 		return fmt.Errorf("switching to branch: %w", err)
 	}
 
@@ -63,57 +72,74 @@ func measure(cfg measureConfig) error {
 
 	// Clean up old proposed-issues files.
 	matches, _ := filepath.Glob(cobblerDir + "proposed-issues-*.json")
+	if len(matches) > 0 {
+		logf("measure: cleaning %d old proposed-issues file(s)", len(matches))
+	}
 	for _, f := range matches {
 		os.Remove(f)
 	}
 
 	// Get existing issues.
-	fmt.Println("Querying existing issues...")
+	logf("measure: querying existing issues via bd list")
 	existingIssues := getExistingIssues()
 
 	issueCount := countJSONArray(existingIssues)
-	fmt.Printf("Found %d existing issue(s).\n", issueCount)
-	fmt.Printf("Max issues: %d\n", cfg.maxIssues)
-	fmt.Printf("Output file: %s\n", outputFile)
-	fmt.Println()
+	logf("measure: found %d existing issue(s), maxIssues=%d", issueCount, cfg.maxIssues)
+	logf("measure: outputFile=%s", outputFile)
 
 	// Build and run prompt.
 	prompt := buildMeasurePrompt(cfg.userPrompt, existingIssues, cfg.maxIssues, outputFile)
+	logf("measure: prompt built, length=%d bytes", len(prompt))
 
+	logf("measure: invoking Claude")
+	claudeStart := time.Now()
 	if err := runClaude(prompt, "", cfg.silenceAgent, cfg.tokenFile, cfg.noContainer); err != nil {
+		logf("measure: Claude failed after %s: %v", time.Since(claudeStart).Round(time.Second), err)
 		return fmt.Errorf("running Claude: %w", err)
 	}
+	logf("measure: Claude completed in %s", time.Since(claudeStart).Round(time.Second))
 
 	// Import proposed issues.
-	fmt.Println()
 	if _, statErr := os.Stat(outputFile); statErr != nil {
+		logf("measure: output file not found at %s (Claude may not have written it)", outputFile)
 		fmt.Println("No proposed issues file created.")
 		return nil
 	}
 
+	fileInfo, _ := os.Stat(outputFile)
+	logf("measure: output file found, size=%d bytes", fileInfo.Size())
+
+	logf("measure: importing issues from %s", outputFile)
+	importStart := time.Now()
 	imported, err := importIssues(outputFile)
 	if err != nil {
+		logf("measure: import failed after %s: %v", time.Since(importStart).Round(time.Second), err)
 		return fmt.Errorf("importing issues: %w", err)
 	}
+	logf("measure: imported %d issue(s) in %s", imported, time.Since(importStart).Round(time.Second))
+
 	if imported == 0 {
-		fmt.Printf("No issues imported. Keeping %s for inspection.\n", outputFile)
+		logf("measure: no issues imported, keeping %s for inspection", outputFile)
 	} else {
+		logf("measure: removing %s (import successful)", outputFile)
 		os.Remove(outputFile)
 	}
 
-	fmt.Println()
-	fmt.Println("Done.")
+	logf("measure: completed in %s", time.Since(measureStart).Round(time.Second))
 	return nil
 }
 
 func getExistingIssues() string {
 	if _, err := exec.LookPath(binBd); err != nil {
+		logf("getExistingIssues: bd not on PATH: %v", err)
 		return "[]"
 	}
 	out, err := bdListJSON()
 	if err != nil {
+		logf("getExistingIssues: bd list failed: %v", err)
 		return "[]"
 	}
+	logf("getExistingIssues: got %d bytes", len(out))
 	return string(out)
 }
 
@@ -155,25 +181,31 @@ type proposedIssue struct {
 }
 
 func importIssues(jsonFile string) (int, error) {
+	logf("importIssues: reading %s", jsonFile)
 	data, err := os.ReadFile(jsonFile)
 	if err != nil {
 		return 0, fmt.Errorf("reading JSON file: %w", err)
 	}
+	logf("importIssues: read %d bytes", len(data))
 
 	var issues []proposedIssue
 	if err := json.Unmarshal(data, &issues); err != nil {
+		logf("importIssues: JSON parse error: %v", err)
 		return 0, fmt.Errorf("parsing JSON: %w", err)
 	}
 
-	fmt.Printf("Importing %d task(s)...\n", len(issues))
+	logf("importIssues: parsed %d proposed issue(s)", len(issues))
+	for i, issue := range issues {
+		logf("importIssues: [%d] title=%q dep=%d", i, issue.Title, issue.Dependency)
+	}
 
 	// Pass 1: create all issues and collect their beads IDs.
 	createdIDs := make(map[int]string)
 	for _, issue := range issues {
-		fmt.Printf("  Creating: %s\n", issue.Title)
+		logf("importIssues: creating task %d: %s", issue.Index, issue.Title)
 		out, err := bdCreateTask(issue.Title, issue.Description)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "    Warning: Failed to create task: %v\n", err)
+			logf("importIssues: bd create failed for %q: %v", issue.Title, err)
 			continue
 		}
 		var created struct {
@@ -181,6 +213,9 @@ func importIssues(jsonFile string) (int, error) {
 		}
 		if err := json.Unmarshal(out, &created); err == nil && created.ID != "" {
 			createdIDs[issue.Index] = created.ID
+			logf("importIssues: created task %d -> beads id=%s", issue.Index, created.ID)
+		} else {
+			logf("importIssues: bd create returned unparseable output for %q: %s", issue.Title, string(out))
 		}
 	}
 
@@ -192,19 +227,19 @@ func importIssues(jsonFile string) (int, error) {
 		childID, hasChild := createdIDs[issue.Index]
 		parentID, hasParent := createdIDs[issue.Dependency]
 		if !hasChild || !hasParent {
-			fmt.Fprintf(os.Stderr, "  Warning: skipping dependency %d -> %d (missing ID)\n", issue.Index, issue.Dependency)
+			logf("importIssues: skipping dependency %d->%d (child=%v parent=%v)", issue.Index, issue.Dependency, hasChild, hasParent)
 			continue
 		}
-		fmt.Printf("  Linking: %s depends on %s\n", childID, parentID)
+		logf("importIssues: linking %s (task %d) depends on %s (task %d)", childID, issue.Index, parentID, issue.Dependency)
 		if err := bdAddDep(childID, parentID); err != nil {
-			fmt.Fprintf(os.Stderr, "    Warning: Failed to add dependency\n")
+			logf("importIssues: bd dep add failed: %s -> %s: %v", childID, parentID, err)
 		}
 	}
 
 	if len(createdIDs) > 0 {
 		beadsCommit("Add issues from measure")
 	}
-	fmt.Printf("%d of %d issue(s) imported.\n", len(createdIDs), len(issues))
+	logf("importIssues: %d of %d issue(s) imported", len(createdIDs), len(issues))
 
 	return len(createdIDs), nil
 }
