@@ -90,7 +90,7 @@ Table 5 Mage targets and container behavior
 |--------|-----------------|
 | `mage build` | Compiles Go binary, then builds container image if runtime available |
 | `mage clean` | Removes build artifacts, then removes container image if runtime available |
-| `mage test:docker` | Builds everything, runs Claude with a "Hello World" prompt as a smoke test |
+| `mage test:docker` | Builds everything, runs Claude with a "Hello World" prompt |
 | `cobbler:measure` | Calls `runClaude` which auto-detects runtime and runs in container if possible |
 | `cobbler:stitch` | Same as measure, but runs in the task's worktree directory |
 
