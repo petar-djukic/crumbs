@@ -10,8 +10,18 @@ import (
 	"unicode"
 )
 
-// Stats prints Go lines of code and documentation word counts.
-func Stats() error {
+// statsRecord holds collected LOC and documentation word counts.
+type statsRecord struct {
+	GoProdLOC int `json:"go_loc_prod"`
+	GoTestLOC int `json:"go_loc_test"`
+	GoLOC     int `json:"go_loc"`
+	PrdWords  int `json:"spec_wc_prd"`
+	UcWords   int `json:"spec_wc_uc"`
+	TestWords int `json:"spec_wc_test"`
+}
+
+// collectStats gathers Go LOC and documentation word counts.
+func collectStats() (statsRecord, error) {
 	var prodLines, testLines int
 
 	err := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
@@ -43,31 +53,39 @@ func Stats() error {
 		return nil
 	})
 	if err != nil {
-		return err
+		return statsRecord{}, err
 	}
 
 	prdWords, err := countWordsInGlob("docs/specs/product-requirements/*.yaml")
 	if err != nil {
-		return err
+		return statsRecord{}, err
 	}
 	ucWords, err := countWordsInGlob("docs/specs/use-cases/*.yaml")
 	if err != nil {
-		return err
+		return statsRecord{}, err
 	}
 	testWords, err := countWordsInGlob("docs/specs/test-suites/*.yaml")
 	if err != nil {
-		return err
+		return statsRecord{}, err
 	}
 
-	record := map[string]int{
-		"go_loc_prod":  prodLines,
-		"go_loc_test":  testLines,
-		"go_loc":       prodLines + testLines,
-		"spec_wc_prd":  prdWords,
-		"spec_wc_uc":   ucWords,
-		"spec_wc_test": testWords,
+	return statsRecord{
+		GoProdLOC: prodLines,
+		GoTestLOC: testLines,
+		GoLOC:     prodLines + testLines,
+		PrdWords:  prdWords,
+		UcWords:   ucWords,
+		TestWords: testWords,
+	}, nil
+}
+
+// Stats prints Go lines of code and documentation word counts.
+func Stats() error {
+	rec, err := collectStats()
+	if err != nil {
+		return err
 	}
-	line, err := json.Marshal(record)
+	line, err := json.Marshal(rec)
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
@@ -52,23 +53,42 @@ func (Test) Integration() error {
 // stitch resolves them, then verifies all are closed and no branches
 // or worktrees leak. Resets beads before and after.
 //
+// Logs each step with timestamps and elapsed time. Reports LOC created
+// and issue counts in a final summary.
+//
 // Requires: bd and claude CLIs on PATH.
 func (Test) Cobbler() error {
+	suiteStart := time.Now()
+	logStep := func(name string) time.Time {
+		now := time.Now()
+		fmt.Printf("\n[%s] --- %s ---\n", now.Format(time.RFC3339), name)
+		return now
+	}
+	logDone := func(name string, start time.Time) {
+		fmt.Printf("[%s] %s completed in %s\n", time.Now().Format(time.RFC3339), name, time.Since(start).Round(time.Second))
+	}
+
 	fmt.Println()
 	fmt.Println("========================================")
 	fmt.Println("Cobbler regression test")
 	fmt.Println("========================================")
-	fmt.Println()
 
-	// Reset beads to start clean.
-	fmt.Println("--- setup: reset beads ---")
+	// Snapshot LOC before any work.
+	statsBefore, err := collectStats()
+	if err != nil {
+		return fmt.Errorf("collecting baseline stats: %w", err)
+	}
+	fmt.Printf("Baseline LOC: prod=%d test=%d\n", statsBefore.GoProdLOC, statsBefore.GoTestLOC)
+
+	// Step: reset beads.
+	t := logStep("setup: reset beads")
 	if err := (Beads{}).Reset(); err != nil {
 		return fmt.Errorf("setup reset: %w", err)
 	}
+	logDone("setup", t)
 
-	// Measure: create 3 issues.
-	fmt.Println()
-	fmt.Println("--- step 1: measure (create 3 issues) ---")
+	// Step: measure (create 3 issues).
+	t = logStep("measure: create 3 issues")
 	mCfg := measureConfig{cobblerConfig: cobblerConfig{
 		silenceAgent: true,
 		maxIssues:    3,
@@ -77,22 +97,22 @@ func (Test) Cobbler() error {
 	if err := measure(mCfg); err != nil {
 		return fmt.Errorf("measure: %w", err)
 	}
+	logDone("measure", t)
 
-	// Verify 3 issues exist.
-	fmt.Println()
-	fmt.Println("--- step 2: verify issue count ---")
+	// Step: verify issue count.
+	t = logStep("verify issue count")
 	issueCount, err := countIssues(bdListJSON)
 	if err != nil {
 		return fmt.Errorf("counting issues: %w", err)
 	}
-	fmt.Printf("Issues after measure: %d\n", issueCount)
+	fmt.Printf("Issues created by measure: %d\n", issueCount)
 	if issueCount != 3 {
 		return fmt.Errorf("expected 3 issues, got %d", issueCount)
 	}
+	logDone("verify issue count", t)
 
-	// Stitch: resolve all issues.
-	fmt.Println()
-	fmt.Println("--- step 3: stitch (resolve all issues) ---")
+	// Step: stitch (resolve all issues).
+	t = logStep("stitch: resolve all issues")
 	sCfg := stitchConfig{cobblerConfig: cobblerConfig{
 		silenceAgent: true,
 		noContainer:  true,
@@ -100,10 +120,10 @@ func (Test) Cobbler() error {
 	if err := stitch(sCfg); err != nil {
 		return fmt.Errorf("stitch: %w", err)
 	}
+	logDone("stitch", t)
 
-	// Verify all 3 closed.
-	fmt.Println()
-	fmt.Println("--- step 4: verify all closed ---")
+	// Step: verify all closed.
+	t = logStep("verify all closed")
 	closedCount, err := countIssues(bdListClosedTasks)
 	if err != nil {
 		return fmt.Errorf("counting closed issues: %w", err)
@@ -112,28 +132,48 @@ func (Test) Cobbler() error {
 	if closedCount != 3 {
 		return fmt.Errorf("expected 3 closed issues, got %d", closedCount)
 	}
+	logDone("verify all closed", t)
 
-	// Verify no task branches remain.
-	fmt.Println()
-	fmt.Println("--- step 5: verify no stale branches ---")
+	// Step: verify no stale branches.
+	t = logStep("verify no stale branches")
 	branch, _ := gitCurrentBranch()
 	taskBranches := gitListBranches(taskBranchPattern(branch))
 	if len(taskBranches) > 0 {
 		return fmt.Errorf("stale task branches remain: %v", taskBranches)
 	}
 	fmt.Println("No stale task branches.")
+	logDone("verify no stale branches", t)
 
-	// Cleanup: reset beads.
-	fmt.Println()
-	fmt.Println("--- cleanup: reset beads ---")
+	// Snapshot LOC after stitch.
+	statsAfter, err := collectStats()
+	if err != nil {
+		return fmt.Errorf("collecting final stats: %w", err)
+	}
+
+	// Step: cleanup.
+	t = logStep("cleanup: reset beads")
 	if err := (Beads{}).Reset(); err != nil {
 		return fmt.Errorf("cleanup reset: %w", err)
 	}
+	logDone("cleanup", t)
+
+	// Summary.
+	totalDuration := time.Since(suiteStart).Round(time.Second)
+	prodDelta := statsAfter.GoProdLOC - statsBefore.GoProdLOC
+	testDelta := statsAfter.GoTestLOC - statsBefore.GoTestLOC
 
 	fmt.Println()
 	fmt.Println("========================================")
 	fmt.Println("Cobbler regression test PASSED")
 	fmt.Println("========================================")
+	fmt.Println()
+	fmt.Println("Summary:")
+	fmt.Printf("  Total time:       %s\n", totalDuration)
+	fmt.Printf("  Issues created:   %d\n", issueCount)
+	fmt.Printf("  Issues resolved:  %d\n", closedCount)
+	fmt.Printf("  LOC prod:         %d -> %d (%+d)\n", statsBefore.GoProdLOC, statsAfter.GoProdLOC, prodDelta)
+	fmt.Printf("  LOC test:         %d -> %d (%+d)\n", statsBefore.GoTestLOC, statsAfter.GoTestLOC, testDelta)
+	fmt.Println()
 	return nil
 }
 
