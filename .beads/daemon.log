@@ -15,3 +15,11 @@ time=2026-02-11T13:32:57.137-05:00 level=INFO msg="monitoring parent process" pi
 time=2026-02-11T13:32:57.138-05:00 level=INFO msg="using event-driven mode"
 time=2026-02-11T13:32:57.138-05:00 level=INFO msg="Auto-pull disabled: use 'git pull' manually to sync remote changes"
 time=2026-02-11T13:33:02.889-05:00 level=INFO msg="Git HEAD change detected" path=/Users/petardjukic/WORKSPACE/crumbs/.git/HEAD
+time=2026-02-11T13:33:03.346-05:00 level=INFO msg="JSONL removed/renamed, re-establishing watch"
+time=2026-02-11T13:33:03.397-05:00 level=INFO msg="Successfully re-established JSONL watch" delay=50ms
+time=2026-02-11T13:33:03.397-05:00 level=INFO msg="JSONL file created" path=/Users/petardjukic/WORKSPACE/crumbs/.beads/issues.jsonl
+time=2026-02-11T13:33:03.892-05:00 level=INFO msg="Import triggered by file change"
+time=2026-02-11T13:33:03.893-05:00 level=INFO msg="Starting auto-import" mode=auto-import
+time=2026-02-11T13:33:03.953-05:00 level=INFO msg="Pull failed" error="git pull failed: exit status 128\nerror: cannot pull with rebase: You have unstaged changes.\nerror: Please commit or stash them.\n" backoff=30s
+time=2026-02-11T13:33:04.399-05:00 level=INFO msg="Import triggered by file change"
+time=2026-02-11T13:33:04.400-05:00 level=INFO msg="Skipping: in backoff period" mode=auto-import
