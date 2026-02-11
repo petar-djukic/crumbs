@@ -63,13 +63,29 @@ func beadsInit(prefix string) error {
 	return nil
 }
 
-// beadsReset syncs state, stops the daemon, and destroys the database.
-// Returns nil if no database exists.
+// beadsReset syncs state, stops the daemon, destroys the database,
+// and commits empty JSONL files so bd init does not reimport from
+// git history. Returns nil if no database exists.
 func beadsReset() error {
 	if !beadsInitialized() {
 		return nil
 	}
 	fmt.Println("Resetting beads database...")
 	_ = bdSync()
-	return bdAdminReset()
+	if err := bdAdminReset(); err != nil {
+		return err
+	}
+	// bd init scans git history for issues.jsonl. Commit empty JSONL
+	// files so the next init starts with a clean slate.
+	if err := os.MkdirAll(beadsDir, 0o755); err != nil {
+		return fmt.Errorf("recreating %s: %w", beadsDir, err)
+	}
+	for _, name := range []string{"issues.jsonl", "interactions.jsonl"} {
+		_ = os.WriteFile(beadsDir+name, nil, 0o644)
+	}
+	_ = gitStageDir(beadsDir)
+	_ = gitCommit("Reset beads: clear issue history")
+	// Remove the directory again so bd init creates it fresh.
+	_ = os.RemoveAll(beadsDir)
+	return nil
 }
