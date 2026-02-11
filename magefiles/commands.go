@@ -1,6 +1,9 @@
 package main
 
-import "os/exec"
+import (
+	"os"
+	"os/exec"
+)
 
 // Binary names.
 const (
@@ -133,6 +136,9 @@ func bdSync() error {
 }
 
 func bdAdminReset() error {
+	if _, err := os.Stat(beadsDir); os.IsNotExist(err) {
+		return nil // nothing to reset
+	}
 	return exec.Command(binBd, "admin", "reset", "--force").Run()
 }
 
