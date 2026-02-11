@@ -133,7 +133,7 @@ func bdSync() error {
 }
 
 func bdAdminReset() error {
-	return exec.Command(binBd, "admin", "reset").Run()
+	return exec.Command(binBd, "admin", "reset", "--force").Run()
 }
 
 func bdInit(prefix string) error {
