@@ -34,9 +34,3 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} && \
 RUN mkdir -p /root/.claude
 
 WORKDIR /workspace
-
-COPY magefiles/docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["bash"]
