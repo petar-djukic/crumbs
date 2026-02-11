@@ -78,7 +78,7 @@ func (Test) Cobbler() error {
 	if err != nil {
 		return fmt.Errorf("collecting baseline stats: %w", err)
 	}
-	fmt.Printf("Baseline LOC: prod=%d test=%d\n", statsBefore.GoProdLOC, statsBefore.GoTestLOC)
+	logf("test:cobbler: baseline LOC: prod=%d test=%d", statsBefore.GoProdLOC, statsBefore.GoTestLOC)
 
 	// Step: reset beads.
 	t := logStep("setup: reset beads")
@@ -105,7 +105,7 @@ func (Test) Cobbler() error {
 	if err != nil {
 		return fmt.Errorf("counting issues: %w", err)
 	}
-	fmt.Printf("Issues created by measure: %d\n", issueCount)
+	logf("test:cobbler: issues created by measure: %d", issueCount)
 	if issueCount != 3 {
 		return fmt.Errorf("expected 3 issues, got %d", issueCount)
 	}
@@ -128,7 +128,7 @@ func (Test) Cobbler() error {
 	if err != nil {
 		return fmt.Errorf("counting closed issues: %w", err)
 	}
-	fmt.Printf("Closed issues: %d\n", closedCount)
+	logf("test:cobbler: closed issues: %d", closedCount)
 	if closedCount != 3 {
 		return fmt.Errorf("expected 3 closed issues, got %d", closedCount)
 	}
@@ -141,7 +141,7 @@ func (Test) Cobbler() error {
 	if len(taskBranches) > 0 {
 		return fmt.Errorf("stale task branches remain: %v", taskBranches)
 	}
-	fmt.Println("No stale task branches.")
+	logf("test:cobbler: no stale task branches")
 	logDone("verify no stale branches", t)
 
 	// Snapshot LOC after stitch.

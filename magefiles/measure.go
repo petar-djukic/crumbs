@@ -102,7 +102,6 @@ func measure(cfg measureConfig) error {
 	// Import proposed issues.
 	if _, statErr := os.Stat(outputFile); statErr != nil {
 		logf("measure: output file not found at %s (Claude may not have written it)", outputFile)
-		fmt.Println("No proposed issues file created.")
 		return nil
 	}
 

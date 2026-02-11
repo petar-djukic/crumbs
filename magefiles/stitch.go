@@ -106,10 +106,6 @@ func stitch(cfg stitchConfig) error {
 	}
 
 	logf("stitch: completed %d task(s) in %s", totalTasks, time.Since(stitchStart).Round(time.Second))
-	fmt.Println()
-	fmt.Println("========================================")
-	fmt.Printf("Done. Completed %d task(s).\n", totalTasks)
-	fmt.Println("========================================")
 	return nil
 }
 
