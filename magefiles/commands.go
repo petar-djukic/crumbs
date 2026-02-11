@@ -195,6 +195,10 @@ func bdListClosedTasks() ([]byte, error) {
 	return exec.Command(binBd, "list", "--json", "--status", "closed", "--type", "task").Output()
 }
 
+func bdListReadyTasks() ([]byte, error) {
+	return exec.Command(binBd, "list", "--json", "--status", "ready", "--type", "task").Output()
+}
+
 // Go helpers.
 
 func goModInit() error {

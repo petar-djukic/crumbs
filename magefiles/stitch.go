@@ -87,6 +87,11 @@ func stitch(cfg stitchConfig) error {
 
 	totalTasks := 0
 	for {
+		if cfg.maxIssues > 0 && totalTasks >= cfg.maxIssues {
+			logf("stitch: reached max-issues limit (%d), stopping", cfg.maxIssues)
+			break
+		}
+
 		logf("stitch: looking for next ready task (completed %d so far)", totalTasks)
 		task, err := pickTask(baseBranch, worktreeBase)
 		if err != nil {

@@ -37,7 +37,7 @@ When proposing tasks (per crumb-format rule):
 4. **Design Decisions**: Architecture, patterns, or constraints (optional).
 5. **Acceptance Criteria**: Tests and observable behavior that verify the task is done.
 
-**Code task sizing**: Target 50-150 lines of production code per task, touching 1-3 files. Each task should do one thing: define one interface, implement one operation, add tests for one component. Split aggressively; a task that creates a struct and also implements its methods is two tasks. Prefer many small tasks over few large ones.
+**Code task sizing**: Target 150-250 lines of production code per task, touching 5-7 files. Each task should do one thing: define one interface, implement one operation, add tests for one component. Split aggressively; a task that creates a struct and also implements its methods is two tasks. Prefer many small tasks over few large ones.
 
 **Task limit**: Create no more than {{.Limit}} tasks. If more work is needed, create additional tasks in a future session.
 

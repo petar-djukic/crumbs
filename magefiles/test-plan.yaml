@@ -289,5 +289,135 @@ test_cases:
           worktrees_clean: true
       stdout_contains: "Completed 3 task(s)"
 
+  # ── 6. Generator lifecycle (no Claude) ──
+
+  - name: "start/stop: creates tags and returns to main"
+    description: >
+      Simplest generator lifecycle. Start creates a generation branch
+      and a -start tag. Stop tags -finished, merges into main, tags
+      -merged, and deletes the generation branch. No run in between.
+    inputs:
+      setup:
+        - mage reset
+      commands:
+        - mage generator:start
+        - "BRANCH=$(git rev-parse --abbrev-ref HEAD)"
+        - mage generator:stop
+    expected:
+      after_start:
+        current_branch: "generation-*"
+        tag_exists: "<branch>-start"
+      after_stop:
+        exit_code: 0
+        current_branch: main
+        generation_branches: none
+        tags_exist:
+          - "<branch>-finished"
+          - "<branch>-merged"
+
+  - name: "start/stop: generator:list shows merged generation"
+    inputs:
+      setup:
+        - mage reset
+      commands:
+        - mage generator:start
+        - mage generator:stop
+        - mage generator:list
+    expected:
+      exit_code: 0
+      stdout_contains: "tags: start, finished, merged"
+
+  # ── 7. Generator run (requires Claude, use small limits) ──
+
+  - name: "run 1 cycle, 1 issue: creates and resolves exactly 1 issue"
+    description: >
+      Start a generation, run 1 cycle with --max-issues 1. Measure
+      should create 1 issue, stitch should resolve it. Stop and
+      verify 1 closed issue, no stale branches, correct tags.
+    inputs:
+      setup:
+        - mage reset
+      commands:
+        - mage generator:start
+        - mage generator:run --cycles 1 --max-issues 1 --no-container
+        - bd list --json --status closed
+        - mage generator:stop
+    expected:
+      after_run:
+        bd_list_closed_length: 1
+      after_stop:
+        exit_code: 0
+        current_branch: main
+        generation_branches: none
+        task_branches: none
+
+  - name: "run 2 cycles, 1 issue each: creates issues across cycles"
+    description: >
+      Run 2 measure+stitch cycles with --max-issues 1 each. After
+      both cycles, at least 2 issues should be closed. Verifies
+      the cycle loop works correctly.
+    inputs:
+      setup:
+        - mage reset
+      commands:
+        - mage generator:start
+        - mage generator:run --cycles 2 --max-issues 1 --no-container
+        - bd list --json --status closed
+    expected:
+      bd_list_closed_length: ">= 2"
+
+  - name: "stitch respects --max-issues: processes at most N tasks"
+    description: >
+      Create 3 issues via measure, then run stitch with --max-issues 1.
+      Stitch should process only 1 task, leaving 2 ready. Run stitch
+      again with --max-issues 1 and verify another task is processed.
+    inputs:
+      setup:
+        - mage reset
+        - mage generator:start
+        - mage cobbler:measure --no-container --max-issues 3
+      commands:
+        - mage cobbler:stitch --no-container --max-issues 1
+        - bd list --json --status closed
+        - bd list --json --status ready
+    expected:
+      bd_list_closed_length: 1
+      bd_list_ready_length: 2
+      task_branches: none
+
+  # ── 8. Generator resume (requires Claude) ──
+
+  - name: "resume switches to generation branch and continues"
+    description: >
+      Start a generation, create issues via measure, switch to main,
+      then resume. Resume should switch back to the generation branch,
+      clean up, and run a stitch cycle to resolve the issues.
+    inputs:
+      setup:
+        - mage reset
+        - mage generator:start
+        - mage cobbler:measure --no-container --max-issues 1
+        - mage generator:switch main
+      command: mage generator:resume --cycles 1 --max-issues 0 --no-container
+    expected:
+      exit_code: 0
+      current_branch: "generation-*"
+      bd_list_closed_length: ">= 1"
+      task_branches: none
+
+  - name: "resume auto-detects generation branch"
+    description: >
+      When only one generation branch exists and the user is on main,
+      resume should auto-detect it without requiring a positional arg.
+    inputs:
+      setup:
+        - mage reset
+        - mage generator:start
+        - mage generator:switch main
+      command: mage generator:resume --cycles 1 --max-issues 1 --no-container
+    expected:
+      exit_code: 0
+      current_branch: "generation-*"
+
 cleanup:
   - mage reset
