@@ -16,10 +16,10 @@ const (
 
 // Paths and prefixes.
 const (
-	beadsDir    = ".beads/"
-	cobblerDir  = ".cobbler/"
-	modulePath  = "github.com/mesh-intelligence/crumbs"
-	genPrefix   = "generation-"
+	beadsDir     = ".beads/"
+	cobblerDir   = ".cobbler/"
+	modulePath   = "github.com/mesh-intelligence/crumbs"
+	genPrefix    = "generation-"
 	versionFile  = "pkg/crumbs/version.go"
 	cupboardMain = "cmd/cupboard/main.go"
 )
@@ -189,10 +189,6 @@ func bdAddDep(childID, parentID string) error {
 
 func bdCreateTask(title, description string) ([]byte, error) {
 	return exec.Command(binBd, "create", "--type", "task", "--json", title, "--description", description).Output()
-}
-
-func bdShow(id string) ([]byte, error) {
-	return exec.Command(binBd, "show", id, "--json").Output()
 }
 
 // Go helpers.
