@@ -42,9 +42,8 @@ func imageRef() string {
 	return dockerImageName + ":" + dockerImageTag
 }
 
-// buildImage builds the container image from magefiles/Dockerfile.
-// The build context is the repo root so the COPY instruction can
-// reference magefiles/docker-entrypoint.sh.
+// buildImage builds the container image from magefiles/Dockerfile.claude.
+// The build context is the repo root.
 func buildImage(rt string) error {
 	fmt.Fprintln(os.Stderr, "Building container image...")
 	cmd := exec.Command(rt, "build",
@@ -103,8 +102,7 @@ func runClaudeContainer(rt, prompt, dir, tokenFile string, silence bool) error {
 	return cmd.Run()
 }
 
-// Docker builds the container image, then runs claude with a
-// "Hello World" prompt as a smoke test.
+// Docker builds the container image, then runs claude with "Hello World".
 func (Test) Docker() error {
 	rt := containerRuntime()
 	if rt == "" {

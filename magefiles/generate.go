@@ -302,19 +302,76 @@ func ensureOnBranch(branch string) error {
 	return gitCheckout(branch)
 }
 
-// List shows all generation branches.
+// List shows all generations: active branches and past generations
+// discoverable through tags.
 func (Generation) List() error {
 	branches := listGenerationBranches()
-	if len(branches) == 0 {
-		fmt.Println("No generation branches.")
+	tags := gitListTags(genPrefix + "*")
+	current, _ := gitCurrentBranch()
+
+	// Build a set of generation names from branches and tags.
+	// Tags have suffixes (-start, -finished, -merged); strip them
+	// to recover the generation name.
+	nameSet := make(map[string]bool)
+	branchSet := make(map[string]bool)
+	for _, b := range branches {
+		nameSet[b] = true
+		branchSet[b] = true
+	}
+
+	tagSet := make(map[string]bool)
+	for _, t := range tags {
+		tagSet[t] = true
+		name := t
+		for _, suffix := range []string{"-start", "-finished", "-merged"} {
+			if strings.HasSuffix(name, suffix) {
+				name = strings.TrimSuffix(name, suffix)
+				break
+			}
+		}
+		nameSet[name] = true
+	}
+
+	if len(nameSet) == 0 {
+		fmt.Println("No generations found.")
 		return nil
 	}
-	current, _ := gitCurrentBranch()
-	for _, b := range branches {
-		if b == current {
-			fmt.Printf("* %s\n", b)
+
+	// Sort names (timestamp-based, so lexicographic order is chronological).
+	names := make([]string, 0, len(nameSet))
+	for n := range nameSet {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		// Active marker.
+		marker := " "
+		if name == current {
+			marker = "*"
+		}
+
+		// Lifecycle tags present for this generation.
+		var lifecycle []string
+		if tagSet[name+"-start"] {
+			lifecycle = append(lifecycle, "start")
+		}
+		if tagSet[name+"-finished"] {
+			lifecycle = append(lifecycle, "finished")
+		}
+		if tagSet[name+"-merged"] {
+			lifecycle = append(lifecycle, "merged")
+		}
+
+		// Status: active branch or tags only.
+		if branchSet[name] {
+			if len(lifecycle) > 0 {
+				fmt.Printf("%s %s  (active, tags: %s)\n", marker, name, strings.Join(lifecycle, ", "))
+			} else {
+				fmt.Printf("%s %s  (active)\n", marker, name)
+			}
 		} else {
-			fmt.Printf("  %s\n", b)
+			fmt.Printf("%s %s  (tags: %s)\n", marker, name, strings.Join(lifecycle, ", "))
 		}
 	}
 	return nil
