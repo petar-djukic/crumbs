@@ -178,7 +178,7 @@ func parseBranchList(output string) []string {
 	var branches []string
 	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
-		line = strings.TrimLeft(line, "* ")
+		line = strings.TrimLeft(line, "*+ ")
 		if line != "" {
 			branches = append(branches, line)
 		}
