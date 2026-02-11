@@ -53,12 +53,14 @@ func requireBeads() error {
 	return fmt.Errorf("beads database not found\n\n  Run 'mage beads:init' to create one, or\n  Run 'mage generator:start' to begin a new generation (which initializes beads)")
 }
 
-// beadsInit initializes the beads database with the given prefix.
+// beadsInit initializes the beads database with the given prefix
+// and commits the resulting .beads/ directory.
 func beadsInit(prefix string) error {
 	fmt.Printf("Initializing beads with prefix %s...\n", prefix)
 	if err := bdInit(prefix); err != nil {
 		return fmt.Errorf("bd init: %w", err)
 	}
+	beadsCommit("Initialize beads database")
 	fmt.Println("Beads initialized.")
 	return nil
 }
