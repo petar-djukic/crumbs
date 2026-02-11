@@ -43,11 +43,11 @@ func resolveCobblerBranch(cfg *cobblerConfig, fs *flag.FlagSet) {
 // which credential file from .secrets/ to use (container mode only).
 func runClaude(prompt, dir string, silence bool, tokenFile string) error {
 	if rt := containerRuntime(); rt != "" {
-		fmt.Printf("Running Claude (%s)...\n", rt)
+		fmt.Fprintf(os.Stderr, "Running Claude (%s)...\n", rt)
 		return runClaudeContainer(rt, prompt, dir, tokenFile, silence)
 	}
 
-	fmt.Println("Running Claude (direct)...")
+	fmt.Fprintln(os.Stderr, "Running Claude (direct)...")
 	cmd := exec.Command(binClaude, claudeArgs...)
 	cmd.Stdin = strings.NewReader(prompt)
 	if dir != "" {

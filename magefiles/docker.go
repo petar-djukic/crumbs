@@ -113,6 +113,6 @@ func (Test) Docker() error {
 
 	mg.Deps(Build)
 
-	fmt.Println("Testing container image with Hello World prompt...")
+	fmt.Fprintln(os.Stderr, "Testing container image with Hello World prompt...")
 	return runClaudeContainer(rt, "Say hello world and nothing else.", "", defaultTokenFile, false)
 }
