@@ -63,11 +63,13 @@ func beadsInit(prefix string) error {
 	return nil
 }
 
-// beadsReset destroys the beads database. Returns nil if no database exists.
+// beadsReset syncs state, stops the daemon, and destroys the database.
+// Returns nil if no database exists.
 func beadsReset() error {
 	if !beadsInitialized() {
 		return nil
 	}
 	fmt.Println("Resetting beads database...")
+	_ = bdSync()
 	return bdAdminReset()
 }
