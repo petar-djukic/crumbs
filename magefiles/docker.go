@@ -20,13 +20,19 @@ const (
 	containerCredDst = "/root/.claude/.credentials.json"
 )
 
-// containerRuntime returns "podman" or "docker" if found on PATH,
-// or "" if neither is available.
+// containerRuntime returns "podman" or "docker" if a working runtime
+// is available, or "" if neither is usable. It checks both that the
+// binary exists on PATH and that it can connect to its daemon/machine.
 func containerRuntime() string {
 	for _, name := range []string{"podman", "docker"} {
-		if _, err := exec.LookPath(name); err == nil {
-			return name
+		if _, err := exec.LookPath(name); err != nil {
+			continue
 		}
+		if exec.Command(name, "info").Run() != nil {
+			fmt.Printf("WARNING: %s found on PATH but not usable (is the daemon/machine running?)\n", name)
+			continue
+		}
+		return name
 	}
 	return ""
 }
