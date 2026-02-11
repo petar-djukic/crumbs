@@ -528,8 +528,8 @@ func (Generator) Reset() error {
 	// remains discoverable via generator:list.
 	cleanupUnmergedTags()
 
-	if err := beadsReset(); err != nil {
-		return fmt.Errorf("resetting beads: %w", err)
+	if err := cobblerReset(); err != nil {
+		return fmt.Errorf("resetting cobbler: %w", err)
 	}
 
 	fmt.Println("Removing Go source directories...")
@@ -538,7 +538,6 @@ func (Generator) Reset() error {
 		os.RemoveAll(dir)
 	}
 	os.RemoveAll("bin/")
-	os.RemoveAll(cobblerDir)
 
 	fmt.Println("Seeding Go sources and reinitializing go.mod...")
 	if err := seedVersionFile("main"); err != nil {

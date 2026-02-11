@@ -70,6 +70,22 @@ func worktreeBasePath() string {
 	return filepath.Join(os.TempDir(), filepath.Base(repoRoot)+"-worktrees")
 }
 
+// Reset removes the cobbler scratch directory and resets beads.
+func (Cobbler) Reset() error {
+	return cobblerReset()
+}
+
+// cobblerReset removes the scratch directory and resets beads.
+func cobblerReset() error {
+	fmt.Println("Resetting cobbler...")
+	os.RemoveAll(cobblerDir)
+	if err := beadsReset(); err != nil {
+		return err
+	}
+	fmt.Println("Cobbler reset complete.")
+	return nil
+}
+
 // beadsCommit syncs beads state and commits the .beads/ directory.
 func beadsCommit(msg string) {
 	_ = bdSync()
