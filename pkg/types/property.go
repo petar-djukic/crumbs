@@ -19,7 +19,7 @@ var validValueTypes = map[string]bool{
 	ValueTypeText:        true,
 	ValueTypeInteger:     true,
 	ValueTypeBoolean:     true,
-	ValueTypeTimestamp:    true,
+	ValueTypeTimestamp:   true,
 	ValueTypeList:        true,
 }
 

@@ -191,6 +191,10 @@ func bdCreateTask(title, description string) ([]byte, error) {
 	return exec.Command(binBd, "create", "--type", "task", "--json", title, "--description", description).Output()
 }
 
+func bdListClosedTasks() ([]byte, error) {
+	return exec.Command(binBd, "list", "--json", "--status", "closed", "--type", "task").Output()
+}
+
 // Go helpers.
 
 func goModInit() error {

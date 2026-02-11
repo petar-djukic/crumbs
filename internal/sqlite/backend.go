@@ -173,8 +173,8 @@ func (b *SQLiteBackend) Detach() error {
 // Malformed lines are skipped with a warning per prd002 R4.2.
 func (b *SQLiteBackend) loadJSONL() error {
 	type loader struct {
-		file  string
-		load  func(json.RawMessage) error
+		file string
+		load func(json.RawMessage) error
 	}
 
 	loaders := []loader{

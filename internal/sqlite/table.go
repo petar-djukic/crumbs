@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/mesh-intelligence/crumbs/pkg/types"
 )
 
@@ -17,7 +18,7 @@ import (
 // and the backend it belongs to (for cross-table cascades and JSONL writes).
 // Implements: prd001-cupboard-core R3, prd002-sqlite-backend R12.
 type table struct {
-	name    string        // Table name (e.g. "crumbs").
+	name    string         // Table name (e.g. "crumbs").
 	backend *SQLiteBackend // Parent backend for DB access and JSONL writes.
 }
 

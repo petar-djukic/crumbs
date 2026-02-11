@@ -5,8 +5,8 @@ import "errors"
 // Config holds backend selection and connection parameters.
 // Implements: prd001-cupboard-core R1.
 type Config struct {
-	Backend  string // Backend type, e.g. "sqlite".
-	DataDir  string // Directory for the backend data files.
+	Backend string // Backend type, e.g. "sqlite".
+	DataDir string // Directory for the backend data files.
 }
 
 // Config validation errors (prd001-cupboard-core R7).

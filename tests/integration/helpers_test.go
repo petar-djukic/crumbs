@@ -3,7 +3,6 @@
 package integration
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -156,17 +155,6 @@ func assertJSONLNotContains(t *testing.T, dir, filename, substr string) {
 	}
 	if strings.Contains(string(data), substr) {
 		t.Errorf("%s should not contain %q", filename, substr)
-	}
-}
-
-// assertAllJSONLLinesValid checks that every line in a JSONL file is valid JSON.
-func assertAllJSONLLinesValid(t *testing.T, dir, filename string) {
-	t.Helper()
-	lines := readJSONLFile(t, dir, filename)
-	for i, line := range lines {
-		if !json.Valid([]byte(line)) {
-			t.Errorf("%s line %d is not valid JSON: %s", filename, i+1, line)
-		}
 	}
 }
 

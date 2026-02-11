@@ -27,8 +27,8 @@ func newTestBackend(t *testing.T) (*sqlite.SQLiteBackend, string) {
 
 func TestAttachDetachLifecycle(t *testing.T) {
 	tests := []struct {
-		name    string
-		run     func(t *testing.T)
+		name string
+		run  func(t *testing.T)
 	}{
 		{
 			name: "attach creates data directory and JSONL files",

@@ -32,8 +32,8 @@ func TestLifecycleInitialize(t *testing.T) {
 
 func TestTrailCreation(t *testing.T) {
 	tests := []struct {
-		name  string
-		run   func(t *testing.T)
+		name string
+		run  func(t *testing.T)
 	}{
 		{
 			name: "create single trail",
@@ -90,8 +90,8 @@ func TestTrailCreation(t *testing.T) {
 
 func TestTrailLifecycle(t *testing.T) {
 	tests := []struct {
-		name      string
-		endState  string
+		name     string
+		endState string
 	}{
 		{"complete trail", types.TrailStateCompleted},
 		{"abandon trail", types.TrailStateAbandoned},
