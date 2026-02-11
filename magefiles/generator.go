@@ -255,6 +255,59 @@ func listGenerationBranches() []string {
 	return gitListBranches(genPrefix + "*")
 }
 
+// tagSuffixes lists the lifecycle tag suffixes in order.
+var tagSuffixes = []string{"-start", "-finished", "-merged", "-incomplete"}
+
+// generationName strips the lifecycle suffix from a tag to recover
+// the generation name. Returns the tag unchanged if no suffix matches.
+func generationName(tag string) string {
+	for _, suffix := range tagSuffixes {
+		if cut, ok := strings.CutSuffix(tag, suffix); ok {
+			return cut
+		}
+	}
+	return tag
+}
+
+// cleanupUnmergedTags renames tags for generations that were never
+// merged. Each unmerged -start or -finished tag becomes a single
+// -incomplete tag so the generation remains discoverable in
+// generator:list --all without cluttering the default view.
+func cleanupUnmergedTags() {
+	tags := gitListTags(genPrefix + "*")
+	if len(tags) == 0 {
+		return
+	}
+
+	// Build set of merged generation names.
+	merged := make(map[string]bool)
+	for _, t := range tags {
+		if name, ok := strings.CutSuffix(t, "-merged"); ok {
+			merged[name] = true
+		}
+	}
+
+	// For unmerged generations, replace all tags with a single -incomplete tag.
+	marked := make(map[string]bool)
+	for _, t := range tags {
+		name := generationName(t)
+		if merged[name] {
+			continue
+		}
+		if !marked[name] {
+			marked[name] = true
+			incTag := name + "-incomplete"
+			if t != incTag {
+				fmt.Printf("  Marking incomplete: %s -> %s\n", t, incTag)
+				_ = gitRenameTag(t, incTag)
+			}
+		} else {
+			fmt.Printf("  Removing tag: %s\n", t)
+			_ = gitDeleteTag(t)
+		}
+	}
+}
+
 // resolveBranch determines which branch to work on.
 // If explicit is non-empty, it verifies the branch exists.
 // Otherwise: 0 generation branches -> current branch, 1 -> that branch,
@@ -292,16 +345,24 @@ func ensureOnBranch(branch string) error {
 	return gitCheckout(branch)
 }
 
-// List shows active branches and past generations
-// discoverable through tags.
+// List shows active branches and past generations discoverable
+// through tags. By default only active branches and merged
+// generations are shown. Use --all to include incomplete generations.
+//
+// Flags:
+//
+//	--all    show all generations including incomplete
 func (Generator) List() error {
+	var showAll bool
+	fs := flag.NewFlagSet("generator:list", flag.ContinueOnError)
+	fs.BoolVar(&showAll, "all", false, "show all generations including incomplete")
+	parseTargetFlags(fs)
+
 	branches := listGenerationBranches()
 	tags := gitListTags(genPrefix + "*")
 	current, _ := gitCurrentBranch()
 
 	// Build a set of generation names from branches and tags.
-	// Tags have suffixes (-start, -finished, -merged); strip them
-	// to recover the generation name.
 	nameSet := make(map[string]bool)
 	branchSet := make(map[string]bool)
 	for _, b := range branches {
@@ -312,14 +373,7 @@ func (Generator) List() error {
 	tagSet := make(map[string]bool)
 	for _, t := range tags {
 		tagSet[t] = true
-		name := t
-		for _, suffix := range []string{"-start", "-finished", "-merged"} {
-			if cut, ok := strings.CutSuffix(name, suffix); ok {
-				name = cut
-				break
-			}
-		}
-		nameSet[name] = true
+		nameSet[generationName(t)] = true
 	}
 
 	if len(nameSet) == 0 {
@@ -334,8 +388,17 @@ func (Generator) List() error {
 	}
 	sort.Strings(names)
 
+	shown := 0
 	for _, name := range names {
-		// Active marker.
+		isActive := branchSet[name]
+		isMerged := tagSet[name+"-merged"]
+		isIncomplete := tagSet[name+"-incomplete"]
+
+		// Default view: active branches and merged generations only.
+		if !showAll && !isActive && !isMerged {
+			continue
+		}
+
 		marker := " "
 		if name == current {
 			marker = "*"
@@ -343,26 +406,28 @@ func (Generator) List() error {
 
 		// Lifecycle tags present for this generation.
 		var lifecycle []string
-		if tagSet[name+"-start"] {
-			lifecycle = append(lifecycle, "start")
-		}
-		if tagSet[name+"-finished"] {
-			lifecycle = append(lifecycle, "finished")
-		}
-		if tagSet[name+"-merged"] {
-			lifecycle = append(lifecycle, "merged")
+		for _, suffix := range tagSuffixes {
+			if tagSet[name+suffix] {
+				lifecycle = append(lifecycle, suffix[1:]) // strip leading "-"
+			}
 		}
 
-		// Status: active branch or tags only.
-		if branchSet[name] {
+		if isActive {
 			if len(lifecycle) > 0 {
 				fmt.Printf("%s %s  (active, tags: %s)\n", marker, name, strings.Join(lifecycle, ", "))
 			} else {
 				fmt.Printf("%s %s  (active)\n", marker, name)
 			}
+		} else if isIncomplete {
+			fmt.Printf("%s %s  (incomplete)\n", marker, name)
 		} else {
 			fmt.Printf("%s %s  (tags: %s)\n", marker, name, strings.Join(lifecycle, ", "))
 		}
+		shown++
+	}
+
+	if shown == 0 {
+		fmt.Println("No generations found. Use --all to show incomplete generations.")
 	}
 	return nil
 }
@@ -460,8 +525,10 @@ func (Generator) Reset() error {
 		}
 	}
 
-	// Generation tags are preserved so past generations remain
-	// discoverable via generator:list and can be checked out.
+	// Remove tags for generations that were never merged. Completed
+	// generations (with a -merged tag) are preserved so past work
+	// remains discoverable via generator:list.
+	cleanupUnmergedTags()
 
 	fmt.Println("Resetting beads...")
 	if err := bdAdminReset(); err != nil {

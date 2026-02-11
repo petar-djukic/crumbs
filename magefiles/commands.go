@@ -80,6 +80,16 @@ func gitDeleteTag(name string) error {
 	return exec.Command(binGit, "tag", "-d", name).Run()
 }
 
+// gitRenameTag creates newName at the same commit as oldName, then
+// deletes oldName. Returns an error if the new tag cannot be created.
+func gitRenameTag(oldName, newName string) error {
+	// Create new tag pointing at the same commit as old tag.
+	if err := exec.Command(binGit, "tag", newName, oldName).Run(); err != nil {
+		return err
+	}
+	return gitDeleteTag(oldName)
+}
+
 func gitListTags(pattern string) []string {
 	out, _ := exec.Command(binGit, "tag", "--list", pattern).Output()
 	return parseBranchList(string(out))
