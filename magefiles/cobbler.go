@@ -69,8 +69,9 @@ func worktreeBasePath() string {
 // Cleanup resets the project to a clean state.
 //
 // Switches to main, removes all generation worktrees, task branches,
-// generation branches and tags, resets beads, deletes Go source directories
+// and generation branches. Resets beads, deletes Go source directories
 // (cmd/, pkg/, internal/, tests/, bin/), and reinitializes go.mod.
+// Generation tags are preserved so past generations remain discoverable.
 func (Generation) Cleanup() error {
 	fmt.Println()
 	fmt.Println("========================================")
@@ -111,9 +112,8 @@ func (Generation) Cleanup() error {
 		}
 	}
 
-	// Delete generation tags.
-	fmt.Println("Removing generation tags...")
-	removeGenerationTags()
+	// Generation tags are preserved so past generations remain
+	// discoverable via generation:list and can be checked out.
 
 	// Reset beads.
 	fmt.Println("Resetting beads...")
@@ -152,14 +152,6 @@ func (Generation) Cleanup() error {
 	fmt.Println("Cleanup complete. Only main branch remains.")
 	fmt.Println()
 	return nil
-}
-
-// removeGenerationTags deletes all tags with the generation prefix.
-func removeGenerationTags() {
-	for _, tag := range gitListTags(genPrefix + "*") {
-		fmt.Printf("  Deleting tag: %s\n", tag)
-		_ = gitDeleteTag(tag)
-	}
 }
 
 // beadsCommit syncs beads state and commits the .beads/ directory.

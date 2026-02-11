@@ -89,11 +89,6 @@ func (Generation) Start() error {
 		return fmt.Errorf("switching to main: %w", err)
 	}
 
-	// Check no existing generation branch.
-	if branches := listGenerationBranches(); len(branches) > 0 {
-		return fmt.Errorf("a generation branch already exists: %s. Finish it first or delete it", branches[0])
-	}
-
 	genName := genPrefix + time.Now().Format("2006-01-02-15-04")
 	startTag := genName + "-start"
 
@@ -263,7 +258,7 @@ func listGenerationBranches() []string {
 // resolveBranch determines which branch to work on.
 // If explicit is non-empty, it verifies the branch exists.
 // Otherwise: 0 generation branches -> current branch, 1 -> that branch,
-// 2+ -> keep the latest (by name, which embeds a timestamp) and delete the rest.
+// 2+ -> error (caller must specify with --generation-branch).
 func resolveBranch(explicit string) (string, error) {
 	if explicit != "" {
 		if !gitBranchExists(explicit) {
@@ -280,12 +275,7 @@ func resolveBranch(explicit string) (string, error) {
 		return branches[0], nil
 	default:
 		sort.Strings(branches)
-		latest := branches[len(branches)-1]
-		for _, b := range branches[:len(branches)-1] {
-			fmt.Printf("Cleaning up stale generation branch: %s\n", b)
-			_ = gitForceDeleteBranch(b)
-		}
-		return latest, nil
+		return "", fmt.Errorf("multiple generation branches exist (%s); specify one with --generation-branch", strings.Join(branches, ", "))
 	}
 }
 
