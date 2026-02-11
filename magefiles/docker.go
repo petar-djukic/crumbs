@@ -29,7 +29,7 @@ func containerRuntime() string {
 			continue
 		}
 		if exec.Command(name, "info").Run() != nil {
-			fmt.Printf("WARNING: %s found on PATH but not usable (is the daemon/machine running?)\n", name)
+			fmt.Fprintf(os.Stderr, "WARNING: %s found on PATH but not usable (is the daemon/machine running?)\n", name)
 			continue
 		}
 		return name
@@ -46,12 +46,12 @@ func imageRef() string {
 // The build context is the repo root so the COPY instruction can
 // reference magefiles/docker-entrypoint.sh.
 func buildImage(rt string) error {
-	fmt.Println("Building container image...")
+	fmt.Fprintln(os.Stderr, "Building container image...")
 	cmd := exec.Command(rt, "build",
 		"-t", imageRef(),
 		"-f", filepath.Join(dockerfileDir, "Dockerfile"),
 		".")
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
@@ -59,7 +59,7 @@ func buildImage(rt string) error {
 // removeImage removes the container image. Errors are ignored because
 // the image may not exist.
 func removeImage(rt string) {
-	fmt.Println("Removing container image...")
+	fmt.Fprintln(os.Stderr, "Removing container image...")
 	_ = exec.Command(rt, "rmi", imageRef()).Run()
 }
 

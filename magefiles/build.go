@@ -26,7 +26,7 @@ func Build() error {
 
 	rt := containerRuntime()
 	if rt == "" {
-		fmt.Println("WARNING: no container runtime found (tried podman, docker); skipping image build")
+		fmt.Fprintln(os.Stderr, "WARNING: no container runtime found (tried podman, docker); skipping image build")
 		return nil
 	}
 	return buildImage(rt)
@@ -43,7 +43,7 @@ func Clean() error {
 
 	rt := containerRuntime()
 	if rt == "" {
-		fmt.Println("WARNING: no container runtime found (tried podman, docker); skipping image removal")
+		fmt.Fprintln(os.Stderr, "WARNING: no container runtime found (tried podman, docker); skipping image removal")
 	} else {
 		removeImage(rt)
 	}
