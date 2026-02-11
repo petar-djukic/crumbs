@@ -149,9 +149,11 @@ func (Generation) Start() error {
 // Finish completes a generation session and merges it into main.
 //
 // Pass the generation name as a positional argument, or omit it to
-// auto-detect (works when exactly one generation branch exists).
+// auto-detect. Without an argument, Finish checks the current branch
+// first: if it is a generation branch, that branch is finished. If on
+// main with no generation branches, it exits with an error.
 //
-//	mage generation:finish                          # auto-detect
+//	mage generation:finish                              # auto-detect
 //	mage generation:finish generation-2026-02-10-15-04  # explicit
 //
 // Tags the generation branch, switches to main, deletes Go code from main,
@@ -160,17 +162,33 @@ func (Generation) Finish() error {
 	fs := flag.NewFlagSet("generation:finish", flag.ContinueOnError)
 	parseTargetFlags(fs)
 
-	explicit := ""
+	var branch string
 	if fs.NArg() > 0 {
-		explicit = fs.Arg(0)
+		// Explicit generation name provided.
+		branch = fs.Arg(0)
+		if !gitBranchExists(branch) {
+			return fmt.Errorf("branch does not exist: %s", branch)
+		}
+	} else {
+		// No argument: check current branch first, then fall back to resolveBranch.
+		current, err := gitCurrentBranch()
+		if err != nil {
+			return fmt.Errorf("getting current branch: %w", err)
+		}
+		if strings.HasPrefix(current, genPrefix) {
+			branch = current
+			fmt.Printf("Warning: finishing current branch %s\n", branch)
+		} else {
+			resolved, err := resolveBranch("")
+			if err != nil {
+				return err
+			}
+			branch = resolved
+		}
 	}
 
-	branch, err := resolveBranch(explicit)
-	if err != nil {
-		return err
-	}
 	if !strings.HasPrefix(branch, genPrefix) {
-		return fmt.Errorf("not a generation branch: %s", branch)
+		return fmt.Errorf("not a generation branch: %s\nUsage: mage generation:finish [generation-name]", branch)
 	}
 
 	finishedTag := branch + "-finished"
