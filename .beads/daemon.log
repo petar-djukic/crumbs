@@ -1,0 +1,20 @@
+time=2026-02-11T13:34:44.007-05:00 level=INFO msg="Daemon started" interval=5s auto_commit=false auto_push=false
+time=2026-02-11T13:34:44.007-05:00 level=INFO msg="using database" path=/Users/petardjukic/WORKSPACE/crumbs/.beads/beads.db
+time=2026-02-11T13:34:44.033-05:00 level=INFO msg="database opened" path=/Users/petardjukic/WORKSPACE/crumbs/.beads/beads.db backend=sqlite freshness_checking=true
+time=2026-02-11T13:34:44.033-05:00 level=INFO msg="upgrading .beads/.gitignore"
+time=2026-02-11T13:34:44.033-05:00 level=WARN msg="failed to upgrade .gitignore" error="open .beads/.gitignore: no such file or directory"
+time=2026-02-11T13:34:44.038-05:00 level=INFO msg="Repository fingerprint validated" repo_id=a664dc15
+time=2026-02-11T13:34:44.038-05:00 level=INFO msg="starting RPC server" socket=/Users/petardjukic/WORKSPACE/crumbs/.beads/bd.sock
+time=2026-02-11T13:34:44.038-05:00 level=INFO msg="RPC server ready (socket listening)"
+time=2026-02-11T13:34:44.043-05:00 level=INFO msg="registered in global registry"
+time=2026-02-11T13:34:44.043-05:00 level=WARN msg="initial import failed (continuing anyway)" error="failed to open JSONL: open /Users/petardjukic/WORKSPACE/crumbs/.beads/issues.jsonl: no such file or directory"
+time=2026-02-11T13:34:44.043-05:00 level=INFO msg="Starting sync cycle" mode="sync cycle"
+time=2026-02-11T13:34:44.044-05:00 level=INFO msg="Exported to JSONL"
+time=2026-02-11T13:34:44.078-05:00 level=INFO msg="Pull failed" error="git pull failed: exit status 128\nerror: cannot pull with rebase: Your index contains uncommitted changes.\nerror: Please commit or stash them.\n"
+time=2026-02-11T13:34:44.079-05:00 level=INFO msg="monitoring parent process" pid=0
+time=2026-02-11T13:34:44.079-05:00 level=INFO msg="using event-driven mode"
+time=2026-02-11T13:34:44.079-05:00 level=INFO msg="Auto-pull disabled: use 'git pull' manually to sync remote changes"
+time=2026-02-11T13:34:44.092-05:00 level=INFO msg="JSONL removed/renamed, re-establishing watch"
+time=2026-02-11T13:34:44.142-05:00 level=INFO msg="Successfully re-established JSONL watch" delay=50ms
+time=2026-02-11T13:34:44.142-05:00 level=INFO msg="JSONL file created" path=/Users/petardjukic/WORKSPACE/crumbs/.beads/issues.jsonl
+time=2026-02-11T13:34:44.291-05:00 level=INFO msg="Git HEAD change detected" path=/Users/petardjukic/WORKSPACE/crumbs/.git/HEAD
