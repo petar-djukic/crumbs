@@ -96,28 +96,29 @@ crumbs/
 
 ## Docker
 
-Build the container image:
+The Dockerfile lives in `magefiles/` and is built automatically by `mage build` when a container runtime (podman or docker) is available.
 
 ```bash
-docker build -t crumbs .
+mage build    # compiles Go binary + builds container image
+mage clean    # removes build artifacts + container image
 ```
 
-The image includes Go, Claude Code, Mage, Beads (`bd`), and golangci-lint.
+The image includes Go, Claude Code, Mage, Beads (`bd`), and golangci-lint. Mage auto-detects the runtime in this order: podman, docker, direct claude binary.
 
 ### Authentication
 
-Place your Claude OAuth token files in `.claude-tokens/` (already gitignored). The entrypoint copies the token to where Claude Code expects it on Linux.
+Place your Claude OAuth token files in `.secrets/` (already gitignored). The default file is `claude.json`. Use the `--token-file` flag to select a different profile.
 
 ```bash
-# Uses .claude-tokens/claude-max.json by default
+# Uses .secrets/claude.json by default
 docker run -it \
-  -v ./.claude-tokens:/claude-tokens:ro \
+  -v ./.secrets:/secrets:ro \
   -v $(pwd):/workspace \
   crumbs
 
 # Pick a different token profile
 docker run -it \
-  -v ./.claude-tokens:/claude-tokens:ro \
+  -v ./.secrets:/secrets:ro \
   -e CLAUDE_TOKEN_FILE=claude-pro.json \
   -v $(pwd):/workspace \
   crumbs
@@ -128,11 +129,13 @@ Token files use the `claudeAiOauth` format that Claude Code writes during `claud
 ### Running a generation
 
 ```bash
-docker run -it \
-  -v ./.claude-tokens:/claude-tokens:ro \
-  -v $(pwd):/workspace \
-  crumbs \
-  mage generation:construct -- --cycles 3
+mage generation:construct -- --cycles 3 --token-file claude.json
+```
+
+### Smoke test
+
+```bash
+mage test:docker
 ```
 
 ## AI-Assisted Development

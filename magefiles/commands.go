@@ -26,6 +26,7 @@ const (
 	flagUserPrompt       = "user-prompt"
 	flagGenerationBranch = "generation-branch"
 	flagCycles           = "cycles"
+	flagTokenFile        = "token-file"
 )
 
 // claudeArgs are the CLI arguments for automated Claude execution.

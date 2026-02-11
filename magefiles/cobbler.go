@@ -15,6 +15,7 @@ type cobblerConfig struct {
 	maxIssues        int
 	userPrompt       string
 	generationBranch string
+	tokenFile        string
 }
 
 // registerCobblerFlags adds the shared flags to fs.
@@ -23,6 +24,7 @@ func registerCobblerFlags(fs *flag.FlagSet, cfg *cobblerConfig) {
 	fs.IntVar(&cfg.maxIssues, flagMaxIssues, 10, "max issues to process")
 	fs.StringVar(&cfg.userPrompt, flagUserPrompt, "", "user prompt text")
 	fs.StringVar(&cfg.generationBranch, flagGenerationBranch, "", "generation branch to work on")
+	fs.StringVar(&cfg.tokenFile, flagTokenFile, defaultTokenFile, "token file name in .secrets/")
 }
 
 // resolveCobblerBranch sets cfg.generationBranch from the first positional arg
@@ -35,10 +37,17 @@ func resolveCobblerBranch(cfg *cobblerConfig, fs *flag.FlagSet) {
 }
 
 // runClaude executes Claude with the given prompt.
-// If dir is non-empty, the command runs in that directory.
-func runClaude(prompt, dir string, silence bool) error {
-	fmt.Println("Running Claude...")
+// Auto-detects runtime: podman → docker → direct claude binary.
+// If dir is non-empty, the command runs in that directory (or it
+// becomes the container's /workspace mount). tokenFile selects
+// which credential file from .secrets/ to use (container mode only).
+func runClaude(prompt, dir string, silence bool, tokenFile string) error {
+	if rt := containerRuntime(); rt != "" {
+		fmt.Printf("Running Claude (%s)...\n", rt)
+		return runClaudeContainer(rt, prompt, dir, tokenFile, silence)
+	}
 
+	fmt.Println("Running Claude (direct)...")
 	cmd := exec.Command(binClaude, claudeArgs...)
 	cmd.Stdin = strings.NewReader(prompt)
 	if dir != "" {

@@ -75,7 +75,7 @@ func measure(cfg measureConfig) error {
 	// Build and run prompt.
 	prompt := buildMeasurePrompt(cfg.userPrompt, existingIssues, cfg.maxIssues, "docs/"+filepath.Base(outputFile))
 
-	if err := runClaude(prompt, "", cfg.silenceAgent); err != nil {
+	if err := runClaude(prompt, "", cfg.silenceAgent, cfg.tokenFile); err != nil {
 		return fmt.Errorf("running Claude: %w", err)
 	}
 

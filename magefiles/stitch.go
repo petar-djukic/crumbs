@@ -74,7 +74,7 @@ func stitch(cfg stitchConfig) error {
 			break // No tasks available.
 		}
 
-		if err := doOneTask(task, baseBranch, repoRoot, cfg.silenceAgent); err != nil {
+		if err := doOneTask(task, baseBranch, repoRoot, cfg.silenceAgent, cfg.tokenFile); err != nil {
 			return fmt.Errorf("executing task %s: %w", task.id, err)
 		}
 
@@ -220,7 +220,7 @@ func pickTask(baseBranch, worktreeBase string) (stitchTask, error) {
 	return task, nil
 }
 
-func doOneTask(task stitchTask, baseBranch, repoRoot string, silence bool) error {
+func doOneTask(task stitchTask, baseBranch, repoRoot string, silence bool, tokenFile string) error {
 	// Claim.
 	fmt.Println("Task claimed.")
 	_ = bdUpdateStatus(task.id, "in_progress")
@@ -232,7 +232,7 @@ func doOneTask(task stitchTask, baseBranch, repoRoot string, silence bool) error
 
 	// Build and run prompt.
 	prompt := buildStitchPrompt(task)
-	if err := runClaude(prompt, task.worktreeDir, silence); err != nil {
+	if err := runClaude(prompt, task.worktreeDir, silence, tokenFile); err != nil {
 		return fmt.Errorf("running Claude: %w", err)
 	}
 
