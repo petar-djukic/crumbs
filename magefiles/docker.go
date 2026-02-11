@@ -49,7 +49,7 @@ func buildImage(rt string) error {
 	fmt.Fprintln(os.Stderr, "Building container image...")
 	cmd := exec.Command(rt, "build",
 		"-t", imageRef(),
-		"-f", filepath.Join(dockerfileDir, "Dockerfile"),
+		"-f", filepath.Join(dockerfileDir, "Dockerfile.claude"),
 		".")
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
