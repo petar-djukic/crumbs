@@ -43,6 +43,14 @@ At container startup, the credential file is bind-mounted read-only into the loc
 
 The `--rm` flag ensures the container and its filesystem are destroyed after each run. No credentials persist inside the container.
 
+On macOS, Claude Code stores credentials in the system keychain. To extract them into a file for container use:
+
+```
+security find-generic-password -s "Claude Code-credentials" -w > .secrets/claude.json
+```
+
+The `.secrets/` directory is gitignored and dockerignored.
+
 ## Workspace Mounting
 
 The host directory where Claude should read and write files is bind-mounted as `/workspace` inside the container. During stitch, this is the worktree directory; during measure, it is the repository root.
