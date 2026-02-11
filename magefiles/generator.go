@@ -26,6 +26,17 @@ func parseRunFlags() runConfig {
 	return cfg
 }
 
+func parseResumeFlags() runConfig {
+	var cfg runConfig
+	cfg.cycles = 1
+	fs := flag.NewFlagSet("generator:resume", flag.ContinueOnError)
+	registerCobblerFlags(fs, &cfg.cobblerConfig)
+	fs.IntVar(&cfg.cycles, flagCycles, 1, "number of measure+stitch cycles")
+	parseTargetFlags(fs)
+	resolveCobblerBranch(&cfg.cobblerConfig, fs)
+	return cfg
+}
+
 // Run executes N cycles of Measure + Stitch within the current generation.
 //
 // Flags:
@@ -43,15 +54,99 @@ func (Generator) Run() error {
 		return fmt.Errorf("getting current branch: %w", err)
 	}
 
-	fmt.Println()
-	fmt.Println("========================================")
-	fmt.Printf("Generator run: %d cycle(s), %d issues per cycle\n", cfg.cycles, cfg.maxIssues)
-	fmt.Println("========================================")
-	fmt.Println()
-
 	cfg.generationBranch = currentBranch
+	return runCycles(cfg, "run")
+}
+
+// Resume recovers from an interrupted generator:run and continues.
+//
+// Resolves the generation branch (positional arg or auto-detect),
+// commits any uncommitted work on the current branch, switches to
+// the generation branch, cleans up stale worktrees/branches/issues,
+// removes cobbler scratch files, and runs measure+stitch cycles.
+//
+// Usage:
+//
+//	mage generator:resume                              # auto-detect
+//	mage generator:resume generation-2026-02-10-15-04  # explicit
+//
+// Flags:
+//
+//	--silence-agent        suppress Claude output (default true)
+//	--cycles N             number of measure+stitch cycles (default 1)
+//	--max-issues N         issues per measure cycle (default 10)
+//	--user-prompt TEXT     user prompt text
+//	--no-container         skip container runtime, use local claude binary
+func (Generator) Resume() error {
+	cfg := parseResumeFlags()
+
+	// Resolve generation branch from positional arg or auto-detect.
+	branch := cfg.generationBranch
+	if branch == "" {
+		resolved, err := resolveBranch("")
+		if err != nil {
+			return fmt.Errorf("resolving generation branch: %w", err)
+		}
+		branch = resolved
+	}
+
+	if !strings.HasPrefix(branch, genPrefix) {
+		return fmt.Errorf("not a generation branch: %s\nUsage: mage generator:resume [generation-name]", branch)
+	}
+	if !gitBranchExists(branch) {
+		return fmt.Errorf("branch does not exist: %s", branch)
+	}
+
+	logf("resume: target branch=%s", branch)
+
+	// Commit uncommitted work on the current branch before switching.
+	if err := gitStageAll(); err != nil {
+		return fmt.Errorf("staging changes: %w", err)
+	}
+	if err := gitCommit(fmt.Sprintf("WIP: save state before resuming on %s", branch)); err != nil {
+		_ = gitUnstageAll()
+	}
+
+	// Switch to the generation branch.
+	if err := ensureOnBranch(branch); err != nil {
+		return fmt.Errorf("switching to %s: %w", branch, err)
+	}
+
+	// Pre-flight cleanup.
+	logf("resume: pre-flight cleanup")
+	wtBase := worktreeBasePath()
+
+	logf("resume: pruning worktrees")
+	_ = gitWorktreePrune()
+
+	if _, err := os.Stat(wtBase); err == nil {
+		logf("resume: removing worktree directory %s", wtBase)
+		os.RemoveAll(wtBase)
+	}
+
+	logf("resume: recovering stale tasks")
+	if err := recoverStaleTasks(branch, wtBase); err != nil {
+		logf("resume: recoverStaleTasks warning: %v", err)
+	}
+
+	logf("resume: resetting cobbler scratch")
+	cobblerReset()
+
+	cfg.generationBranch = branch
+	return runCycles(cfg, "resume")
+}
+
+// runCycles runs N measure+stitch cycles with the given config.
+// The label parameter identifies the caller for log messages.
+func runCycles(cfg runConfig, label string) error {
 	mCfg := measureConfig{cobblerConfig: cfg.cobblerConfig}
 	sCfg := stitchConfig{cobblerConfig: cfg.cobblerConfig}
+
+	fmt.Println()
+	fmt.Println("========================================")
+	fmt.Printf("Generator %s: %d cycle(s), %d issues per cycle\n", label, cfg.cycles, cfg.maxIssues)
+	fmt.Println("========================================")
+	fmt.Println()
 
 	for cycle := 1; cycle <= cfg.cycles; cycle++ {
 		fmt.Println()
@@ -74,7 +169,7 @@ func (Generator) Run() error {
 
 	fmt.Println()
 	fmt.Println("========================================")
-	fmt.Printf("Generator run complete. Ran %d cycle(s).\n", cfg.cycles)
+	fmt.Printf("Generator %s complete. Ran %d cycle(s).\n", label, cfg.cycles)
 	fmt.Println("========================================")
 	return nil
 }

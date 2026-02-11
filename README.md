@@ -32,6 +32,7 @@ mage stats               # Print Go LOC and documentation word counts
 # Generator (code generation lifecycle)
 mage generator:start     # Tag main, create generation branch, delete Go sources
 mage generator:run       # Run measure/stitch cycles on the generation branch
+mage generator:resume    # Recover from interrupted run, cleanup, continue
 mage generator:stop      # Merge generation branch into main
 mage generator:list      # Show active and past generations
 mage generator:switch    # Switch between generation branches
