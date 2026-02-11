@@ -483,9 +483,9 @@ func (Generator) Switch() error {
 	return nil
 }
 
-// Reset destroys all branches, worktrees, beads, and Go
-// source directories.
+// Reset destroys generation branches, worktrees, and Go source directories.
 // Generation tags are preserved so past generations remain discoverable.
+// Does not touch cobbler or beads; use top-level reset for a full wipe.
 func (Generator) Reset() error {
 	fmt.Println()
 	fmt.Println("========================================")
@@ -527,10 +527,6 @@ func (Generator) Reset() error {
 	// generations (with a -merged tag) are preserved so past work
 	// remains discoverable via generator:list.
 	cleanupUnmergedTags()
-
-	if err := cobblerReset(); err != nil {
-		return fmt.Errorf("resetting cobbler: %w", err)
-	}
 
 	fmt.Println("Removing Go source directories...")
 	for _, dir := range goSourceDirs {
