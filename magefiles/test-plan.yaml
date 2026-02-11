@@ -263,5 +263,31 @@ test_cases:
         state:
           beads_issues_empty: true
 
+  - name: cobbler:measure creates 3 issues and cobbler:stitch resolves them
+    description: >
+      End-to-end generation cycle: measure proposes 3 issues, stitch
+      picks them up one at a time (creating worktrees, invoking Claude,
+      merging back), and closes each issue. After stitch completes,
+      all 3 issues should have status closed and no task branches or
+      worktrees should remain.
+    inputs:
+      setup:
+        - mage beads:init
+      commands:
+        - mage cobbler:measure --no-container --max-issues 3
+        - bd list --json
+        - mage cobbler:stitch --no-container
+        - bd list --json --status closed
+    expected:
+      after_measure:
+        bd_list_json_length: 3
+      after_stitch:
+        exit_code: 0
+        bd_list_closed_length: 3
+        state:
+          task_branches: none
+          worktrees_clean: true
+      stdout_contains: "Completed 3 task(s)"
+
 cleanup:
   - mage reset

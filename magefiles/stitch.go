@@ -95,6 +95,19 @@ func stitch(cfg stitchConfig) error {
 	return nil
 }
 
+// taskBranchName returns the git branch name for a stitch task.
+// Uses "task/<base>-<id>" instead of "<base>/task/<id>" to avoid
+// ref conflicts when the base branch is "main" (git cannot have both
+// refs/heads/main and refs/heads/main/task/...).
+func taskBranchName(baseBranch, issueID string) string {
+	return "task/" + baseBranch + "-" + issueID
+}
+
+// taskBranchPattern returns the glob pattern for listing task branches.
+func taskBranchPattern(baseBranch string) string {
+	return "task/" + baseBranch + "-*"
+}
+
 type stitchTask struct {
 	id          string
 	title       string
@@ -124,7 +137,7 @@ func recoverStaleTasks(baseBranch, worktreeBase string) error {
 // recoverStaleBranches removes leftover task branches and worktrees,
 // resetting their issues to ready. Returns true if any were recovered.
 func recoverStaleBranches(baseBranch, worktreeBase string) bool {
-	branches := gitListBranches(baseBranch + "/task/*")
+	branches := gitListBranches(taskBranchPattern(baseBranch))
 	if len(branches) == 0 {
 		return false
 	}
@@ -132,7 +145,7 @@ func recoverStaleBranches(baseBranch, worktreeBase string) bool {
 	for _, branch := range branches {
 		fmt.Printf("Recovering stale branch: %s\n", branch)
 
-		issueID := branch[strings.LastIndex(branch, "/")+1:]
+		issueID := strings.TrimPrefix(branch, "task/"+baseBranch+"-")
 		worktreeDir := filepath.Join(worktreeBase, issueID)
 
 		if _, err := os.Stat(worktreeDir); err == nil {
@@ -168,7 +181,7 @@ func resetOrphanedIssues(baseBranch string) bool {
 
 	recovered := false
 	for _, issue := range issues {
-		taskBranch := baseBranch + "/task/" + issue.ID
+		taskBranch := taskBranchName(baseBranch, issue.ID)
 		if !gitBranchExists(taskBranch) {
 			recovered = true
 			fmt.Printf("Resetting orphaned in_progress issue: %s\n", issue.ID)
@@ -212,7 +225,7 @@ func pickTask(baseBranch, worktreeBase string) (stitchTask, error) {
 		title:       issue.Title,
 		description: issue.Description,
 		issueType:   issue.Type,
-		branchName:  baseBranch + "/task/" + issue.ID,
+		branchName:  taskBranchName(baseBranch, issue.ID),
 		worktreeDir: filepath.Join(worktreeBase, issue.ID),
 	}
 
