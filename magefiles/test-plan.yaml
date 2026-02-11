@@ -228,11 +228,17 @@ test_cases:
   # ── 5. --no-container flag ──
 
   - name: cobbler:measure respects --no-container
+    description: >
+      Ignore the exit code; Claude may fail if no API key is configured.
+      The test only checks that the --no-container flag routes to the
+      direct execution path by inspecting the stderr message printed
+      before Claude is invoked.
     inputs:
       setup:
         - mage beads:init
       command: mage cobbler:measure --no-container --max-issues 1 --silence-agent=false
     expected:
+      exit_code: ignored
       stderr_contains: "Running Claude (direct)"
       stderr_not_contains: "Running Claude (podman)"
 
