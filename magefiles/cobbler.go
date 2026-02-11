@@ -71,10 +71,10 @@ func worktreeBasePath() string {
 // Switches to main, removes all generation worktrees, task branches,
 // generation branches and tags, resets beads, deletes Go source directories
 // (cmd/, pkg/, internal/, tests/, bin/), and reinitializes go.mod.
-func (Cobbler) Cleanup() error {
+func (Generation) Cleanup() error {
 	fmt.Println()
 	fmt.Println("========================================")
-	fmt.Println("Cobbler cleanup: resetting to clean state")
+	fmt.Println("Generation cleanup: resetting to clean state")
 	fmt.Println("========================================")
 	fmt.Println()
 
@@ -141,7 +141,7 @@ func (Cobbler) Cleanup() error {
 	// Commit the clean state.
 	fmt.Println("Committing clean state...")
 	_ = gitStageAll()
-	if err := gitCommit("Cobbler cleanup: reset to clean state"); err != nil {
+	if err := gitCommit("Generation cleanup: reset to clean state"); err != nil {
 		return fmt.Errorf("committing cleanup: %w", err)
 	}
 
