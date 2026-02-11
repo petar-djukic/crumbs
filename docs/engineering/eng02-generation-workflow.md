@@ -75,18 +75,42 @@ To see what a generation produced: `git diff generation-2026-02-08-09-30-start..
 
 ## Mage Interface
 
-The generation lifecycle is handled by mage targets in the `generator` namespace.
+The generation lifecycle spans four mage namespaces and two top-level orchestration targets. Each namespace owns its own artifacts; the top-level targets call them in the correct order.
 
-Table 4 Generator targets
+Table 4 Top-level targets
 
-| Target | Operation | Precondition |
-|--------|-----------|-------------|
-| `mage generator:start` | Start a new generation | Must be on main |
-| `mage generator:run` | Run measure/stitch cycles | Must be on a generation branch |
-| `mage generator:stop` | Stop the generation and merge to main | Generation branch must exist |
-| `mage generator:list` | Show active and past generations | None |
-| `mage generator:switch` | Switch between generation branches | Target branch must exist |
-| `mage generator:reset` | Abandon all generations, return to clean main | None (switches to main) |
+| Target       | Operation                 | What it calls                                      |
+|--------------|---------------------------|----------------------------------------------------|
+| `mage init`  | Initialize project state  | `beads:init`                                       |
+| `mage reset` | Full reset to clean state | `cobbler:reset`, `generator:reset`, `beads:reset`  |
+
+Table 5 Generator targets
+
+| Target                   | Operation                                          | Precondition                    |
+|--------------------------|----------------------------------------------------|---------------------------------|
+| `mage generator:start`   | Start a new generation                             | Must be on main                 |
+| `mage generator:run`     | Run measure/stitch cycles                          | Must be on a generation branch  |
+| `mage generator:stop`    | Stop the generation and merge to main              | Generation branch must exist    |
+| `mage generator:list`    | Show active and past generations                   | None                            |
+| `mage generator:switch`  | Switch between generation branches                 | Target branch must exist        |
+| `mage generator:reset`   | Remove generation branches, worktrees, Go sources  | None (switches to main)         |
+
+Table 6 Cobbler targets
+
+| Target                 | Operation                                | Precondition       |
+|------------------------|------------------------------------------|--------------------|
+| `mage cobbler:measure` | Propose new tasks via Claude             | Beads initialized  |
+| `mage cobbler:stitch`  | Execute ready tasks via Claude           | Beads initialized  |
+| `mage cobbler:reset`   | Remove the `.cobbler/` scratch directory | None               |
+
+Table 7 Beads targets
+
+| Target             | Operation                                               | Precondition |
+|--------------------|---------------------------------------------------------|--------------|
+| `mage beads:init`  | Initialize the beads database (no-op if already exists) | None         |
+| `mage beads:reset` | Destroy and reinitialize the beads database             | None         |
+
+Each reset target is independent: `cobbler:reset` only removes `.cobbler/`, `generator:reset` only handles branches, worktrees, and Go source directories, and `beads:reset` only handles the beads database. The top-level `mage reset` calls all three in order. The top-level `mage init` currently delegates to `beads:init`.
 
 The `generator:run` target accepts `--cycles N` to control how many measure/stitch cycles to execute. Each cycle creates tasks with `cobbler:measure` and executes them with `cobbler:stitch`.
 

@@ -90,20 +90,58 @@ crumbs/
 ├── pkg/types/           # Public API: interfaces and types
 ├── internal/sqlite/     # SQLite backend implementation
 ├── docs/                # Documentation (VISION, ARCHITECTURE, PRDs)
-├── magefiles/           # Mage build targets (build, test, measure, stitch, generate)
+├── magefiles/           # Mage build targets
+├── .beads/              # Beads issue tracker (managed by bd CLI)
+├── .cobbler/            # Cobbler scratch directory (gitignored)
+├── .secrets/            # Claude credentials (gitignored)
 └── .claude/             # Claude Code configuration
 ```
+
+## Mage Targets
+
+The build system uses [Mage](https://magefile.org). Targets are organized into namespaces.
+
+```bash
+# Top-level
+mage init                # Initialize project state (beads)
+mage reset               # Full reset: cobbler, generator, beads
+mage build               # Compile Go binary + build container image
+mage clean               # Remove build artifacts + container image
+mage install             # Build and copy binary to GOPATH/bin
+mage stats               # Print Go LOC and documentation word counts
+
+# Generator (code generation lifecycle)
+mage generator:start     # Tag main, create generation branch, delete Go sources
+mage generator:run       # Run measure/stitch cycles on the generation branch
+mage generator:stop      # Merge generation branch into main
+mage generator:list      # Show active and past generations
+mage generator:switch    # Switch between generation branches
+mage generator:reset     # Remove generation branches, worktrees, Go sources
+
+# Cobbler (agent orchestration)
+mage cobbler:measure     # Propose new tasks via Claude
+mage cobbler:stitch      # Execute ready tasks via Claude in worktrees
+mage cobbler:reset       # Remove the .cobbler/ scratch directory
+
+# Beads (issue tracking)
+mage beads:init          # Initialize the beads database
+mage beads:reset         # Destroy and reinitialize the beads database
+
+# Testing
+mage test:unit           # Run unit tests
+mage test:integration    # Build, then run integration tests
+mage test:all            # Run all tests
+mage test:docker         # Smoke test: build image, run Claude with "Hello World"
+mage lint                # Run golangci-lint
+```
+
+Use `mage -h <target>` to see help for a specific target (e.g. `mage -h cobbler:measure`).
 
 ## Docker
 
 The Dockerfile lives in `magefiles/` and is built automatically by `mage build` when a container runtime (podman or docker) is available.
 
-```bash
-mage build    # compiles Go binary + builds container image
-mage clean    # removes build artifacts + container image
-```
-
-The image includes Go, Claude Code, Mage, Beads (`bd`), and golangci-lint. Mage auto-detects the runtime in this order: podman, docker, direct claude binary.
+The image includes Go, Claude Code, Mage, Beads (`bd`), and golangci-lint. Mage auto-detects the runtime in this order: podman, docker, direct claude binary. Use `--no-container` on cobbler targets to bypass container detection and run the local `claude` binary directly.
 
 ### Authentication
 
@@ -129,7 +167,7 @@ Token files use the `claudeAiOauth` format that Claude Code writes during `claud
 ### Running a generation
 
 ```bash
-mage generator:run -- --cycles 3 --token-file claude.json
+mage generator:run --cycles 3 --token-file claude.json
 ```
 
 ### Smoke test

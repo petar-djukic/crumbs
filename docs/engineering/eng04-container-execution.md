@@ -16,6 +16,8 @@ Table 1 Runtime detection order
 
 A runtime that exists on PATH but cannot connect to its daemon (e.g. podman without a running machine) is skipped with a warning on stderr. When no container runtime is usable, `mage build` still compiles the Go binary and prints a warning; it does not fail.
 
+The `--no-container` flag on cobbler targets (`cobbler:measure`, `cobbler:stitch`, `generator:run`) bypasses container detection entirely and invokes the local `claude` binary directly. This is useful for development or when the container runtime is available but you prefer direct execution.
+
 ## Image Structure
 
 The image is defined in `magefiles/Dockerfile.claude` and uses a multi-stage build to keep the final image small.
