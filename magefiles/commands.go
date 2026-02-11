@@ -16,7 +16,8 @@ const (
 	beadsDir    = ".beads/"
 	modulePath  = "github.com/mesh-intelligence/crumbs"
 	genPrefix   = "generation-"
-	versionFile = "pkg/crumbs/version.go"
+	versionFile  = "pkg/crumbs/version.go"
+	cupboardMain = "cmd/cupboard/main.go"
 )
 
 // Flag names for cobbler targets.

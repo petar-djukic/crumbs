@@ -129,10 +129,13 @@ func (Generation) Cleanup() error {
 	}
 	os.RemoveAll("bin/")
 
-	// Seed version file and reinitialize go.mod.
-	fmt.Println("Seeding version file and reinitializing go.mod...")
+	// Seed minimal Go sources and reinitialize go.mod.
+	fmt.Println("Seeding Go sources and reinitializing go.mod...")
 	if err := seedVersionFile("dev"); err != nil {
 		return fmt.Errorf("seeding version file: %w", err)
+	}
+	if err := seedCupboardMain("dev"); err != nil {
+		return fmt.Errorf("seeding cupboard main: %w", err)
 	}
 	if err := reinitGoModule(); err != nil {
 		return fmt.Errorf("reinitializing go module: %w", err)
