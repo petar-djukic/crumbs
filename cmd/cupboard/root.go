@@ -3,10 +3,7 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
-
+	"github.com/mesh-intelligence/crumbs/internal/paths"
 	"github.com/mesh-intelligence/crumbs/pkg/crumbs"
 	"github.com/spf13/cobra"
 )
@@ -16,12 +13,6 @@ const (
 	exitSuccess   = 0
 	exitUserError = 1
 	exitSysError  = 2
-)
-
-// Default directory names per prd010-configuration-directories R1.2 and R2.2.
-const (
-	defaultConfigDirName = ".crumbs"
-	defaultDataDirName   = ".crumbs-db"
 )
 
 // Global flag values.
@@ -51,14 +42,14 @@ func init() {
 }
 
 // resolveDataDir returns the data directory path following prd010 R2.3 precedence:
-// --data-dir flag > config.yaml data_dir > default $(CWD)/.crumbs-db.
+// --data-dir flag > config.yaml data_dir > CRUMBS_DATA_DIR env > default $(CWD)/.crumbs-db.
+// The configYAMLValue parameter is empty until config.yaml loading is wired in.
 func resolveDataDir() (string, error) {
-	if flagDataDir != "" {
-		return filepath.Abs(flagDataDir)
-	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("resolve data dir: %w", err)
-	}
-	return filepath.Join(cwd, defaultDataDirName), nil
+	return paths.ResolveDataDir(flagDataDir, "" /* configYAMLValue */)
+}
+
+// resolveConfigDir returns the configuration directory following prd010 R1.3 precedence:
+// --config-dir flag > CRUMBS_CONFIG_DIR env > DefaultConfigDir().
+func resolveConfigDir() (string, error) {
+	return paths.ResolveConfigDir(flagConfigDir)
 }
