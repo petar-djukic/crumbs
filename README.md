@@ -6,7 +6,7 @@ A storage system for work items with built-in support for exploratory work sessi
 
 This repository does not contain released application code. The deliverables are **requirements** (PRDs, use cases, architecture docs) and **build tooling** (mage targets). Application code is generated automatically by running `mage generator:start` followed by `mage generator:run`, which invokes Claude to produce Go source code from the specifications.
 
-Each completed generation is tagged and merged into main. To see past generations and their tags, run `mage generator:list --all`. To check out the code from a specific generation, use `git checkout <tag>` with one of the generation tags (e.g. `generation-2026-02-10-15-04-merged`).
+Each completed generation is tagged and merged into main. To see past generations and their tags, run `mage generator:list --all`. To check out the code from a specific generation, use `git checkout <tag>` with one of the generation tags (e.g. `generation-2026-02-10-15-04-30-merged`).
 
 ## Prerequisites
 
@@ -81,10 +81,10 @@ Flags for `generator:run`:
 mage generator:list --all
 
 # Check out a specific generation's code
-git checkout generation-2026-02-10-15-04-merged
+git checkout generation-2026-02-10-15-04-30-merged
 ```
 
-Generation tags follow the naming convention `generation-YYYY-MM-DD-HH-MM` with lifecycle suffixes:
+Generation tags follow the naming convention `generation-YYYY-MM-DD-HH-MM-SS` with lifecycle suffixes:
 
 | Suffix | Meaning |
 | ------ | ------- |

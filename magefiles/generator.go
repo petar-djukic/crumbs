@@ -184,7 +184,7 @@ func (Generator) Start() error {
 		return fmt.Errorf("switching to main: %w", err)
 	}
 
-	genName := genPrefix + time.Now().Format("2006-01-02-15-04")
+	genName := genPrefix + time.Now().Format("2006-01-02-15-04-05")
 	startTag := genName + "-start"
 
 	fmt.Println()
