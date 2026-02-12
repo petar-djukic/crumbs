@@ -160,7 +160,7 @@ func (b *Backend) Detach() error {
 // (prd002-sqlite-backend R12.1, R12.4).
 func buildTables(b *Backend) map[string]types.Table {
 	return map[string]types.Table{
-		types.TableCrumbs:     &tableAccessor{backend: b, tableName: types.TableCrumbs},
+		types.TableCrumbs:     &crumbsTable{backend: b},
 		types.TableTrails:     &tableAccessor{backend: b, tableName: types.TableTrails},
 		types.TableProperties: &tableAccessor{backend: b, tableName: types.TableProperties},
 		types.TableMetadata:   &tableAccessor{backend: b, tableName: types.TableMetadata},
