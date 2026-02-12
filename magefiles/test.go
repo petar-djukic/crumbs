@@ -460,6 +460,10 @@ func (Test) Resume() error {
 		return fmt.Errorf("expected at least 1 issue, got %d", issueCount)
 	}
 
+	logf("test:resume: committing state before switching to main")
+	_ = gitStageAll()
+	_ = gitCommit("WIP: save generation state before interruption")
+
 	logf("test:resume: switching to main (simulating interruption)")
 	if err := gitCheckout("main"); err != nil {
 		return fmt.Errorf("switching to main: %w", err)
