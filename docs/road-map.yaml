@@ -38,10 +38,10 @@ releases:
         status: done
       - id: rel01.0-uc004-scaffolding-validation
         summary: Types, interfaces, and CLI compile; version command works; all tables accessible
-        status: done
+        status: not_started
       - id: rel01.0-uc005-crumbs-table-benchmarks
         summary: Benchmark crumbs Table operations (Get, Set, Delete, Fetch) at various scales
-        status: done
+        status: not_started
 
   - version: "01.1"
     name: Post-Core Validation
@@ -53,7 +53,7 @@ releases:
         status: not_started
       - id: rel01.1-uc002-jsonl-git-roundtrip
         summary: JSONL persistence survives database deletion
-        status: done
+        status: not_started
       - id: rel01.1-uc003-configuration-loading
         summary: "Config loading pipeline: platform defaults, env overrides, flag overrides, config.yaml lifecycle"
         status: done
@@ -92,13 +92,13 @@ releases:
         status: not_started
       - id: rel02.1-uc002-table-benchmarks
         summary: Benchmark Table operations at scale
-        status: done
+        status: not_started
       - id: rel02.1-uc003-self-hosting
         summary: Crumbs tracks its own development
-        status: done
+        status: not_started
       - id: rel02.1-uc004-metadata-lifecycle
         summary: "Metadata CRUD: comments, attachments, filtering, cascade delete"
-        status: done
+        status: not_started
 
   - version: "03.0"
     name: Trails and Stashes
@@ -115,10 +115,10 @@ releases:
         status: not_started
       - id: rel03.0-uc002-link-management
         summary: "Link CRUD: belongs_to, child_of, branches_from, scoped_to with graph queries"
-        status: done
+        status: not_started
       - id: rel03.0-uc003-stash-operations
         summary: "Stash system: value ops, counters, locks, versioning, history"
-        status: done
+        status: not_started
       - id: rel03.0-uc004-trail-crumb-lifecycle
         summary: "Trail-crumb lifecycle: container semantics, completion makes permanent, abandon cascades deletion"
         status: not_started
