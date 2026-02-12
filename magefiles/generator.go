@@ -342,7 +342,7 @@ func listGenerationBranches() []string {
 }
 
 // tagSuffixes lists the lifecycle tag suffixes in order.
-var tagSuffixes = []string{"-start", "-finished", "-merged", "-incomplete"}
+var tagSuffixes = []string{"-start", "-finished", "-merged", "-abandoned"}
 
 // generationName strips the lifecycle suffix from a tag to recover
 // the generation name. Returns the tag unchanged if no suffix matches.
@@ -357,7 +357,7 @@ func generationName(tag string) string {
 
 // cleanupUnmergedTags renames tags for generations that were never
 // merged. Each unmerged -start or -finished tag becomes a single
-// -incomplete tag so the generation remains discoverable in
+// -abandoned tag so the generation remains discoverable in
 // generator:list --all without cluttering the default view.
 func cleanupUnmergedTags() {
 	tags := gitListTags(genPrefix + "*")
@@ -373,7 +373,7 @@ func cleanupUnmergedTags() {
 		}
 	}
 
-	// For unmerged generations, replace all tags with a single -incomplete tag.
+	// For unmerged generations, replace all tags with a single -abandoned tag.
 	marked := make(map[string]bool)
 	for _, t := range tags {
 		name := generationName(t)
@@ -382,10 +382,10 @@ func cleanupUnmergedTags() {
 		}
 		if !marked[name] {
 			marked[name] = true
-			incTag := name + "-incomplete"
-			if t != incTag {
-				logf("generator:reset: marking incomplete: %s -> %s", t, incTag)
-				_ = gitRenameTag(t, incTag)
+			abTag := name + "-abandoned"
+			if t != abTag {
+				logf("generator:reset: marking abandoned: %s -> %s", t, abTag)
+				_ = gitRenameTag(t, abTag)
 			}
 		} else {
 			logf("generator:reset: removing tag %s", t)
@@ -433,15 +433,15 @@ func ensureOnBranch(branch string) error {
 
 // List shows active branches and past generations discoverable
 // through tags. By default only active branches and merged
-// generations are shown. Use --all to include incomplete generations.
+// generations are shown. Use --all to include abandoned generations.
 //
 // Flags:
 //
-//	--all    show all generations including incomplete
+//	--all    show all generations including abandoned
 func (Generator) List() error {
 	var showAll bool
 	fs := flag.NewFlagSet("generator:list", flag.ContinueOnError)
-	fs.BoolVar(&showAll, "all", false, "show all generations including incomplete")
+	fs.BoolVar(&showAll, "all", false, "show all generations including abandoned")
 	parseTargetFlags(fs)
 
 	branches := listGenerationBranches()
@@ -478,12 +478,13 @@ func (Generator) List() error {
 	for _, name := range names {
 		isActive := branchSet[name]
 		isMerged := tagSet[name+"-merged"]
-		isIncomplete := tagSet[name+"-incomplete"]
+		isAbandoned := tagSet[name+"-abandoned"]
 
 		// Default view: active branches and merged generations only.
 		if !showAll && !isActive && !isMerged {
 			continue
 		}
+
 
 		marker := " "
 		if name == current {
@@ -504,8 +505,8 @@ func (Generator) List() error {
 			} else {
 				fmt.Printf("%s %s  (active)\n", marker, name)
 			}
-		} else if isIncomplete {
-			fmt.Printf("%s %s  (incomplete)\n", marker, name)
+		} else if isAbandoned {
+			fmt.Printf("%s %s  (abandoned)\n", marker, name)
 		} else {
 			fmt.Printf("%s %s  (tags: %s)\n", marker, name, strings.Join(lifecycle, ", "))
 		}
@@ -513,7 +514,7 @@ func (Generator) List() error {
 	}
 
 	if shown == 0 {
-		fmt.Println("No generations found. Use --all to show incomplete generations.")
+		fmt.Println("No generations found. Use --all to show abandoned generations.")
 	}
 	return nil
 }
