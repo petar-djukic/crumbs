@@ -50,10 +50,10 @@ releases:
     use_cases:
       - id: rel01.1-uc001-go-install
         summary: Install cupboard CLI via go install
-        status: not_started
+        status: done
       - id: rel01.1-uc002-jsonl-git-roundtrip
         summary: JSONL persistence survives database deletion
-        status: not_started
+        status: done
       - id: rel01.1-uc003-configuration-loading
         summary: "Config loading pipeline: platform defaults, env overrides, flag overrides, config.yaml lifecycle"
         status: done
