@@ -10,10 +10,27 @@ import (
 	"time"
 )
 
-// logf prints a timestamped log line to stderr.
+// currentGeneration holds the active generation name. When set, logf
+// includes it right after the timestamp so every log line within a
+// generation is tagged automatically.
+var currentGeneration string
+
+// setGeneration sets the active generation name for log tagging.
+func setGeneration(name string) { currentGeneration = name }
+
+// clearGeneration removes the generation tag from subsequent log lines.
+func clearGeneration() { currentGeneration = "" }
+
+// logf prints a timestamped log line to stderr. When currentGeneration
+// is set, the generation name appears right after the timestamp.
 func logf(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
-	fmt.Fprintf(os.Stderr, "[%s] %s\n", time.Now().Format(time.RFC3339), msg)
+	ts := time.Now().Format(time.RFC3339)
+	if currentGeneration != "" {
+		fmt.Fprintf(os.Stderr, "[%s] [%s] %s\n", ts, currentGeneration, msg)
+	} else {
+		fmt.Fprintf(os.Stderr, "[%s] %s\n", ts, msg)
+	}
 }
 
 // cobblerConfig holds options shared by measure and stitch targets.
