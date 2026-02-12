@@ -57,8 +57,15 @@ func Init() error {
 
 // Reset runs cobbler:reset, generator:reset, and beads:reset in order.
 // Each tool only cleans its own artifacts; this target orchestrates them.
+// Intermediate commits from sub-resets are squashed into a single commit
+// so main stays clean when recovering from failed generations.
 func Reset() error {
 	logf("reset: full reset starting (cobbler, generator, beads)")
+
+	startSHA, err := gitRevParseHEAD()
+	if err != nil {
+		return fmt.Errorf("getting HEAD: %w", err)
+	}
 
 	if err := (Cobbler{}).Reset(); err != nil {
 		return fmt.Errorf("cobbler reset: %w", err)
@@ -69,6 +76,14 @@ func Reset() error {
 	if err := (Beads{}).Reset(); err != nil {
 		return fmt.Errorf("beads reset: %w", err)
 	}
+
+	// Squash all intermediate commits into one.
+	logf("reset: squashing intermediate commits")
+	if err := gitResetSoft(startSHA); err != nil {
+		return fmt.Errorf("squashing reset commits: %w", err)
+	}
+	_ = gitStageAll()
+	_ = gitCommit("Reset to clean state")
 
 	logf("reset: full reset complete")
 	return nil

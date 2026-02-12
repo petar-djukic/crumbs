@@ -195,6 +195,12 @@ func (Generator) Start() error {
 		return fmt.Errorf("creating branch: %w", err)
 	}
 
+	// Record branch point so intermediate commits can be squashed.
+	branchSHA, err := gitRevParseHEAD()
+	if err != nil {
+		return fmt.Errorf("getting branch HEAD: %w", err)
+	}
+
 	// Reset beads database and reinitialize with generation prefix.
 	if err := beadsReset(); err != nil {
 		return fmt.Errorf("resetting beads: %w", err)
@@ -209,10 +215,13 @@ func (Generator) Start() error {
 		return fmt.Errorf("resetting Go sources: %w", err)
 	}
 
-	// Commit the clean state.
-	logf("generator:start: committing clean state")
+	// Squash intermediate commits (beads reset/init) into one clean commit.
+	logf("generator:start: squashing into single commit")
+	if err := gitResetSoft(branchSHA); err != nil {
+		return fmt.Errorf("squashing start commits: %w", err)
+	}
 	_ = gitStageAll()
-	msg := fmt.Sprintf("Start generation: %s\n\nDelete Go files, reinitialize module.\nTagged previous state as %s.", genName, genName)
+	msg := fmt.Sprintf("Start generation: %s\n\nDelete Go files, reinitialize module, initialize beads.\nTagged previous state as %s.", genName, genName)
 	if err := gitCommit(msg); err != nil {
 		return fmt.Errorf("committing clean state: %w", err)
 	}

@@ -117,6 +117,18 @@ func gitCommitAllowEmpty(msg string) error {
 	return exec.Command(binGit, "commit", "-m", msg, "--allow-empty").Run()
 }
 
+func gitRevParseHEAD() (string, error) {
+	out, err := exec.Command(binGit, "rev-parse", "HEAD").Output()
+	if err != nil {
+		return "", err
+	}
+	return string(out[:len(out)-1]), nil
+}
+
+func gitResetSoft(ref string) error {
+	return exec.Command(binGit, "reset", "--soft", ref).Run()
+}
+
 func gitMergeCmd(branch string) *exec.Cmd {
 	return exec.Command(binGit, "merge", branch, "--no-edit")
 }
