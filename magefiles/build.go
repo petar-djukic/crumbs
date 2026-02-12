@@ -58,11 +58,7 @@ func Init() error {
 // Reset runs cobbler:reset, generator:reset, and beads:reset in order.
 // Each tool only cleans its own artifacts; this target orchestrates them.
 func Reset() error {
-	fmt.Println()
-	fmt.Println("========================================")
-	fmt.Println("Full reset: cobbler, generator, beads")
-	fmt.Println("========================================")
-	fmt.Println()
+	logf("reset: full reset starting (cobbler, generator, beads)")
 
 	if err := (Cobbler{}).Reset(); err != nil {
 		return fmt.Errorf("cobbler reset: %w", err)
@@ -74,7 +70,7 @@ func Reset() error {
 		return fmt.Errorf("beads reset: %w", err)
 	}
 
-	fmt.Println("Full reset complete.")
+	logf("reset: full reset complete")
 	return nil
 }
 
