@@ -62,7 +62,7 @@ releases:
         status: done
       - id: rel01.1-uc005-flat-self-hosting
         summary: "Self-hosting with flat crumbs only: no properties, no trails, no epics"
-        status: not_started
+        status: done
 
   - version: "02.0"
     name: Properties with Enforcement
