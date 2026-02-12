@@ -139,38 +139,25 @@ func (Generator) Resume() error {
 // runCycles runs N measure+stitch cycles with the given config.
 // The label parameter identifies the caller for log messages.
 func runCycles(cfg runConfig, label string) error {
+	gen := cfg.generationBranch
 	mCfg := measureConfig{cobblerConfig: cfg.cobblerConfig}
 	sCfg := stitchConfig{cobblerConfig: cfg.cobblerConfig}
 
-	fmt.Println()
-	fmt.Println("========================================")
-	fmt.Printf("Generator %s: %d cycle(s), %d issues per cycle\n", label, cfg.cycles, cfg.maxIssues)
-	fmt.Println("========================================")
-	fmt.Println()
+	logf("generator %s [%s]: starting %d cycle(s), %d issues per cycle", label, gen, cfg.cycles, cfg.maxIssues)
 
 	for cycle := 1; cycle <= cfg.cycles; cycle++ {
-		fmt.Println()
-		fmt.Println("========================================")
-		fmt.Printf("Cycle %d of %d\n", cycle, cfg.cycles)
-		fmt.Println("========================================")
-		fmt.Println()
-
-		fmt.Println("--- measure ---")
+		logf("generator %s [%s]: cycle %d/%d — measure", label, gen, cycle, cfg.cycles)
 		if err := measure(mCfg); err != nil {
 			return fmt.Errorf("cycle %d measure: %w", cycle, err)
 		}
 
-		fmt.Println()
-		fmt.Println("--- stitch ---")
+		logf("generator %s [%s]: cycle %d/%d — stitch", label, gen, cycle, cfg.cycles)
 		if err := stitch(sCfg); err != nil {
 			return fmt.Errorf("cycle %d stitch: %w", cycle, err)
 		}
 	}
 
-	fmt.Println()
-	fmt.Println("========================================")
-	fmt.Printf("Generator %s complete. Ran %d cycle(s).\n", label, cfg.cycles)
-	fmt.Println("========================================")
+	logf("generator %s [%s]: complete, ran %d cycle(s)", label, gen, cfg.cycles)
 	return nil
 }
 
@@ -187,20 +174,16 @@ func (Generator) Start() error {
 	genName := genPrefix + time.Now().Format("2006-01-02-15-04-05")
 	startTag := genName + "-start"
 
-	fmt.Println()
-	fmt.Println("========================================")
-	fmt.Printf("Starting generator: %s\n", genName)
-	fmt.Println("========================================")
-	fmt.Println()
+	logf("generator:start [%s]: beginning", genName)
 
 	// Tag current main state before the generation begins.
-	fmt.Printf("Tagging current state as %s...\n", startTag)
+	logf("generator:start [%s]: tagging current state as %s", genName, startTag)
 	if err := gitTag(startTag); err != nil {
 		return fmt.Errorf("tagging main: %w", err)
 	}
 
 	// Create and switch to generation branch.
-	fmt.Printf("Creating branch %s...\n", genName)
+	logf("generator:start [%s]: creating branch", genName)
 	if err := gitCheckoutNew(genName); err != nil {
 		return fmt.Errorf("creating branch: %w", err)
 	}
@@ -214,23 +197,20 @@ func (Generator) Start() error {
 	}
 
 	// Reset Go sources and reinitialize module.
-	fmt.Println("Resetting Go sources...")
+	logf("generator:start [%s]: resetting Go sources", genName)
 	if err := resetGoSources(genName); err != nil {
 		return fmt.Errorf("resetting Go sources: %w", err)
 	}
 
 	// Commit the clean state.
-	fmt.Println("Committing clean state...")
+	logf("generator:start [%s]: committing clean state", genName)
 	_ = gitStageAll()
 	msg := fmt.Sprintf("Start generation: %s\n\nDelete Go files, reinitialize module.\nTagged previous state as %s.", genName, genName)
 	if err := gitCommit(msg); err != nil {
 		return fmt.Errorf("committing clean state: %w", err)
 	}
 
-	fmt.Println()
-	fmt.Printf("Generator started on branch %s.\n", genName)
-	fmt.Println("Run mage generator:run to begin building.")
-	fmt.Println()
+	logf("generator:start [%s]: done, run mage generator:run to begin building", genName)
 	return nil
 }
 
@@ -265,7 +245,7 @@ func (Generator) Stop() error {
 		}
 		if strings.HasPrefix(current, genPrefix) {
 			branch = current
-			fmt.Printf("Warning: stopping current branch %s\n", branch)
+			logf("generator:stop: stopping current branch %s", branch)
 		} else {
 			resolved, err := resolveBranch("")
 			if err != nil {
@@ -281,23 +261,19 @@ func (Generator) Stop() error {
 
 	finishedTag := branch + "-finished"
 
-	fmt.Println()
-	fmt.Println("========================================")
-	fmt.Printf("Stopping generator: %s\n", branch)
-	fmt.Println("========================================")
-	fmt.Println()
+	logf("generator:stop [%s]: beginning", branch)
 
 	// Switch to the generation branch and tag its final state.
 	if err := ensureOnBranch(branch); err != nil {
 		return fmt.Errorf("switching to generation branch: %w", err)
 	}
-	fmt.Printf("Tagging generation as %s...\n", finishedTag)
+	logf("generator:stop [%s]: tagging as %s", branch, finishedTag)
 	if err := gitTag(finishedTag); err != nil {
 		return fmt.Errorf("tagging generation: %w", err)
 	}
 
 	// Switch to main.
-	fmt.Println("Switching to main...")
+	logf("generator:stop [%s]: switching to main", branch)
 	if err := gitCheckout("main"); err != nil {
 		return fmt.Errorf("checking out main: %w", err)
 	}
@@ -306,16 +282,14 @@ func (Generator) Stop() error {
 		return err
 	}
 
-	fmt.Println()
-	fmt.Println("Generator stopped. Work is on main.")
-	fmt.Println()
+	logf("generator:stop [%s]: done, work is on main", branch)
 	return nil
 }
 
 // mergeGenerationIntoMain resets Go sources, commits the clean state,
 // merges the generation branch, tags the result, and deletes the branch.
 func mergeGenerationIntoMain(branch string) error {
-	fmt.Println("Resetting Go sources on main...")
+	logf("generator:stop [%s]: resetting Go sources on main", branch)
 	_ = resetGoSources(branch)
 
 	_ = gitStageAll()
@@ -324,7 +298,7 @@ func mergeGenerationIntoMain(branch string) error {
 		return fmt.Errorf("committing prepare step: %w", err)
 	}
 
-	fmt.Printf("Merging %s into main...\n", branch)
+	logf("generator:stop [%s]: merging into main", branch)
 	cmd := gitMergeCmd(branch)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -333,12 +307,12 @@ func mergeGenerationIntoMain(branch string) error {
 	}
 
 	mainTag := branch + "-merged"
-	fmt.Printf("Tagging main as %s...\n", mainTag)
+	logf("generator:stop [%s]: tagging main as %s", branch, mainTag)
 	if err := gitTag(mainTag); err != nil {
 		return fmt.Errorf("tagging merge: %w", err)
 	}
 
-	fmt.Printf("Deleting branch %s...\n", branch)
+	logf("generator:stop [%s]: deleting branch", branch)
 	_ = gitDeleteBranch(branch)
 	return nil
 }
@@ -391,11 +365,11 @@ func cleanupUnmergedTags() {
 			marked[name] = true
 			incTag := name + "-incomplete"
 			if t != incTag {
-				fmt.Printf("  Marking incomplete: %s -> %s\n", t, incTag)
+				logf("generator:reset: marking incomplete: %s -> %s", t, incTag)
 				_ = gitRenameTag(t, incTag)
 			}
 		} else {
-			fmt.Printf("  Removing tag: %s\n", t)
+			logf("generator:reset: removing tag %s", t)
 			_ = gitDeleteTag(t)
 		}
 	}
@@ -434,7 +408,7 @@ func ensureOnBranch(branch string) error {
 	if current == branch {
 		return nil
 	}
-	fmt.Printf("Switching to branch %s...\n", branch)
+	logf("ensureOnBranch: switching from %s to %s", current, branch)
 	return gitCheckout(branch)
 }
 
@@ -555,7 +529,7 @@ func (Generator) Switch() error {
 		return fmt.Errorf("getting current branch: %w", err)
 	}
 	if current == target {
-		fmt.Printf("Already on %s\n", target)
+		logf("generator:switch: already on %s", target)
 		return nil
 	}
 
@@ -569,12 +543,12 @@ func (Generator) Switch() error {
 		_ = gitUnstageAll()
 	}
 
-	fmt.Printf("Switching from %s to %s...\n", current, target)
+	logf("generator:switch: %s -> %s", current, target)
 	if err := gitCheckout(target); err != nil {
 		return fmt.Errorf("switching to %s: %w", target, err)
 	}
 
-	fmt.Printf("Now on %s\n", target)
+	logf("generator:switch: now on %s", target)
 	return nil
 }
 
@@ -582,11 +556,7 @@ func (Generator) Switch() error {
 // Generation tags are preserved so past generations remain discoverable.
 // Does not touch cobbler or beads; use top-level reset for a full wipe.
 func (Generator) Reset() error {
-	fmt.Println()
-	fmt.Println("========================================")
-	fmt.Println("Generator reset: returning to clean state")
-	fmt.Println("========================================")
-	fmt.Println()
+	logf("generator:reset: beginning")
 
 	// Must be on main before deleting other branches.
 	if err := ensureOnBranch("main"); err != nil {
@@ -597,7 +567,7 @@ func (Generator) Reset() error {
 	wtBase := worktreeBasePath()
 	genBranches := listGenerationBranches()
 	if len(genBranches) > 0 {
-		fmt.Println("Removing task branches and worktrees...")
+		logf("generator:reset: removing task branches and worktrees")
 		for _, gb := range genBranches {
 			recoverStaleBranches(gb, wtBase)
 		}
@@ -606,14 +576,14 @@ func (Generator) Reset() error {
 	_ = gitWorktreePrune()
 
 	if _, err := os.Stat(wtBase); err == nil {
-		fmt.Printf("Removing worktree directory: %s\n", wtBase)
+		logf("generator:reset: removing worktree directory %s", wtBase)
 		os.RemoveAll(wtBase)
 	}
 
 	if len(genBranches) > 0 {
-		fmt.Println("Removing generation branches...")
+		logf("generator:reset: removing %d generation branch(es)", len(genBranches))
 		for _, gb := range genBranches {
-			fmt.Printf("  Deleting branch: %s\n", gb)
+			logf("generator:reset: deleting branch %s", gb)
 			_ = gitForceDeleteBranch(gb)
 		}
 	}
@@ -623,14 +593,14 @@ func (Generator) Reset() error {
 	// remains discoverable via generator:list.
 	cleanupUnmergedTags()
 
-	fmt.Println("Removing Go source directories...")
+	logf("generator:reset: removing Go source directories")
 	for _, dir := range goSourceDirs {
-		fmt.Printf("  Removing %s\n", dir)
+		logf("generator:reset: removing %s", dir)
 		os.RemoveAll(dir)
 	}
 	os.RemoveAll("bin/")
 
-	fmt.Println("Seeding Go sources and reinitializing go.mod...")
+	logf("generator:reset: seeding Go sources and reinitializing go.mod")
 	if err := seedVersionFile("main"); err != nil {
 		return fmt.Errorf("seeding version file: %w", err)
 	}
@@ -641,15 +611,13 @@ func (Generator) Reset() error {
 		return fmt.Errorf("reinitializing go module: %w", err)
 	}
 
-	fmt.Println("Committing clean state...")
+	logf("generator:reset: committing clean state")
 	_ = gitStageAll()
 	// Commit may fail when the tree is already in the seeded state
 	// (e.g. running reset twice). That is not an error.
 	_ = gitCommit("Generator reset: return to clean state")
 
-	fmt.Println()
-	fmt.Println("Reset complete. Only main branch remains.")
-	fmt.Println()
+	logf("generator:reset: done, only main branch remains")
 	return nil
 }
 
