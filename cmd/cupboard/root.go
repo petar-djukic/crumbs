@@ -61,6 +61,8 @@ func init() {
 	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(closeCmd)
 	rootCmd.AddCommand(commentsCmd)
+	rootCmd.AddCommand(readyCmd)
+	rootCmd.AddCommand(showCmd)
 }
 
 // resolveDataDir returns the data directory path following prd010 R2.3 precedence:
