@@ -115,10 +115,10 @@ releases:
         status: done
       - id: rel03.0-uc002-link-management
         summary: "Link CRUD: belongs_to, child_of, branches_from, scoped_to with graph queries"
-        status: not_started
+        status: done
       - id: rel03.0-uc003-stash-operations
         summary: "Stash system: value ops, counters, locks, versioning, history"
-        status: not_started
+        status: done
       - id: rel03.0-uc004-trail-crumb-lifecycle
         summary: "Trail-crumb lifecycle: container semantics, completion makes permanent, abandon cascades deletion"
         status: done
