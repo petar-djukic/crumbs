@@ -138,6 +138,16 @@ func (Generator) Resume() error {
 	cobblerReset()
 
 	cfg.generationBranch = branch
+
+	// Drain existing ready issues before starting measure+stitch cycles.
+	// After an interruption there are typically ready issues left over
+	// that should be stitched before measuring proposes new ones.
+	sCfg := stitchConfig{cobblerConfig: cfg.cobblerConfig}
+	logf("resume: draining existing ready issues")
+	if err := stitch(sCfg); err != nil {
+		logf("resume: drain stitch warning: %v", err)
+	}
+
 	return runCycles(cfg, "resume")
 }
 
