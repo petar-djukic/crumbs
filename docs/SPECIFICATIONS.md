@@ -17,7 +17,7 @@ Table 1 Roadmap Summary
 | 02.0 | Properties with Enforcement | 2 / 2 | done |
 | 02.1 | Issue-Tracking and Self-Hosting | 4 / 4 | done |
 | 03.0 | Trails and Stashes | 4 / 4 | done |
-| 03.1 | Post-Trails Validation | 0 / 1 | not started |
+| 03.1 | Post-Trails Validation | 1 / 1 | done |
 | 99.0 | Unscheduled | 0 / 2 | not started |
 
 ## PRD Index
@@ -63,7 +63,7 @@ Table 3 Use Case Index
 | [rel03.0-uc002-link-management](specs/use-cases/rel03.0-uc002-link-management.yaml) | Link Management | 03.0 | done | [test-rel03.0-uc002-link-management](specs/test-suites/test-rel03.0-uc002-link-management.yaml) |
 | [rel03.0-uc003-stash-operations](specs/use-cases/rel03.0-uc003-stash-operations.yaml) | Stash Operations | 03.0 | done | [test-rel03.0-uc003-stash-operations](specs/test-suites/test-rel03.0-uc003-stash-operations.yaml) |
 | [rel03.0-uc004-trail-crumb-lifecycle](specs/use-cases/rel03.0-uc004-trail-crumb-lifecycle.yaml) | Trail-Crumb Lifecycle Control | 03.0 | done | [test-rel03.0-uc004-trail-crumb-lifecycle](specs/test-suites/test-rel03.0-uc004-trail-crumb-lifecycle.yaml) |
-| [rel03.1-uc001-self-hosting-with-epics](specs/use-cases/rel03.1-uc001-self-hosting-with-epics.yaml) | Self-Hosting with Epics via Trails | 03.1 | not started | [test-rel03.1-uc001-self-hosting-with-epics](specs/test-suites/test-rel03.1-uc001-self-hosting-with-epics.yaml) |
+| [rel03.1-uc001-self-hosting-with-epics](specs/use-cases/rel03.1-uc001-self-hosting-with-epics.yaml) | Self-Hosting with Epics via Trails | 03.1 | done | [test-rel03.1-uc001-self-hosting-with-epics](specs/test-suites/test-rel03.1-uc001-self-hosting-with-epics.yaml) |
 | [rel99.0-uc001-blazes-templates](specs/use-cases/rel99.0-uc001-blazes-templates.yaml) | Agent Uses Blazes (Workflow Templates) | 99.0 | not started | [test-rel99.0-uc001-blazes-templates](specs/test-suites/test-rel99.0-uc001-blazes-templates.yaml) |
 | [rel99.0-uc002-docker-bootstrap](specs/use-cases/rel99.0-uc002-docker-bootstrap.yaml) | Docker Bootstrap (Docs to Working System) | 99.0 | not started | [test-rel99.0-uc002-docker-bootstrap](specs/test-suites/test-rel99.0-uc002-docker-bootstrap.yaml) |
 
