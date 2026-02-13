@@ -13,9 +13,9 @@ Table 1 Roadmap Summary
 | Release | Name | Use Cases (done / total) | Status |
 |---------|------|--------------------------|--------|
 | 01.0 | Core Storage with SQLite Backend | 5 / 5 | done |
-| 01.1 | Post-Core Validation | 3 / 5 | in progress |
-| 02.0 | Properties with Enforcement | 0 / 2 | not started |
-| 02.1 | Issue-Tracking and Self-Hosting | 3 / 4 | in progress |
+| 01.1 | Post-Core Validation | 5 / 5 | done |
+| 02.0 | Properties with Enforcement | 2 / 2 | done |
+| 02.1 | Issue-Tracking and Self-Hosting | 4 / 4 | done |
 | 03.0 | Trails and Stashes | 2 / 4 | in progress |
 | 03.1 | Post-Trails Validation | 0 / 1 | not started |
 | 99.0 | Unscheduled | 0 / 2 | not started |
@@ -48,14 +48,14 @@ Table 3 Use Case Index
 | [rel01.0-uc003-crumb-lifecycle](specs/use-cases/rel01.0-uc003-crumb-lifecycle.yaml) | Crumb Entity Operations | 01.0 | done | [test-rel01.0-uc003-crumb-lifecycle](specs/test-suites/test-rel01.0-uc003-crumb-lifecycle.yaml) |
 | [rel01.0-uc004-scaffolding-validation](specs/use-cases/rel01.0-uc004-scaffolding-validation.yaml) | Scaffolding Validation | 01.0 | done | [test-rel01.0-uc004-scaffolding-validation](specs/test-suites/test-rel01.0-uc004-scaffolding-validation.yaml) |
 | [rel01.0-uc005-crumbs-table-benchmarks](specs/use-cases/rel01.0-uc005-crumbs-table-benchmarks.yaml) | Crumbs Table Performance Benchmarks | 01.0 | done | [test-rel01.0-uc005-crumbs-table-benchmarks](specs/test-suites/test-rel01.0-uc005-crumbs-table-benchmarks.yaml) |
-| [rel01.1-uc001-go-install](specs/use-cases/rel01.1-uc001-go-install.yaml) | Go Install | 01.1 | not started | [test-rel01.1-uc001-go-install](specs/test-suites/test-rel01.1-uc001-go-install.yaml) |
+| [rel01.1-uc001-go-install](specs/use-cases/rel01.1-uc001-go-install.yaml) | Go Install | 01.1 | done | [test-rel01.1-uc001-go-install](specs/test-suites/test-rel01.1-uc001-go-install.yaml) |
 | [rel01.1-uc002-jsonl-git-roundtrip](specs/use-cases/rel01.1-uc002-jsonl-git-roundtrip.yaml) | JSONL Git Roundtrip | 01.1 | done | [test-rel01.1-uc002-jsonl-git-roundtrip](specs/test-suites/test-rel01.1-uc002-jsonl-git-roundtrip.yaml) |
 | [rel01.1-uc003-configuration-loading](specs/use-cases/rel01.1-uc003-configuration-loading.yaml) | Configuration and Path Resolution | 01.1 | done | [test-rel01.1-uc003-configuration-loading](specs/test-suites/test-rel01.1-uc003-configuration-loading.yaml) |
 | [rel01.1-uc004-generic-table-cli](specs/use-cases/rel01.1-uc004-generic-table-cli.yaml) | Generic Table CLI Operations | 01.1 | done | [test-rel01.1-uc004-generic-table-cli](specs/test-suites/test-rel01.1-uc004-generic-table-cli.yaml) |
-| [rel01.1-uc005-flat-self-hosting](specs/use-cases/rel01.1-uc005-flat-self-hosting.yaml) | Flat Self-Hosting | 01.1 | not started | [test-rel01.1-uc005-flat-self-hosting](specs/test-suites/test-rel01.1-uc005-flat-self-hosting.yaml) |
-| [rel02.0-uc001-property-enforcement](specs/use-cases/rel02.0-uc001-property-enforcement.yaml) | Property Enforcement | 02.0 | not started | [test-rel02.0-uc001-property-enforcement](specs/test-suites/test-rel02.0-uc001-property-enforcement.yaml) |
-| [rel02.0-uc002-regeneration-compatibility](specs/use-cases/rel02.0-uc002-regeneration-compatibility.yaml) | Regeneration Compatibility | 02.0 | not started | [test-rel02.0-uc002-regeneration-compatibility](specs/test-suites/test-rel02.0-uc002-regeneration-compatibility.yaml) |
-| [rel02.1-uc001-issue-tracking-cli](specs/use-cases/rel02.1-uc001-issue-tracking-cli.yaml) | Issue-Tracking CLI | 02.1 | not started | [test-rel02.1-uc001-issue-tracking-cli](specs/test-suites/test-rel02.1-uc001-issue-tracking-cli.yaml) |
+| [rel01.1-uc005-flat-self-hosting](specs/use-cases/rel01.1-uc005-flat-self-hosting.yaml) | Flat Self-Hosting | 01.1 | done | [test-rel01.1-uc005-flat-self-hosting](specs/test-suites/test-rel01.1-uc005-flat-self-hosting.yaml) |
+| [rel02.0-uc001-property-enforcement](specs/use-cases/rel02.0-uc001-property-enforcement.yaml) | Property Enforcement | 02.0 | done | [test-rel02.0-uc001-property-enforcement](specs/test-suites/test-rel02.0-uc001-property-enforcement.yaml) |
+| [rel02.0-uc002-regeneration-compatibility](specs/use-cases/rel02.0-uc002-regeneration-compatibility.yaml) | Regeneration Compatibility | 02.0 | done | [test-rel02.0-uc002-regeneration-compatibility](specs/test-suites/test-rel02.0-uc002-regeneration-compatibility.yaml) |
+| [rel02.1-uc001-issue-tracking-cli](specs/use-cases/rel02.1-uc001-issue-tracking-cli.yaml) | Issue-Tracking CLI | 02.1 | done | [test-rel02.1-uc001-issue-tracking-cli](specs/test-suites/test-rel02.1-uc001-issue-tracking-cli.yaml) |
 | [rel02.1-uc002-table-benchmarks](specs/use-cases/rel02.1-uc002-table-benchmarks.yaml) | Table Benchmarks | 02.1 | done | [test-rel02.1-uc002-table-benchmarks](specs/test-suites/test-rel02.1-uc002-table-benchmarks.yaml) |
 | [rel02.1-uc003-self-hosting](specs/use-cases/rel02.1-uc003-self-hosting.yaml) | Self-Hosting | 02.1 | done | [test-rel02.1-uc003-self-hosting](specs/test-suites/test-rel02.1-uc003-self-hosting.yaml) |
 | [rel02.1-uc004-metadata-lifecycle](specs/use-cases/rel02.1-uc004-metadata-lifecycle.yaml) | Metadata Lifecycle Operations | 02.1 | done | [test-rel02.1-uc004-metadata-lifecycle](specs/test-suites/test-rel02.1-uc004-metadata-lifecycle.yaml) |
