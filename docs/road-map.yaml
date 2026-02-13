@@ -121,7 +121,7 @@ releases:
         status: not_started
       - id: rel03.0-uc004-trail-crumb-lifecycle
         summary: "Trail-crumb lifecycle: container semantics, completion makes permanent, abandon cascades deletion"
-        status: not_started
+        status: done
 
   - version: "03.1"
     name: Post-Trails Validation
