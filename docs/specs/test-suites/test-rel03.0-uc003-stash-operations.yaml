@@ -418,6 +418,61 @@ test_cases:
       state:
         result_count: 0
 
+  # --- S14, S15: History tracking ---
+
+  - name: History entry created for each mutation
+    description: Verify that stash history is recorded for each operation
+    inputs:
+      setup:
+        - Create context stash
+        - SetValue once
+        - SetValue again
+      command: |
+        stashesTable := backend.GetTable("stashes").(*sqlite.Table)
+        history, err := stashesTable.FetchStashHistory(stashID)
+    expected:
+      exit_code: 0
+      state:
+        history_entry_count: 3
+        operations: ["create", "set", "set"]
+
+  - name: History entries queryable by stash ID
+    description: Verify FetchStashHistory returns entries ordered by version
+    inputs:
+      setup:
+        - Create counter stash with value 0
+        - Increment by 5
+        - Increment by 3
+      command: |
+        stashesTable := backend.GetTable("stashes").(*sqlite.Table)
+        history, err := stashesTable.FetchStashHistory(stashID)
+    expected:
+      exit_code: 0
+      state:
+        history_entry_count: 3
+        operations: ["create", "increment", "increment"]
+        versions: [1, 2, 3]
+        ordered_by_version_asc: true
+
+  - name: History records operation details
+    description: Verify history entries contain version, value, operation, and timestamps
+    inputs:
+      setup:
+        - Create counter stash with value 0
+        - Increment by 10
+      command: |
+        stashesTable := backend.GetTable("stashes").(*sqlite.Table)
+        history, err := stashesTable.FetchStashHistory(stashID)
+    expected:
+      exit_code: 0
+      state:
+        entry_0_operation: create
+        entry_0_version: 1
+        entry_1_operation: increment
+        entry_1_version: 2
+        entry_1_value_counter: 10
+        all_entries_have_created_at: true
+
   # --- Full workflow test ---
 
   - name: Full stash operations workflow
