@@ -98,7 +98,7 @@ releases:
         status: not_started
       - id: rel02.1-uc004-metadata-lifecycle
         summary: "Metadata CRUD: comments, attachments, filtering, cascade delete"
-        status: not_started
+        status: done
 
   - version: "03.0"
     name: Trails and Stashes
