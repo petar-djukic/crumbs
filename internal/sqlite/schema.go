@@ -61,7 +61,7 @@ const (
     property_id TEXT,
     content TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    FOREIGN KEY (crumb_id) REFERENCES crumbs(crumb_id)
+    FOREIGN KEY (crumb_id) REFERENCES crumbs(crumb_id) ON DELETE CASCADE
 );`
 
 	createStashes = `CREATE TABLE stashes (
