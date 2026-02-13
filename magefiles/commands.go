@@ -85,6 +85,11 @@ func gitDeleteTag(name string) error {
 	return exec.Command(binGit, "tag", "-d", name).Run()
 }
 
+// gitTagAt creates a tag pointing at the given ref (commit, tag, or branch).
+func gitTagAt(name, ref string) error {
+	return exec.Command(binGit, "tag", name, ref).Run()
+}
+
 // gitRenameTag creates newName at the same commit as oldName, then
 // deletes oldName. Returns an error if the new tag cannot be created.
 func gitRenameTag(oldName, newName string) error {
