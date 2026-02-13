@@ -50,7 +50,7 @@ releases:
     use_cases:
       - id: rel01.1-uc001-go-install
         summary: Install cupboard CLI via go install
-        status: not_started
+        status: done
       - id: rel01.1-uc002-jsonl-git-roundtrip
         summary: JSONL persistence survives database deletion
         status: done
@@ -62,7 +62,7 @@ releases:
         status: done
       - id: rel01.1-uc005-flat-self-hosting
         summary: "Self-hosting with flat crumbs only: no properties, no trails, no epics"
-        status: not_started
+        status: done
 
   - version: "02.0"
     name: Properties with Enforcement
@@ -77,10 +77,10 @@ releases:
     use_cases:
       - id: rel02.0-uc001-property-enforcement
         summary: Define properties, auto-init, backfill
-        status: not_started
+        status: done
       - id: rel02.0-uc002-regeneration-compatibility
         summary: New generation reads and operates on previous generation's JSONL data
-        status: not_started
+        status: done
 
   - version: "02.1"
     name: Issue-Tracking and Self-Hosting
@@ -89,7 +89,7 @@ releases:
     use_cases:
       - id: rel02.1-uc001-issue-tracking-cli
         summary: Issue-tracking CLI commands for scripts
-        status: not_started
+        status: done
       - id: rel02.1-uc002-table-benchmarks
         summary: Benchmark Table operations at scale
         status: done
@@ -112,7 +112,7 @@ releases:
     use_cases:
       - id: rel03.0-uc001-trail-exploration
         summary: Create trails, add crumbs, complete/abandon
-        status: not_started
+        status: done
       - id: rel03.0-uc002-link-management
         summary: "Link CRUD: belongs_to, child_of, branches_from, scoped_to with graph queries"
         status: done
@@ -121,7 +121,7 @@ releases:
         status: done
       - id: rel03.0-uc004-trail-crumb-lifecycle
         summary: "Trail-crumb lifecycle: container semantics, completion makes permanent, abandon cascades deletion"
-        status: not_started
+        status: done
 
   - version: "03.1"
     name: Post-Trails Validation
@@ -130,7 +130,7 @@ releases:
     use_cases:
       - id: rel03.1-uc001-self-hosting-with-epics
         summary: "Self-hosting with trails as epics: group tasks, belongs_to links, complete/abandon lifecycle"
-        status: not_started
+        status: done
 
   - version: "99.0"
     name: Unscheduled

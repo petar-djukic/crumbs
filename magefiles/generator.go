@@ -138,6 +138,16 @@ func (Generator) Resume() error {
 	cobblerReset()
 
 	cfg.generationBranch = branch
+
+	// Drain existing ready issues before starting measure+stitch cycles.
+	// After an interruption there are typically ready issues left over
+	// that should be stitched before measuring proposes new ones.
+	sCfg := stitchConfig{cobblerConfig: cfg.cobblerConfig}
+	logf("resume: draining existing ready issues")
+	if err := stitch(sCfg); err != nil {
+		logf("resume: drain stitch warning: %v", err)
+	}
+
 	return runCycles(cfg, "resume")
 }
 
@@ -331,6 +341,24 @@ func mergeGenerationIntoMain(branch string) error {
 		return fmt.Errorf("tagging merge: %w", err)
 	}
 
+	// Create versioned tags on main for the requirements and code states.
+	if date := generationDate(branch); date != "" {
+		codeTag := "v" + date + "-code"
+		reqTag := "v" + date + "-requirements"
+
+		logf("generator:stop: tagging code as %s", codeTag)
+		if err := gitTag(codeTag); err != nil {
+			logf("generator:stop: code tag warning: %v", err)
+		}
+
+		// Requirements tag points at the -start commit (pre-generation main).
+		startTag := branch + "-start"
+		logf("generator:stop: tagging requirements as %s (at %s)", reqTag, startTag)
+		if err := gitTagAt(reqTag, startTag); err != nil {
+			logf("generator:stop: requirements tag warning: %v", err)
+		}
+	}
+
 	logf("generator:stop: deleting branch")
 	_ = gitDeleteBranch(branch)
 	return nil
@@ -343,6 +371,21 @@ func listGenerationBranches() []string {
 
 // tagSuffixes lists the lifecycle tag suffixes in order.
 var tagSuffixes = []string{"-start", "-finished", "-merged", "-abandoned"}
+
+// generationDate extracts the date portion (YYYY-MM-DD) from a
+// generation branch name like "generation-2026-02-12-07-13-55".
+// Returns "" if the name does not contain a parseable date.
+func generationDate(branch string) string {
+	rest := strings.TrimPrefix(branch, genPrefix)
+	if rest == branch {
+		return "" // no prefix match
+	}
+	// rest is "2026-02-12-07-13-55"; the date is the first 10 characters.
+	if len(rest) < 10 {
+		return ""
+	}
+	return rest[:10]
+}
 
 // generationName strips the lifecycle suffix from a tag to recover
 // the generation name. Returns the tag unchanged if no suffix matches.

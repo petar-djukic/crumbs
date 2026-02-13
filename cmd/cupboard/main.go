@@ -1,11 +1,11 @@
+// Entry point for the cupboard CLI.
+// Implements: prd009-cupboard-cli R1.1, R1.5.
 package main
 
-import (
-	"fmt"
-
-	"github.com/mesh-intelligence/crumbs/pkg/crumbs"
-)
+import "os"
 
 func main() {
-	fmt.Println("cupboard", crumbs.Version)
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(exitUserError)
+	}
 }

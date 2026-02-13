@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
@@ -82,6 +83,11 @@ func gitTag(name string) error {
 
 func gitDeleteTag(name string) error {
 	return exec.Command(binGit, "tag", "-d", name).Run()
+}
+
+// gitTagAt creates a tag pointing at the given ref (commit, tag, or branch).
+func gitTagAt(name, ref string) error {
+	return exec.Command(binGit, "tag", name, ref).Run()
 }
 
 // gitRenameTag creates newName at the same commit as oldName, then
@@ -239,6 +245,45 @@ func bdListClosedTasks() ([]byte, error) {
 
 func bdListReadyTasks() ([]byte, error) {
 	return exec.Command(binBd, "list", "--json", "--status", "ready", "--type", "task").Output()
+}
+
+func bdCommentAdd(id, comment string) error {
+	return exec.Command(binBd, "comments", "add", id, comment).Run()
+}
+
+// diffStat holds parsed output from git diff --shortstat.
+type diffStat struct {
+	FilesChanged int
+	Insertions   int
+	Deletions    int
+}
+
+// gitDiffShortstat runs git diff --shortstat against the given ref and
+// parses the output (e.g. "5 files changed, 100 insertions(+), 20 deletions(-)").
+func gitDiffShortstat(ref string) (diffStat, error) {
+	out, err := exec.Command(binGit, "diff", "--shortstat", ref).Output()
+	if err != nil {
+		return diffStat{}, err
+	}
+	return parseDiffShortstat(string(out)), nil
+}
+
+// parseDiffShortstat extracts file/insertion/deletion counts from
+// git diff --shortstat output.
+func parseDiffShortstat(s string) diffStat {
+	var ds diffStat
+	for _, part := range strings.Split(s, ",") {
+		part = strings.TrimSpace(part)
+		var n int
+		if _, err := fmt.Sscanf(part, "%d file", &n); err == nil {
+			ds.FilesChanged = n
+		} else if _, err := fmt.Sscanf(part, "%d insertion", &n); err == nil {
+			ds.Insertions = n
+		} else if _, err := fmt.Sscanf(part, "%d deletion", &n); err == nil {
+			ds.Deletions = n
+		}
+	}
+	return ds
 }
 
 // Go helpers.

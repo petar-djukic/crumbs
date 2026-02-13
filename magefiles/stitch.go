@@ -136,6 +136,7 @@ type stitchTask struct {
 	worktreeDir string
 }
 
+
 // recoverStaleTasks cleans up task branches and orphaned in_progress issues
 // from a previous interrupted run.
 func recoverStaleTasks(baseBranch, worktreeBase string) error {
@@ -313,17 +314,25 @@ func doOneTask(task stitchTask, baseBranch, repoRoot string, silence bool, token
 	}
 	logf("doOneTask: worktree created in %s", time.Since(wtStart).Round(time.Second))
 
+	// Snapshot LOC before Claude.
+	locBefore := captureLOC()
+	logf("doOneTask: locBefore prod=%d test=%d", locBefore.Production, locBefore.Test)
+
 	// Build and run prompt.
 	prompt := buildStitchPrompt(task)
 	logf("doOneTask: prompt built, length=%d bytes", len(prompt))
 
 	logf("doOneTask: invoking Claude for task %s", task.id)
 	claudeStart := time.Now()
-	if err := runClaude(prompt, task.worktreeDir, silence, tokenFile, noContainer); err != nil {
+	tokens, err := runClaude(prompt, task.worktreeDir, silence, tokenFile, noContainer)
+	if err != nil {
 		logf("doOneTask: Claude failed for %s after %s: %v", task.id, time.Since(claudeStart).Round(time.Second), err)
 		return fmt.Errorf("running Claude: %w", err)
 	}
 	logf("doOneTask: Claude completed for %s in %s", task.id, time.Since(claudeStart).Round(time.Second))
+
+	// Capture pre-merge HEAD for diffstat.
+	preMergeRef, _ := gitRevParseHEAD()
 
 	// Merge branch back.
 	logf("doOneTask: merging %s into %s", task.branchName, baseBranch)
@@ -334,13 +343,28 @@ func doOneTask(task stitchTask, baseBranch, repoRoot string, silence bool, token
 	}
 	logf("doOneTask: merge completed in %s", time.Since(mergeStart).Round(time.Second))
 
+	// Capture LOC diff and post-merge LOC.
+	diff, _ := gitDiffShortstat(preMergeRef)
+	logf("doOneTask: diff files=%d ins=%d del=%d", diff.FilesChanged, diff.Insertions, diff.Deletions)
+	locAfter := captureLOC()
+	logf("doOneTask: locAfter prod=%d test=%d", locAfter.Production, locAfter.Test)
+
 	// Cleanup worktree.
 	logf("doOneTask: cleaning up worktree for %s", task.id)
 	cleanupWorktree(task)
 
-	// Close task.
+	// Close task with metrics.
+	rec := invocationRecord{
+		Caller:    "stitch",
+		StartedAt: claudeStart.UTC().Format(time.RFC3339),
+		DurationS: int(time.Since(taskStart).Seconds()),
+		Tokens:    claudeTokens{Input: tokens.InputTokens, Output: tokens.OutputTokens},
+		LOCBefore: locBefore,
+		LOCAfter:  locAfter,
+		Diff:      diffRecord{Files: diff.FilesChanged, Insertions: diff.Insertions, Deletions: diff.Deletions},
+	}
 	logf("doOneTask: closing task %s", task.id)
-	closeStitchTask(task)
+	closeStitchTask(task, rec)
 
 	logf("doOneTask: task %s finished in %s", task.id, time.Since(taskStart).Round(time.Second))
 	return nil
@@ -437,8 +461,11 @@ func cleanupWorktree(task stitchTask) {
 	logf("cleanupWorktree: done for task %s", task.id)
 }
 
-func closeStitchTask(task stitchTask) {
+func closeStitchTask(task stitchTask, rec invocationRecord) {
 	logf("closeStitchTask: closing %s", task.id)
+
+	recordInvocation(task.id, rec)
+
 	if err := bdClose(task.id); err != nil {
 		logf("closeStitchTask: bd close warning for %s: %v", task.id, err)
 	}

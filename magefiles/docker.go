@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -62,17 +64,17 @@ func removeImage(rt string) {
 	_ = exec.Command(rt, "rmi", imageRef()).Run()
 }
 
-// runClaudeContainer executes claude inside a container.
+// runClaudeContainer executes claude inside a container and returns token usage.
 //
 // dir is mounted as /workspace (repo root or worktree). The credential
 // file from .secrets/ is bind-mounted read-only into the location
 // Claude Code expects on Linux.
-func runClaudeContainer(rt, prompt, dir, tokenFile string, silence bool) error {
+func runClaudeContainer(rt, prompt, dir, tokenFile string, silence bool) (claudeResult, error) {
 	if dir == "" {
 		var err error
 		dir, err = os.Getwd()
 		if err != nil {
-			return fmt.Errorf("getting working directory: %w", err)
+			return claudeResult{}, fmt.Errorf("getting working directory: %w", err)
 		}
 	}
 
@@ -80,7 +82,7 @@ func runClaudeContainer(rt, prompt, dir, tokenFile string, silence bool) error {
 	repoRoot, _ := os.Getwd()
 	credFile := filepath.Join(repoRoot, secretsDir, tokenFile)
 	if _, err := os.Stat(credFile); err != nil {
-		return fmt.Errorf("token file not found: %s", credFile)
+		return claudeResult{}, fmt.Errorf("token file not found: %s", credFile)
 	}
 
 	args := []string{
@@ -95,11 +97,18 @@ func runClaudeContainer(rt, prompt, dir, tokenFile string, silence bool) error {
 
 	cmd := exec.Command(rt, args...)
 	cmd.Stdin = strings.NewReader(prompt)
-	if !silence {
-		cmd.Stdout = os.Stdout
+
+	var stdoutBuf bytes.Buffer
+	if silence {
+		cmd.Stdout = &stdoutBuf
+	} else {
+		cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)
 		cmd.Stderr = os.Stderr
 	}
-	return cmd.Run()
+
+	err := cmd.Run()
+	result := parseClaudeTokens(stdoutBuf.Bytes())
+	return result, err
 }
 
 // Docker builds the container image, then runs claude with "Hello World".
@@ -112,5 +121,6 @@ func (Test) Docker() error {
 	mg.Deps(Build)
 
 	fmt.Fprintln(os.Stderr, "Testing container image with Hello World prompt...")
-	return runClaudeContainer(rt, "Say hello world and nothing else.", "", defaultTokenFile, false)
+	_, err := runClaudeContainer(rt, "Say hello world and nothing else.", "", defaultTokenFile, false)
+	return err
 }

@@ -1,0 +1,16 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mesh-intelligence/crumbs/tests/integration
+cpu: Apple M1
+BenchmarkPropertiesGet10_UC002-8              	   81196	     50030 ns/op	    1504 B/op	      38 allocs/op
+BenchmarkPropertiesGet100_UC002-8             	   71702	     14520 ns/op	    1504 B/op	      38 allocs/op
+BenchmarkPropertiesGet1000_UC002-8            	   80607	     14691 ns/op	    1504 B/op	      38 allocs/op
+BenchmarkPropertiesSetCreate10_UC002-8        	     100	  14259869 ns/op	  104884 B/op	    2080 allocs/op
+BenchmarkPropertiesSetCreate100_UC002-8       	      79	  15143603 ns/op	  208783 B/op	    4388 allocs/op
+BenchmarkPropertiesFetchAll_UC002-8           	    7406	    147477 ns/op	   43736 B/op	    1724 allocs/op
+BenchmarkPropertiesFetchByValueType_UC002-8   	   26847	     45635 ns/op	    9976 B/op	     345 allocs/op
+BenchmarkCategoriesGet10_UC002-8              	   84374	     13776 ns/op	    1424 B/op	      33 allocs/op
+BenchmarkCategoriesGet100_UC002-8             	   85893	     13936 ns/op	    1424 B/op	      33 allocs/op
+BenchmarkCategoriesFetchByProperty_UC002-8    	    7934	    130712 ns/op	   39208 B/op	    1233 allocs/op
+PASS
+ok  	github.com/mesh-intelligence/crumbs/tests/integration	133.322s

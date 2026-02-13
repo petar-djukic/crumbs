@@ -1,5 +1,7 @@
 # Beads (bd) Issue Tracking and Session Completion Workflow
 
+**MIGRATION NOTE**: This project is migrating to the cupboard CLI for issue tracking. See `.claude/rules/cupboard-workflow.md` for the cupboard workflow. The beads (bd) commands documented below will be replaced by cupboard commands (e.g., `cupboard ready`, `cupboard show`, `cupboard close`). For new work, refer to cupboard-workflow.md.
+
 ## Working Offline
 
 **We work offline.** There is no access to the remote repository. **Local git commit works** and is required; **do not run `git push`** (or `git pull`). The user will sync with the remote when they have network access.
