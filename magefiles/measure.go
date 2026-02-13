@@ -87,17 +87,26 @@ func measure(cfg measureConfig) error {
 	logf("measure: found %d existing issue(s), maxIssues=%d", issueCount, cfg.maxIssues)
 	logf("measure: outputFile=%s", outputFile)
 
+	// Snapshot LOC before Claude.
+	locBefore := captureLOC()
+	logf("measure: locBefore prod=%d test=%d", locBefore.Production, locBefore.Test)
+
 	// Build and run prompt.
 	prompt := buildMeasurePrompt(cfg.userPrompt, existingIssues, cfg.maxIssues, outputFile)
 	logf("measure: prompt built, length=%d bytes", len(prompt))
 
 	logf("measure: invoking Claude")
 	claudeStart := time.Now()
-	if _, err := runClaude(prompt, "", cfg.silenceAgent, cfg.tokenFile, cfg.noContainer); err != nil {
+	tokens, err := runClaude(prompt, "", cfg.silenceAgent, cfg.tokenFile, cfg.noContainer)
+	if err != nil {
 		logf("measure: Claude failed after %s: %v", time.Since(claudeStart).Round(time.Second), err)
 		return fmt.Errorf("running Claude: %w", err)
 	}
-	logf("measure: Claude completed in %s", time.Since(claudeStart).Round(time.Second))
+	claudeDuration := time.Since(claudeStart)
+	logf("measure: Claude completed in %s", claudeDuration.Round(time.Second))
+
+	// Snapshot LOC after Claude (measure doesn't change code, but record for consistency).
+	locAfter := captureLOC()
 
 	// Import proposed issues.
 	if _, statErr := os.Stat(outputFile); statErr != nil {
@@ -110,14 +119,27 @@ func measure(cfg measureConfig) error {
 
 	logf("measure: importing issues from %s", outputFile)
 	importStart := time.Now()
-	imported, err := importIssues(outputFile)
+	createdIDs, err := importIssues(outputFile)
 	if err != nil {
 		logf("measure: import failed after %s: %v", time.Since(importStart).Round(time.Second), err)
 		return fmt.Errorf("importing issues: %w", err)
 	}
-	logf("measure: imported %d issue(s) in %s", imported, time.Since(importStart).Round(time.Second))
+	logf("measure: imported %d issue(s) in %s", len(createdIDs), time.Since(importStart).Round(time.Second))
 
-	if imported == 0 {
+	// Record invocation metrics on each created issue.
+	rec := invocationRecord{
+		Caller:    "measure",
+		StartedAt: claudeStart.UTC().Format(time.RFC3339),
+		DurationS: int(claudeDuration.Seconds()),
+		Tokens:    claudeTokens{Input: tokens.InputTokens, Output: tokens.OutputTokens},
+		LOCBefore: locBefore,
+		LOCAfter:  locAfter,
+	}
+	for _, id := range createdIDs {
+		recordInvocation(id, rec)
+	}
+
+	if len(createdIDs) == 0 {
 		logf("measure: no issues imported, keeping %s for inspection", outputFile)
 	} else {
 		logf("measure: removing %s (import successful)", outputFile)
@@ -179,18 +201,18 @@ type proposedIssue struct {
 	Dependency  int    `json:"dependency"`
 }
 
-func importIssues(jsonFile string) (int, error) {
+func importIssues(jsonFile string) ([]string, error) {
 	logf("importIssues: reading %s", jsonFile)
 	data, err := os.ReadFile(jsonFile)
 	if err != nil {
-		return 0, fmt.Errorf("reading JSON file: %w", err)
+		return nil, fmt.Errorf("reading JSON file: %w", err)
 	}
 	logf("importIssues: read %d bytes", len(data))
 
 	var issues []proposedIssue
 	if err := json.Unmarshal(data, &issues); err != nil {
 		logf("importIssues: JSON parse error: %v", err)
-		return 0, fmt.Errorf("parsing JSON: %w", err)
+		return nil, fmt.Errorf("parsing JSON: %w", err)
 	}
 
 	logf("importIssues: parsed %d proposed issue(s)", len(issues))
@@ -199,7 +221,7 @@ func importIssues(jsonFile string) (int, error) {
 	}
 
 	// Pass 1: create all issues and collect their beads IDs.
-	createdIDs := make(map[int]string)
+	indexToID := make(map[int]string)
 	for _, issue := range issues {
 		logf("importIssues: creating task %d: %s", issue.Index, issue.Title)
 		out, err := bdCreateTask(issue.Title, issue.Description)
@@ -211,7 +233,7 @@ func importIssues(jsonFile string) (int, error) {
 			ID string `json:"id"`
 		}
 		if err := json.Unmarshal(out, &created); err == nil && created.ID != "" {
-			createdIDs[issue.Index] = created.ID
+			indexToID[issue.Index] = created.ID
 			logf("importIssues: created task %d -> beads id=%s", issue.Index, created.ID)
 		} else {
 			logf("importIssues: bd create returned unparseable output for %q: %s", issue.Title, string(out))
@@ -223,8 +245,8 @@ func importIssues(jsonFile string) (int, error) {
 		if issue.Dependency < 0 {
 			continue
 		}
-		childID, hasChild := createdIDs[issue.Index]
-		parentID, hasParent := createdIDs[issue.Dependency]
+		childID, hasChild := indexToID[issue.Index]
+		parentID, hasParent := indexToID[issue.Dependency]
 		if !hasChild || !hasParent {
 			logf("importIssues: skipping dependency %d->%d (child=%v parent=%v)", issue.Index, issue.Dependency, hasChild, hasParent)
 			continue
@@ -235,10 +257,18 @@ func importIssues(jsonFile string) (int, error) {
 		}
 	}
 
-	if len(createdIDs) > 0 {
+	// Collect created IDs in stable order.
+	var ids []string
+	for _, issue := range issues {
+		if id, ok := indexToID[issue.Index]; ok {
+			ids = append(ids, id)
+		}
+	}
+
+	if len(ids) > 0 {
 		beadsCommit("Add issues from measure")
 	}
-	logf("importIssues: %d of %d issue(s) imported", len(createdIDs), len(issues))
+	logf("importIssues: %d of %d issue(s) imported", len(ids), len(issues))
 
-	return len(createdIDs), nil
+	return ids, nil
 }

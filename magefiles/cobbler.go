@@ -80,6 +80,59 @@ type claudeResult struct {
 	OutputTokens int
 }
 
+// locSnapshot holds a point-in-time LOC count.
+type locSnapshot struct {
+	Production int `json:"production"`
+	Test       int `json:"test"`
+}
+
+// captureLOC returns the current Go LOC counts. Errors are swallowed
+// because stats collection is best-effort.
+func captureLOC() locSnapshot {
+	rec, err := collectStats()
+	if err != nil {
+		logf("captureLOC: collectStats error: %v", err)
+		return locSnapshot{}
+	}
+	return locSnapshot{Production: rec.GoProdLOC, Test: rec.GoTestLOC}
+}
+
+// invocationRecord is the JSON blob recorded as a beads comment after
+// every Claude invocation. Multiple records may exist per issue.
+type invocationRecord struct {
+	Caller    string       `json:"caller"`
+	StartedAt string      `json:"started_at"`
+	DurationS int         `json:"duration_s"`
+	Tokens    claudeTokens `json:"tokens"`
+	LOCBefore locSnapshot  `json:"loc_before"`
+	LOCAfter  locSnapshot  `json:"loc_after"`
+	Diff      diffRecord   `json:"diff"`
+}
+
+type claudeTokens struct {
+	Input  int `json:"input"`
+	Output int `json:"output"`
+}
+
+type diffRecord struct {
+	Files      int `json:"files"`
+	Insertions int `json:"insertions"`
+	Deletions  int `json:"deletions"`
+}
+
+// recordInvocation serializes an invocationRecord to JSON and adds it
+// as a beads comment on the given issue.
+func recordInvocation(issueID string, rec invocationRecord) {
+	data, err := json.Marshal(rec)
+	if err != nil {
+		logf("recordInvocation: marshal error: %v", err)
+		return
+	}
+	if err := bdCommentAdd(issueID, string(data)); err != nil {
+		logf("recordInvocation: bd comment error for %s: %v", issueID, err)
+	}
+}
+
 // parseClaudeTokens extracts token usage from Claude's stream-json
 // output. The final JSON line has "type":"result" with a "usage" object
 // containing "input_tokens" and "output_tokens".
