@@ -95,7 +95,7 @@ releases:
         status: done
       - id: rel02.1-uc003-self-hosting
         summary: Crumbs tracks its own development
-        status: not_started
+        status: done
       - id: rel02.1-uc004-metadata-lifecycle
         summary: "Metadata CRUD: comments, attachments, filtering, cascade delete"
         status: done
