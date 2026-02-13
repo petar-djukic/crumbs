@@ -798,6 +798,247 @@ func TestLinkManagement_FullWorkflow(t *testing.T) {
 	assert.Len(t, belongsToLinks, 0)
 }
 
+// --- Comprehensive filter AND semantics tests ---
+
+// TestLinkManagement_FetchMultipleLinksWithLinkTypeFilter validates that filtering
+// by link_type returns only links of that specific type, even when multiple link
+// types exist in the database (prd007-links-interface R4.1, R4.2).
+func TestLinkManagement_FetchMultipleLinksWithLinkTypeFilter(t *testing.T) {
+	backend, _ := newAttachedBackend(t)
+	defer backend.Detach()
+
+	linksTbl, crumbsTbl, trailsTbl := getTestTables(t, backend)
+
+	// Create diverse set of entities.
+	trail1 := createTestTrail(t, trailsTbl)
+	trail2 := createTestTrail(t, trailsTbl)
+	crumb1 := createTestCrumb(t, crumbsTbl)
+	crumb2 := createTestCrumb(t, crumbsTbl)
+	crumb3 := createTestCrumb(t, crumbsTbl)
+
+	// Create multiple belongs_to links.
+	_, err := linksTbl.Set("", &types.Link{LinkType: types.LinkTypeBelongsTo, FromID: crumb1.CrumbID, ToID: trail1.TrailID})
+	require.NoError(t, err)
+	_, err = linksTbl.Set("", &types.Link{LinkType: types.LinkTypeBelongsTo, FromID: crumb2.CrumbID, ToID: trail1.TrailID})
+	require.NoError(t, err)
+
+	// Create multiple child_of links.
+	_, err = linksTbl.Set("", &types.Link{LinkType: types.LinkTypeChildOf, FromID: crumb2.CrumbID, ToID: crumb1.CrumbID})
+	require.NoError(t, err)
+	_, err = linksTbl.Set("", &types.Link{LinkType: types.LinkTypeChildOf, FromID: crumb3.CrumbID, ToID: crumb1.CrumbID})
+	require.NoError(t, err)
+
+	// Create branches_from link.
+	_, err = linksTbl.Set("", &types.Link{LinkType: types.LinkTypeBranchesFrom, FromID: trail2.TrailID, ToID: crumb1.CrumbID})
+	require.NoError(t, err)
+
+	// Verify total count.
+	allLinks, err := linksTbl.Fetch(nil)
+	require.NoError(t, err)
+	assert.Len(t, allLinks, 5)
+
+	// Test link_type filter for belongs_to.
+	filter := types.Filter{"link_type": types.LinkTypeBelongsTo}
+	results, err := linksTbl.Fetch(filter)
+	require.NoError(t, err)
+	assert.Len(t, results, 2, "Should return only belongs_to links")
+	for _, r := range results {
+		assert.Equal(t, types.LinkTypeBelongsTo, r.(*types.Link).LinkType)
+	}
+
+	// Test link_type filter for child_of.
+	filter = types.Filter{"link_type": types.LinkTypeChildOf}
+	results, err = linksTbl.Fetch(filter)
+	require.NoError(t, err)
+	assert.Len(t, results, 2, "Should return only child_of links")
+	for _, r := range results {
+		assert.Equal(t, types.LinkTypeChildOf, r.(*types.Link).LinkType)
+	}
+
+	// Test link_type filter for branches_from.
+	filter = types.Filter{"link_type": types.LinkTypeBranchesFrom}
+	results, err = linksTbl.Fetch(filter)
+	require.NoError(t, err)
+	assert.Len(t, results, 1, "Should return only branches_from link")
+	assert.Equal(t, types.LinkTypeBranchesFrom, results[0].(*types.Link).LinkType)
+}
+
+// TestLinkManagement_FetchMultipleLinksWithFromIDFilter validates that filtering
+// by from_id returns all links originating from that entity, regardless of link
+// type (prd007-links-interface R4.1, R4.2).
+func TestLinkManagement_FetchMultipleLinksWithFromIDFilter(t *testing.T) {
+	backend, _ := newAttachedBackend(t)
+	defer backend.Detach()
+
+	linksTbl, crumbsTbl, trailsTbl := getTestTables(t, backend)
+
+	// Create entities.
+	trail := createTestTrail(t, trailsTbl)
+	crumb1 := createTestCrumb(t, crumbsTbl)
+	crumb2 := createTestCrumb(t, crumbsTbl)
+	crumb3 := createTestCrumb(t, crumbsTbl)
+
+	// Create multiple links from crumb1 to different targets.
+	_, err := linksTbl.Set("", &types.Link{LinkType: types.LinkTypeBelongsTo, FromID: crumb1.CrumbID, ToID: trail.TrailID})
+	require.NoError(t, err)
+	_, err = linksTbl.Set("", &types.Link{LinkType: types.LinkTypeChildOf, FromID: crumb1.CrumbID, ToID: crumb2.CrumbID})
+	require.NoError(t, err)
+
+	// Create a link from crumb2 (different from_id).
+	_, err = linksTbl.Set("", &types.Link{LinkType: types.LinkTypeChildOf, FromID: crumb2.CrumbID, ToID: crumb3.CrumbID})
+	require.NoError(t, err)
+
+	// Fetch all links from crumb1.
+	filter := types.Filter{"from_id": crumb1.CrumbID}
+	results, err := linksTbl.Fetch(filter)
+	require.NoError(t, err)
+	assert.Len(t, results, 2, "Should return all links from crumb1")
+	for _, r := range results {
+		assert.Equal(t, crumb1.CrumbID, r.(*types.Link).FromID)
+	}
+
+	// Verify different link types returned.
+	linkTypes := make(map[string]bool)
+	for _, r := range results {
+		linkTypes[r.(*types.Link).LinkType] = true
+	}
+	assert.True(t, linkTypes[types.LinkTypeBelongsTo])
+	assert.True(t, linkTypes[types.LinkTypeChildOf])
+}
+
+// TestLinkManagement_FetchMultipleLinksWithToIDFilter validates that filtering
+// by to_id returns all links targeting that entity, regardless of link type
+// (prd007-links-interface R4.1, R4.2).
+func TestLinkManagement_FetchMultipleLinksWithToIDFilter(t *testing.T) {
+	backend, _ := newAttachedBackend(t)
+	defer backend.Detach()
+
+	linksTbl, crumbsTbl, trailsTbl := getTestTables(t, backend)
+
+	// Create entities.
+	trail := createTestTrail(t, trailsTbl)
+	crumb1 := createTestCrumb(t, crumbsTbl)
+	crumb2 := createTestCrumb(t, crumbsTbl)
+	crumb3 := createTestCrumb(t, crumbsTbl)
+
+	// Create multiple links to crumb1 from different sources.
+	_, err := linksTbl.Set("", &types.Link{LinkType: types.LinkTypeChildOf, FromID: crumb2.CrumbID, ToID: crumb1.CrumbID})
+	require.NoError(t, err)
+	_, err = linksTbl.Set("", &types.Link{LinkType: types.LinkTypeChildOf, FromID: crumb3.CrumbID, ToID: crumb1.CrumbID})
+	require.NoError(t, err)
+	_, err = linksTbl.Set("", &types.Link{LinkType: types.LinkTypeBranchesFrom, FromID: trail.TrailID, ToID: crumb1.CrumbID})
+	require.NoError(t, err)
+
+	// Create a link to a different target.
+	_, err = linksTbl.Set("", &types.Link{LinkType: types.LinkTypeChildOf, FromID: crumb2.CrumbID, ToID: crumb3.CrumbID})
+	require.NoError(t, err)
+
+	// Fetch all links to crumb1.
+	filter := types.Filter{"to_id": crumb1.CrumbID}
+	results, err := linksTbl.Fetch(filter)
+	require.NoError(t, err)
+	assert.Len(t, results, 3, "Should return all links to crumb1")
+	for _, r := range results {
+		assert.Equal(t, crumb1.CrumbID, r.(*types.Link).ToID)
+	}
+
+	// Verify different link types and from_ids.
+	linkTypes := make(map[string]bool)
+	fromIDs := make(map[string]bool)
+	for _, r := range results {
+		linkTypes[r.(*types.Link).LinkType] = true
+		fromIDs[r.(*types.Link).FromID] = true
+	}
+	assert.True(t, linkTypes[types.LinkTypeChildOf])
+	assert.True(t, linkTypes[types.LinkTypeBranchesFrom])
+	assert.Len(t, fromIDs, 3, "Links should come from three different entities")
+}
+
+// TestLinkManagement_FetchWithCombinedFiltersANDSemantics validates that
+// multiple filter keys are ANDed together, returning only links that match ALL
+// criteria (prd007-links-interface R4.2).
+func TestLinkManagement_FetchWithCombinedFiltersANDSemantics(t *testing.T) {
+	backend, _ := newAttachedBackend(t)
+	defer backend.Detach()
+
+	linksTbl, crumbsTbl, trailsTbl := getTestTables(t, backend)
+
+	// Create entities.
+	trail1 := createTestTrail(t, trailsTbl)
+	crumb1 := createTestCrumb(t, crumbsTbl)
+	crumb2 := createTestCrumb(t, crumbsTbl)
+	crumb3 := createTestCrumb(t, crumbsTbl)
+
+	// Create diverse links.
+	// belongs_to: crumb1 -> trail1
+	_, err := linksTbl.Set("", &types.Link{LinkType: types.LinkTypeBelongsTo, FromID: crumb1.CrumbID, ToID: trail1.TrailID})
+	require.NoError(t, err)
+	// belongs_to: crumb2 -> trail1 (same trail, different crumb)
+	_, err = linksTbl.Set("", &types.Link{LinkType: types.LinkTypeBelongsTo, FromID: crumb2.CrumbID, ToID: trail1.TrailID})
+	require.NoError(t, err)
+	// child_of: crumb1 -> crumb3
+	_, err = linksTbl.Set("", &types.Link{LinkType: types.LinkTypeChildOf, FromID: crumb1.CrumbID, ToID: crumb3.CrumbID})
+	require.NoError(t, err)
+	// child_of: crumb2 -> crumb3 (same parent, different child)
+	_, err = linksTbl.Set("", &types.Link{LinkType: types.LinkTypeChildOf, FromID: crumb2.CrumbID, ToID: crumb3.CrumbID})
+	require.NoError(t, err)
+
+	// Test AND semantics: link_type AND from_id.
+	// Should return only child_of links from crumb1 (1 result).
+	filter := types.Filter{"link_type": types.LinkTypeChildOf, "from_id": crumb1.CrumbID}
+	results, err := linksTbl.Fetch(filter)
+	require.NoError(t, err)
+	assert.Len(t, results, 1, "Should return only links matching both link_type AND from_id")
+	assert.Equal(t, types.LinkTypeChildOf, results[0].(*types.Link).LinkType)
+	assert.Equal(t, crumb1.CrumbID, results[0].(*types.Link).FromID)
+
+	// Test AND semantics: link_type AND to_id.
+	// Should return only child_of links to crumb3 (2 results).
+	filter = types.Filter{"link_type": types.LinkTypeChildOf, "to_id": crumb3.CrumbID}
+	results, err = linksTbl.Fetch(filter)
+	require.NoError(t, err)
+	assert.Len(t, results, 2, "Should return only links matching both link_type AND to_id")
+	for _, r := range results {
+		assert.Equal(t, types.LinkTypeChildOf, r.(*types.Link).LinkType)
+		assert.Equal(t, crumb3.CrumbID, r.(*types.Link).ToID)
+	}
+
+	// Test AND semantics: from_id AND to_id.
+	// Should return only links from crumb1 to crumb3 (1 result).
+	filter = types.Filter{"from_id": crumb1.CrumbID, "to_id": crumb3.CrumbID}
+	results, err = linksTbl.Fetch(filter)
+	require.NoError(t, err)
+	assert.Len(t, results, 1, "Should return only links matching both from_id AND to_id")
+	assert.Equal(t, crumb1.CrumbID, results[0].(*types.Link).FromID)
+	assert.Equal(t, crumb3.CrumbID, results[0].(*types.Link).ToID)
+
+	// Test AND semantics: all three filters.
+	// Should return exactly one specific link.
+	filter = types.Filter{
+		"link_type": types.LinkTypeChildOf,
+		"from_id":   crumb1.CrumbID,
+		"to_id":     crumb3.CrumbID,
+	}
+	results, err = linksTbl.Fetch(filter)
+	require.NoError(t, err)
+	assert.Len(t, results, 1, "Should return only the link matching all three criteria")
+	link := results[0].(*types.Link)
+	assert.Equal(t, types.LinkTypeChildOf, link.LinkType)
+	assert.Equal(t, crumb1.CrumbID, link.FromID)
+	assert.Equal(t, crumb3.CrumbID, link.ToID)
+
+	// Test AND semantics with no matches.
+	// belongs_to from crumb1 to crumb3 does not exist.
+	filter = types.Filter{
+		"link_type": types.LinkTypeBelongsTo,
+		"from_id":   crumb1.CrumbID,
+		"to_id":     crumb3.CrumbID,
+	}
+	results, err = linksTbl.Fetch(filter)
+	require.NoError(t, err)
+	assert.Len(t, results, 0, "Should return empty when no links match all criteria")
+}
+
 // --- Helper functions ---
 
 // getTestTables retrieves the links, crumbs, and trails tables from the backend.
