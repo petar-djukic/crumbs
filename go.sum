@@ -1,7 +1,7 @@
 github.com/magefile/mage v1.15.0 h1:BvGheCMAsG3bWUDbZ8AyXXpCNwU9u5CB6sM+HNb9HYg=
 github.com/magefile/mage v1.15.0/go.mod h1:z5UZb/iS3GoOSn0JgWuiw7dxlurVYTu+/jHXqQg881A=
-github.com/mesh-intelligence/mage-claude-orchestrator v0.0.0-20260214034930-18a029293594 h1:otsb6TuKl71Af7jRa0qXehU8+wA/3YQ4Cq318MJYIHI=
-github.com/mesh-intelligence/mage-claude-orchestrator v0.0.0-20260214034930-18a029293594/go.mod h1:wKRxNmJ0N/fgVVCzaVRCnDSZhMJMc8SwsI5nlhjqulc=
+github.com/mesh-intelligence/mage-claude-orchestrator v0.20260213.0 h1:UeCIQxKetMwc1HrYCEEC2qZk857ygTHeEEanSqJsM0U=
+github.com/mesh-intelligence/mage-claude-orchestrator v0.20260213.0/go.mod h1:wKRxNmJ0N/fgVVCzaVRCnDSZhMJMc8SwsI5nlhjqulc=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405 h1:yhCVgyC4o1eVCa2tZl7eS0r+SDo693bJlVdllGtEeKM=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
