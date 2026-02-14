@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/mesh-intelligence/mage-claude-orchestrator/pkg/orchestrator"
 	"github.com/magefile/mage/mg"
+	"github.com/mesh-intelligence/mage-claude-orchestrator/pkg/orchestrator"
 )
 
 // Cobbler groups the measure and stitch targets.

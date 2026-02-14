@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mesh-intelligence/mage-claude-orchestrator/pkg/orchestrator"
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
+	"github.com/mesh-intelligence/mage-claude-orchestrator/pkg/orchestrator"
 )
 
 // Test groups test targets (all, unit, integration).
