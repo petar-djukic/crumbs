@@ -1,0 +1,22 @@
+module_path: github.com/mesh-intelligence/crumbs
+binary_name: cupboard
+main_package: cmd/cupboard/main.go
+go_source_dirs:
+  - cmd/
+  - pkg/
+  - internal/
+  - tests/
+binary_dir: bin
+version_file: pkg/crumbs/version.go
+seed_files:
+  pkg/crumbs/version.go: magefiles/seeds/version.go.tmpl
+  cmd/cupboard/main.go: magefiles/seeds/main.go.tmpl
+measure_prompt: magefiles/prompts/measure.tmpl
+stitch_prompt: magefiles/prompts/stitch.tmpl
+podman_image: "crumbs:latest"
+max_issues: 10
+cycles: 1
+spec_globs:
+  prd: "docs/specs/product-requirements/*.yaml"
+  use_case: "docs/specs/use-cases/*.yaml"
+  test_suite: "docs/specs/test-suites/*.yaml"
